@@ -1,15 +1,44 @@
+{******************************************************************************}
+{                                                                              }
+{  Delphi JOSE Library                                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
+{  https://github.com/paolo-rossi/delphi-jose-jwt                              }
+{                                                                              }
+{******************************************************************************}
+{                                                                              }
+{  Licensed under the Apache License, Version 2.0 (the "License");             }
+{  you may not use this file except in compliance with the License.            }
+{  You may obtain a copy of the License at                                     }
+{                                                                              }
+{      http://www.apache.org/licenses/LICENSE-2.0                              }
+{                                                                              }
+{  Unless required by applicable law or agreed to in writing, software         }
+{  distributed under the License is distributed on an "AS IS" BASIS,           }
+{  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    }
+{  See the License for the specific language governing permissions and         }
+{  limitations under the License.                                              }
+{                                                                              }
+{******************************************************************************}
+
 unit JWTDemo.Form.Main;
 
 interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, IdGlobal,
-  System.Generics.Defaults, System.Generics.Collections,
-  JOSE.Core.JWT, JOSE.Core.JWS, JOSE.Core.JWK, JOSE.Core.JWA, Vcl.ExtCtrls,
-  Vcl.ComCtrls;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, IdGlobal, System.Generics.Defaults,
+  System.Generics.Collections, Vcl.ExtCtrls, Vcl.ComCtrls,
+  JOSE.Core.JWT, JOSE.Core.JWS, JOSE.Core.JWK, JOSE.Core.JWA, JOSE.Types.JSON;
 
 type
+  TMyClaims = class(TJWTClaims)
+  private
+    function GetAppIssuer: string;
+    procedure SetAppIssuer(const Value: string);
+  public
+    property AppIssuer: string read GetAppIssuer write SetAppIssuer;
+  end;
+
   TfrmMain = class(TForm)
     mmoJSON: TMemo;
     Button8: TButton;
@@ -37,7 +66,7 @@ type
     procedure Button8Click(Sender: TObject);
     procedure Button9Click(Sender: TObject);
   private
-    FToken: TJWT;
+    //FToken: TJWT;
   public
     { Public declarations }
   end;
@@ -48,8 +77,7 @@ var
 implementation
 
 uses
-  System.Rtti, System.NetEncoding,
-  IdCoderMIME, IdHMAC, IdSSLOpenSSL, IdHMACSHA1,
+  System.Rtti,
   JOSE.Types.Bytes,
   JOSE.Core.Builder;
 
@@ -60,11 +88,15 @@ var
   LToken: TJWT;
   LSigned: TJWS;
   LKey: TJWK;
+  LClaims: TMyClaims;
 begin
-  LToken := TJWT.Create(TJWTClaims);
+  LToken := TJWT.Create(TMyClaims);
   LKey := TJWK.Create('secret');
 
-  LToken.Claims.Issuer := 'WiRL';
+  LClaims := LToken.Claims as TMyClaims;
+
+  LClaims.Issuer := 'WiRL';
+  LClaims.AppIssuer :='JWTDemo';
 
   LSigned := TJWS.Create(LToken);
 
@@ -90,6 +122,16 @@ begin
 
   mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
   mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+end;
+
+function TMyClaims.GetAppIssuer: string;
+begin
+  Result := TJSONUtils.GetJSONValue('ais', FJSON).AsString;
+end;
+
+procedure TMyClaims.SetAppIssuer(const Value: string);
+begin
+  TJSONUtils.SetJSONValueFrom<string>('ais', Value, FJSON);
 end;
 
 end.
