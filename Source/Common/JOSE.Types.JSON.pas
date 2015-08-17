@@ -51,13 +51,16 @@ type
     class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject); overload;
+    class procedure SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject); overload;
   public
     class function GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
+    class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 
     class procedure SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
+    class procedure RemoveJSONNode(const AName: string; AJSON: TJSONObject);
   end;
 
 implementation
@@ -94,6 +97,37 @@ begin
     Result := 0
   else
     Result := ISO8601ToDate(LValue)
+end;
+
+class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
+var
+  LValue: Integer;
+begin
+  LValue := TJSONUtils.GetJSONValue(AName, AJSON).AsInteger;
+  if LValue = 0 then
+    Result := 0
+  else
+    Result := UnixToDateTime(LValue)
+end;
+
+class procedure TJSONUtils.RemoveJSONNode(const AName: string; AJSON: TJSONObject);
+var
+  LValue: TJSONValue;
+begin
+  LValue := AJSON.GetValue(AName);
+  if Assigned(LValue) then
+    AJSON.RemovePair(AName);
+end;
+
+class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject);
+var
+  LValue: TJSONValue;
+begin
+  LValue := AJSON.GetValue(AName);
+  if Assigned(LValue) then
+    AJSON.RemovePair(AName);
+
+  AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
 class procedure TJSONUtils.SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
@@ -174,7 +208,7 @@ begin
       if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
          SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
          SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
-        SetJSONValue(AName, DateToISO8601(AValue.AsType<TDateTime>), AJSON)
+        SetJSONValue(AName, DateTimeToUnix(AValue.AsType<TDateTime>), AJSON)
       else
         if AValue.Kind = tkFloat then
           SetJSONValue(AName, AValue.AsType<Double>, AJSON)

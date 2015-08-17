@@ -54,6 +54,7 @@ type
     class operator Add(const A: TSuperBytes; const B: TBytes): TSuperBytes;
 
     class function Empty: TSuperBytes; static;
+    class function RandomBytes(ANumberOfBytes: Integer): TSuperBytes; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -185,6 +186,15 @@ begin
   Result := Size = 0;
 end;
 
+class function TSuperBytes.RandomBytes(ANumberOfBytes: Integer): TSuperBytes;
+var
+  LIndex: Integer;
+begin
+  SetLength(Result.FPayload, ANumberOfBytes);
+  for LIndex := 0 to ANumberOfBytes - 1 do
+    Result.FPayload[LIndex] := Random(255);
+end;
+
 function TSuperBytes.Size: Integer;
 begin
   Result := Length(FPayload);
@@ -215,5 +225,8 @@ begin
   Move(ABytes1[0], Result[0], Length(ABytes1));
   Result[Length(Result)-1] := ABytes2;
 end;
+
+initialization
+  Randomize;
 
 end.
