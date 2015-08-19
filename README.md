@@ -11,22 +11,6 @@ JOSE is a standard that provides a general approach to signing and encryption of
 - [JWA (JSON Web Algorithms)](https://tools.ietf.org/html/rfc7518) - describes cryptographic algorithms used in JOSE
 - [JWK (JSON Web Key)](https://tools.ietf.org/html/rfc7517) - describes format and handling of cryptographic keys in JOSE
 
-
-## Prerequisite
-This library is built with **Delphi XE8**, but with a minumum amount of work it will compile with **D2010 and higher**
-#### Libraries/Units dependencies
-This library has no dependencies on external libraries/units.
-
-Delphi units used:
-- System.JSON (DXE6+) (available on earlier Delphi versions as Data.DBXJSON)
-- System.Rtti (D2010+)
-- System.Generics.Collections (D2009+)
-- System.NetEncoding (DXE7+)
-- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (use last versions from svn)
-
-## Installation
-Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are done!
-
 ## Features
 
 - Token serialization
@@ -52,14 +36,29 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 - D2010+ porting
 - Unit Tests 
 
+
+## Prerequisite
+This library is built with **Delphi XE8**, but with a minumum amount of work it will compile with **D2010 and higher**
+#### Libraries/Units dependencies
+This library has no dependencies on external libraries/units.
+
+Delphi units used:
+- System.JSON (DXE6+) (available on earlier Delphi versions as Data.DBXJSON)
+- System.Rtti (D2010+)
+- System.Generics.Collections (D2009+)
+- System.NetEncoding (DXE7+)
+- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (use last versions from svn)
+
+## Installation
+Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are done!
+
 ## Code Examples
 
 ### Creating a token
 To create a token simple create an instance of the `TJWT` class and set the properties (claims).
 The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`utility class.
 
-
-```
+```delphi
 var
   LToken: TJWT;
 begin
