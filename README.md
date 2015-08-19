@@ -1,9 +1,9 @@
 # Delphi JOSE and JWT Library
 [Delphi](http://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE is support planned) compact serializations with several JOSE algorithms.
 
-#### [What is JOSE](https://tools.ietf.org/html/rfc7520)
+## What is JOSE
 
-JOSE is a standard that provides a general approach to signing and encryption of any content. JOSE consists of several RFC:
+[JOSE](https://tools.ietf.org/html/rfc7520) is a standard that provides a general approach to signing and encryption of any content. JOSE consists of several RFC:
 
 - [JWT (JSON Web Token)](https://tools.ietf.org/html/rfc7519) - describes representation of claims encoded in JSON
 - [JWS (JSON Web Signature)](https://tools.ietf.org/html/rfc7515) - describes producing and handling signed messages
