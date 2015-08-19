@@ -1,8 +1,8 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'frmMain'
-  ClientHeight = 530
+  Caption = 'JWT Demo'
+  ClientHeight = 547
   ClientWidth = 685
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -13,7 +13,7 @@ object frmMain: TfrmMain
   OldCreateOrder = False
   DesignSize = (
     685
-    530)
+    547)
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -25,7 +25,7 @@ object frmMain: TfrmMain
   end
   object Label2: TLabel
     Left = 16
-    Top = 275
+    Top = 289
     Width = 46
     Height = 13
     Caption = 'Compact:'
@@ -71,29 +71,29 @@ object frmMain: TfrmMain
     ParentFont = False
     TabOrder = 0
   end
-  object Button8: TButton
-    Left = 16
-    Top = 234
+  object btnBuild: TButton
+    Left = 135
+    Top = 227
     Width = 113
     Height = 25
     Caption = 'Build Test JWS'
     TabOrder = 1
-    OnClick = Button8Click
+    OnClick = btnBuildClick
   end
-  object Button9: TButton
-    Left = 135
-    Top = 234
+  object btnTJOSEBuild: TButton
+    Left = 16
+    Top = 227
     Width = 113
     Height = 25
-    Caption = 'Build Simple JWS'
+    Caption = 'Build using TJOSE'
     TabOrder = 2
-    OnClick = Button9Click
+    OnClick = btnTJOSEBuildClick
   end
   object mmoCompact: TMemo
     Left = 16
-    Top = 291
+    Top = 305
     Width = 657
-    Height = 226
+    Height = 229
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -231,5 +231,14 @@ object frmMain: TfrmMain
       'HMAC SHA256'
       'HMAC SHA384'
       'HMAC SHA512')
+  end
+  object btnTJOSEVerify: TButton
+    Left = 16
+    Top = 258
+    Width = 113
+    Height = 25
+    Caption = 'Verify using TJOSE'
+    TabOrder = 17
+    OnClick = btnTJOSEVerifyClick
   end
 end

@@ -41,8 +41,8 @@ type
 
   TfrmMain = class(TForm)
     mmoJSON: TMemo;
-    Button8: TButton;
-    Button9: TButton;
+    btnBuild: TButton;
+    btnTJOSEBuild: TButton;
     mmoCompact: TMemo;
     Label1: TLabel;
     Label2: TLabel;
@@ -63,8 +63,10 @@ type
     edtNotBeforeTime: TDateTimePicker;
     cbbAlgorithm: TComboBox;
     Label6: TLabel;
-    procedure Button8Click(Sender: TObject);
-    procedure Button9Click(Sender: TObject);
+    btnTJOSEVerify: TButton;
+    procedure btnTJOSEVerifyClick(Sender: TObject);
+    procedure btnBuildClick(Sender: TObject);
+    procedure btnTJOSEBuildClick(Sender: TObject);
   private
     //FToken: TJWT;
   public
@@ -83,45 +85,82 @@ uses
 
 {$R *.dfm}
 
-procedure TfrmMain.Button8Click(Sender: TObject);
+procedure TfrmMain.btnTJOSEVerifyClick(Sender: TObject);
+var
+  LKey: TJWK;
+  LToken: TJWT;
+begin
+  LKey := TJWK.Create('secret');
+  // Unpack and verify the token
+  LToken := TJOSE.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
+
+  if Assigned(LToken) then
+  begin
+    try
+      if LToken.Verified then
+        mmoJSON.Lines.Add('Token signature is verified')
+      else
+        mmoJSON.Lines.Add('Token signature is not verified')
+    finally
+      LToken.Free;
+    end;
+  end;
+end;
+
+procedure TfrmMain.btnBuildClick(Sender: TObject);
 var
   LToken: TJWT;
-  LSigned: TJWS;
+  LSigner: TJWS;
   LKey: TJWK;
   LClaims: TMyClaims;
 begin
-  LToken := TJWT.Create(TMyClaims);
-  LKey := TJWK.Create('secret');
+  LToken := TJWT.Create(TJWTClaims);
+  try
+    LToken.Claims.Issuer := 'WiRL REST Library';
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 1;
 
-  LClaims := LToken.Claims as TMyClaims;
+    LSigner := TJWS.Create(LToken);
+    LKey := TJWK.Create('secret');
+    try
+      LSigner.Sign(LKey, HS256);
 
-  LClaims.Issuer := 'WiRL';
-  LClaims.AppIssuer :='JWTDemo';
+      mmoJSON.Lines.Add('Header: ' + LToken.Header.JSON.ToJSON);
+      mmoJSON.Lines.Add('Claims: ' + LToken.Claims.JSON.ToJSON);
 
-  LSigned := TJWS.Create(LToken);
-
-  mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-  mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
-
-  LSigned.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
-
-  if LToken.Verified then
-    mmoCompact.Lines.Add(LSigned.Signature);
+      mmoCompact.Lines.Add('Header: ' + LSigner.Header);
+      mmoCompact.Lines.Add('Payload: ' + LSigner.Payload);
+      mmoCompact.Lines.Add('Signature: ' + LSigner.Signature);
+      mmoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+    finally
+      LKey.Free;
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
 end;
 
-procedure TfrmMain.Button9Click(Sender: TObject);
+procedure TfrmMain.btnTJOSEBuildClick(Sender: TObject);
 var
   LToken: TJWT;
 begin
   LToken := TJWT.Create(TJWTClaims);
-  LToken.Claims.IssuedAt := Now;
-  LToken.Claims.Expiration := Now + 1;
-  LToken.Claims.Issuer := 'WiRL';
+  try
+    // Token claims
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 1;
+    LToken.Claims.Issuer := 'WiRL REST Library';
 
-  mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
+    // Signing and Compact format creation
+    mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
 
-  mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-  mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+    // Header and Claims JSON representation
+    mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
+    mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+  finally
+    LToken.Free;
+  end;
 end;
 
 function TMyClaims.GetAppIssuer: string;

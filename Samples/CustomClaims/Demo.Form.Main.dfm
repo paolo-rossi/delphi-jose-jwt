@@ -71,23 +71,14 @@ object frmMain: TfrmMain
     ParentFont = False
     TabOrder = 0
   end
-  object Button8: TButton
+  object btnCustomClaims: TButton
     Left = 16
     Top = 234
     Width = 113
     Height = 25
-    Caption = 'Build Test JWS'
+    Caption = 'Custom Claims JWT'
     TabOrder = 1
-    OnClick = Button8Click
-  end
-  object Button9: TButton
-    Left = 135
-    Top = 234
-    Width = 113
-    Height = 25
-    Caption = 'Build Simple JWS'
-    TabOrder = 2
-    OnClick = Button9Click
+    OnClick = btnCustomClaimsClick
   end
   object mmoCompact: TMemo
     Left = 16
@@ -101,7 +92,7 @@ object frmMain: TfrmMain
     Font.Name = 'Courier New'
     Font.Style = []
     ParentFont = False
-    TabOrder = 3
+    TabOrder = 2
   end
   object edtIssuer: TLabeledEdit
     Left = 400
@@ -111,7 +102,7 @@ object frmMain: TfrmMain
     EditLabel.Width = 30
     EditLabel.Height = 13
     EditLabel.Caption = 'Issuer'
-    TabOrder = 4
+    TabOrder = 3
   end
   object edtIssuedAtTime: TDateTimePicker
     Left = 512
@@ -121,7 +112,7 @@ object frmMain: TfrmMain
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
     Kind = dtkTime
-    TabOrder = 5
+    TabOrder = 4
   end
   object edtNotBeforeDate: TDateTimePicker
     Left = 400
@@ -130,7 +121,7 @@ object frmMain: TfrmMain
     Height = 21
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
-    TabOrder = 6
+    TabOrder = 5
   end
   object edtExpiresDate: TDateTimePicker
     Left = 400
@@ -139,7 +130,7 @@ object frmMain: TfrmMain
     Height = 21
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
-    TabOrder = 7
+    TabOrder = 6
   end
   object chkIssuer: TCheckBox
     Left = 592
@@ -149,7 +140,7 @@ object frmMain: TfrmMain
     Caption = 'Include'
     Checked = True
     State = cbChecked
-    TabOrder = 8
+    TabOrder = 7
   end
   object chkIssuedAt: TCheckBox
     Left = 592
@@ -159,7 +150,7 @@ object frmMain: TfrmMain
     Caption = 'Include'
     Checked = True
     State = cbChecked
-    TabOrder = 9
+    TabOrder = 8
   end
   object chkExpires: TCheckBox
     Left = 592
@@ -169,7 +160,7 @@ object frmMain: TfrmMain
     Caption = 'Include'
     Checked = True
     State = cbChecked
-    TabOrder = 10
+    TabOrder = 9
   end
   object chkNotBefore: TCheckBox
     Left = 592
@@ -179,7 +170,7 @@ object frmMain: TfrmMain
     Caption = 'Include'
     Checked = True
     State = cbChecked
-    TabOrder = 11
+    TabOrder = 10
   end
   object Button1: TButton
     Left = 400
@@ -187,7 +178,7 @@ object frmMain: TfrmMain
     Width = 113
     Height = 25
     Caption = 'Build Custom JWS'
-    TabOrder = 12
+    TabOrder = 11
   end
   object edtIssuedAtDate: TDateTimePicker
     Left = 400
@@ -196,7 +187,7 @@ object frmMain: TfrmMain
     Height = 21
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
-    TabOrder = 13
+    TabOrder = 12
   end
   object edtExpiresTime: TDateTimePicker
     Left = 512
@@ -206,7 +197,7 @@ object frmMain: TfrmMain
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
     Kind = dtkTime
-    TabOrder = 14
+    TabOrder = 13
   end
   object edtNotBeforeTime: TDateTimePicker
     Left = 512
@@ -216,7 +207,7 @@ object frmMain: TfrmMain
     Date = 42207.710233020840000000
     Time = 42207.710233020840000000
     Kind = dtkTime
-    TabOrder = 15
+    TabOrder = 14
   end
   object cbbAlgorithm: TComboBox
     Left = 400
@@ -225,7 +216,7 @@ object frmMain: TfrmMain
     Height = 21
     Style = csDropDownList
     ItemIndex = 0
-    TabOrder = 16
+    TabOrder = 15
     Text = 'HMAC SHA256'
     Items.Strings = (
       'HMAC SHA256'

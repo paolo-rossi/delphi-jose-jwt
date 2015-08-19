@@ -126,8 +126,7 @@ begin
   end;
 end;
 
-class function TJOSE.SHA256CompactToken(AKey: TSuperBytes; AToken: TJWT):
-    TSuperBytes;
+class function TJOSE.SHA256CompactToken(AKey: TSuperBytes; AToken: TJWT): TSuperBytes;
 var
   LSigner: TJWS;
   LKey: TJWK;

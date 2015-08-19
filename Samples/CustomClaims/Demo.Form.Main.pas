@@ -41,8 +41,7 @@ type
 
   TfrmMain = class(TForm)
     mmoJSON: TMemo;
-    Button8: TButton;
-    Button9: TButton;
+    btnCustomClaims: TButton;
     mmoCompact: TMemo;
     Label1: TLabel;
     Label2: TLabel;
@@ -63,8 +62,7 @@ type
     edtNotBeforeTime: TDateTimePicker;
     cbbAlgorithm: TComboBox;
     Label6: TLabel;
-    procedure Button8Click(Sender: TObject);
-    procedure Button9Click(Sender: TObject);
+    procedure btnCustomClaimsClick(Sender: TObject);
   private
     { Private declarations }
   public
@@ -83,46 +81,30 @@ uses
 
 {$R *.dfm}
 
-procedure TfrmMain.Button8Click(Sender: TObject);
+procedure TfrmMain.btnCustomClaimsClick(Sender: TObject);
 var
   LToken: TJWT;
-  LSigned: TJWS;
-  LKey: TJWK;
   LClaims: TMyClaims;
 begin
   LToken := TJWT.Create(TMyClaims);
-  LKey := TJWK.Create('secret');
+  try
+    LClaims := LToken.Claims as TMyClaims;
 
-  LClaims := LToken.Claims as TMyClaims;
+    LClaims.IssuedAt := Now;
+    LClaims.Expiration := Now + 1;
+    LClaims.Issuer := 'WiRL REST Library';
+    LClaims.AppIssuer :='CustomClaims';
 
-  LClaims.Issuer := 'WiRL';
-  LClaims.AppIssuer :='JWTDemo';
+    mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
 
-  LSigned := TJWS.Create(LToken);
-
-  mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-  mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
-
-  LSigned.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
-
-  if LToken.Verified then
-    mmoCompact.Lines.Add(LSigned.Signature);
+    mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
+    mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+  finally
+    LToken.Free;
+  end;
 end;
 
-procedure TfrmMain.Button9Click(Sender: TObject);
-var
-  LToken: TJWT;
-begin
-  LToken := TJWT.Create(TJWTClaims);
-  LToken.Claims.IssuedAt := Now;
-  LToken.Claims.Expiration := Now + 1;
-  LToken.Claims.Issuer := 'WiRL';
-
-  mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
-
-  mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-  mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
-end;
+{ TMyClaims }
 
 function TMyClaims.GetAppIssuer: string;
 begin

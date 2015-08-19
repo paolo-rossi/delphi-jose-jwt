@@ -55,10 +55,9 @@
         <DCC_K>false</DCC_K>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
-        <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
+        <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <VerInfo_Locale>1033</VerInfo_Locale>
-        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <DCC_UsePackage>JvGlobus;JvMM;FireDACTDataDriver;JvManagedThreads;unidac220;FireDACSqliteDriver;FireDACDSDriver;DBXSqliteDriver;dacvcl220;FireDACPgDriver;fmx;Mitov_VCL_Runtime_DXE8;JvDlgs;IndySystem;JvCrypt;TeeDB;tethering;SynEditDR;vclib;DBXInterBaseDriver;DataSnapClient;DataSnapServer;DataSnapCommon;JvNet;DataSnapProviderClient;JvDotNetCtrls;DBXSybaseASEDriver;DbxCommonDriver;vclimg;dbxcds;DatasnapConnectorsFreePascal;appanalytics;JvXPCtrls;vcldb;vcldsnap;fmxFireDAC;DBXDb2Driver;DBXOracleDriver;CustomIPTransport;JvCore;vclribbon;MPEasyListview;dsnap;IndyIPServer;dacfmx220;fmxase;vcl;IndyCore;DBXMSSQLDriver;IndyIPCommon;CloudService;FmxTeeUI;FireDACIBDriver;CodeSiteExpressPkg;DataSnapFireDAC;FireDACDBXDriver;JvAppFrm;soapserver;JvDB;JvRuntimeDesign;inetdbxpress;vclSvComV8D22;WiRLClient;dsnapxml;FireDACInfxDriver;FireDACDb2Driver;JclDeveloperTools;JvDocking;adortl;JvWizards;madBasic_;FireDACASADriver;JvHMI;bindcompfmx;JvBands;FireDACODBCDriver;RESTBackendComponents;emsclientfiredac;MPCommonLib;rtl;dbrtl;DbxClientDriver;FireDACCommon;bindcomp;inetdb;JvPluginSystem;Tee;JclContainers;DBXOdbcDriver;ibmonitor;vclFireDAC;JvCmp;madDisAsm_;JvSystem;xmlrtl;DataSnapNativeClient;svnui;ibxpress;JvControls;JvTimeFramework;unidacvcl220;IndyProtocols;DBXMySQLDriver;dac220;FireDACCommonDriver;bindcompdbx;soaprtl;bindengine;vclactnband;FMXTee;TeeUI;bindcompvcl;JvStdCtrls;JvCustom;Jcl;vclie;JvJans;JvPageComps;JvPrintPreview;madExcept_;FireDACADSDriver;vcltouch;emsclient;PngComponents;VclSmp;FireDAC;DBXInformixDriver;FireDACMSSQLDriver;VCLRESTComponents;Intraweb;DataSnapConnectors;DataSnapServerMidas;Mitov_Runtime_DXE8;SMCmpntXE8;dsnapcon;DBXFirebirdDriver;inet;unidacfmx220;fmxobj;JclVcl;JvPascalInterpreter;FireDACMySQLDriver;soapmidas;vclx;svn;DBXSybaseASADriver;FireDACOracleDriver;fmxdae;RESTComponents;FireDACMSAccDriver;dbexpress;DataSnapIndy10ServerTransport;IndyIPClient;$(DCC_UsePackage)</DCC_UsePackage>
     </PropertyGroup>
@@ -501,13 +500,13 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <ProjectRoot Platform="iOSSimulator" Name="$(PROJECTNAME).app"/>
+                <ProjectRoot Platform="iOSDevice32" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Android" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="Win32" Name="$(PROJECTNAME)"/>
                 <ProjectRoot Platform="iOSDevice64" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="OSX32" Name="$(PROJECTNAME).app"/>
+                <ProjectRoot Platform="iOSSimulator" Name="$(PROJECTNAME).app"/>
                 <ProjectRoot Platform="Win64" Name="$(PROJECTNAME)"/>
-                <ProjectRoot Platform="iOSDevice32" Name="$(PROJECTNAME).app"/>
             </Deployment>
             <Platforms>
                 <Platform value="Win32">True</Platform>
