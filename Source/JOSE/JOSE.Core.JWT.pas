@@ -116,7 +116,6 @@ type
     constructor Create(AClaimsClass: TJWTClaimsClass);
     destructor Destroy; override;
 
-
     property Header: TJWTHeader read FHeader;
     property Claims: TJWTClaims read FClaims;
     property Verified: Boolean read FVerified write FVerified;

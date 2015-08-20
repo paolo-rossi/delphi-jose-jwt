@@ -28,13 +28,16 @@
 This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
 
 ## Todo
+
 ##### Features
 - Token validation: `aud`, `iss`, `sub`
 - RSA algorithms implementation
 - Creation of `TJWTClaims` derived classes
+
 ##### Code
 - D2010+ porting
 - Unit Tests 
+- More examples
 
 
 ## Prerequisite

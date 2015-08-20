@@ -41,31 +41,36 @@ type
 
   TfrmMain = class(TForm)
     mmoJSON: TMemo;
-    btnBuild: TButton;
-    btnTJOSEBuild: TButton;
     mmoCompact: TMemo;
     Label1: TLabel;
     Label2: TLabel;
+    PageControl1: TPageControl;
+    tsSimple: TTabSheet;
+    tsCustom: TTabSheet;
+    Label3: TLabel;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
     edtIssuer: TLabeledEdit;
     edtIssuedAtTime: TDateTimePicker;
     edtNotBeforeDate: TDateTimePicker;
     edtExpiresDate: TDateTimePicker;
-    Label3: TLabel;
-    Label4: TLabel;
-    Label5: TLabel;
     chkIssuer: TCheckBox;
     chkIssuedAt: TCheckBox;
     chkExpires: TCheckBox;
     chkNotBefore: TCheckBox;
-    Button1: TButton;
+    btnCustomJWS: TButton;
     edtIssuedAtDate: TDateTimePicker;
     edtExpiresTime: TDateTimePicker;
     edtNotBeforeTime: TDateTimePicker;
     cbbAlgorithm: TComboBox;
-    Label6: TLabel;
+    btnBuild: TButton;
+    btnTJOSEBuild: TButton;
     btnTJOSEVerify: TButton;
+    btnTestClaims: TButton;
     procedure btnTJOSEVerifyClick(Sender: TObject);
     procedure btnBuildClick(Sender: TObject);
+    procedure btnTestClaimsClick(Sender: TObject);
     procedure btnTJOSEBuildClick(Sender: TObject);
   private
     //FToken: TJWT;
@@ -141,10 +146,25 @@ begin
   end;
 end;
 
+procedure TfrmMain.btnTestClaimsClick(Sender: TObject);
+var
+  LToken: TJWT;
+begin
+  // Create a JWT Object
+  LToken := TJWT.Create(TJWTClaims);
+  try
+    LToken.Claims.IssuedAt := Now;
+    mmoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));
+  finally
+    LToken.Free;
+  end;
+end;
+
 procedure TfrmMain.btnTJOSEBuildClick(Sender: TObject);
 var
   LToken: TJWT;
 begin
+  // Create a JWT Object
   LToken := TJWT.Create(TJWTClaims);
   try
     // Token claims

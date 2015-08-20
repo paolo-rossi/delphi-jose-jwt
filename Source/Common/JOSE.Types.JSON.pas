@@ -35,6 +35,8 @@ uses
   System.JSON;
 
 type
+  EJSONConversionException = class(Exception);
+
   TJSONAncestor = System.JSON.TJSONAncestor;
   TJSONPair = System.JSON.TJSONPair;
   TJSONValue = System.JSON.TJSONValue;
@@ -48,6 +50,7 @@ type
 
   TJSONUtils = class
   private
+
     class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject); overload;
@@ -55,6 +58,9 @@ type
     class procedure SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject); overload;
   public
+    class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
+    class function GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
+    class function GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
@@ -101,13 +107,55 @@ end;
 
 class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 var
-  LValue: Integer;
+  LValue: Int64;
 begin
-  LValue := TJSONUtils.GetJSONValue(AName, AJSON).AsInteger;
+  LValue := TJSONUtils.GetJSONValueInt64(AName, AJSON).AsInt64;
   if LValue = 0 then
     Result := 0
   else
     Result := UnixToDateTime(LValue)
+end;
+
+class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
+var
+  LValue: TJSONValue;
+begin
+  LValue := AJSON.GetValue(AName);
+
+  if not Assigned(LValue) then
+    Result := TValue.Empty
+  else if LValue is TJSONNumber then
+    Result := TJSONNumber(LValue).AsDouble
+  else
+    raise EJSONConversionException.Create('JSON Incompatible type. Expected Double');
+end;
+
+class function TJSONUtils.GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
+var
+  LValue: TJSONValue;
+begin
+  LValue := AJSON.GetValue(AName);
+
+  if not Assigned(LValue) then
+    Result := TValue.Empty
+  else if LValue is TJSONNumber then
+    Result := TJSONNumber(LValue).AsInt
+  else
+    raise EJSONConversionException.Create('JSON Incompatible type. Expected Integer');
+end;
+
+class function TJSONUtils.GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
+var
+  LValue: TJSONValue;
+begin
+  LValue := AJSON.GetValue(AName);
+
+  if not Assigned(LValue) then
+    Result := TValue.Empty
+  else if LValue is TJSONNumber then
+    Result := TJSONNumber(LValue).AsInt64
+  else
+    raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
 end;
 
 class procedure TJSONUtils.RemoveJSONNode(const AName: string; AJSON: TJSONObject);
