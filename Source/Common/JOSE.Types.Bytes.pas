@@ -83,7 +83,7 @@ begin
   LLen := Length(A);
   Result := LLen = Length(B);
   if Result and (LLen > 0) then
-    Result := CompareMem(Pointer(A), Pointer(A), LLen);
+    Result := CompareMem(Pointer(A), Pointer(B), LLen);
 end;
 
 
