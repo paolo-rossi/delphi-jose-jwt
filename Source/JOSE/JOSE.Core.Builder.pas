@@ -41,10 +41,10 @@ uses
 type
   TJOSE = class
   private
-    class function DeserialzeVerify(AKey: TJWK; ACompactToken: TSuperBytes; AVerify: Boolean): TJWT;
+    class function DeserialzeVerify(AKey: TJWK; ACompactToken: TSuperBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
     class function Sign(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TSuperBytes;
-    class function Verify(AKey: TJWK; ACompactToken: TSuperBytes): TJWT;
+    class function Verify(AKey: TJWK; ACompactToken: TSuperBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT;
 
     class function SerializeCompact(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TSuperBytes;
     class function DeserializeCompact(const ACompactToken: TSuperBytes): TJWT;
@@ -63,10 +63,11 @@ uses
 
 class function TJOSE.DeserializeCompact(const ACompactToken: TSuperBytes): TJWT;
 begin
-  Result := DeserialzeVerify(nil, ACompactToken, True);
+  Result := DeserialzeVerify(nil, ACompactToken, True, TJWTClaims);
 end;
 
-class function TJOSE.DeserialzeVerify(AKey: TJWK; ACompactToken: TSuperBytes; AVerify: Boolean): TJWT;
+class function TJOSE.DeserialzeVerify(AKey: TJWK; ACompactToken: TSuperBytes; AVerify: Boolean; AClaimsClass:
+    TJWTClaimsClass): TJWT;
 var
   LRes: TStringDynArray;
   LSigner: TJWS;
@@ -77,7 +78,7 @@ begin
   case Length(LRes) of
     3:
     begin
-      Result := TJWT.Create(TJWTClaims);
+      Result := TJWT.Create(AClaimsClass);
       try
         LSigner := TJWS.Create(Result);
         try
@@ -142,9 +143,12 @@ begin
   end;
 end;
 
-class function TJOSE.Verify(AKey: TJWK; ACompactToken: TSuperBytes): TJWT;
+class function TJOSE.Verify(AKey: TJWK; ACompactToken: TSuperBytes; AClaimsClass: TJWTClaimsClass): TJWT;
 begin
-  Result := DeserialzeVerify(AKey, ACompactToken, True);
+  if not Assigned(AClaimsClass) then
+    AClaimsClass := TJWTClaims;
+
+  Result := DeserialzeVerify(AKey, ACompactToken, True, AClaimsClass);
 end;
 
 end.

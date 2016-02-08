@@ -114,7 +114,7 @@ var
   LRes: TStringDynArray;
 begin
   LRes := SplitString(Value, PART_SEPARATOR);
-  if Length(LRes) = 3 then
+  if Length(LRes) = COMPACT_PARTS then
   begin
     FParts[0] := LRes[0];
     FParts[1] := LRes[1];
