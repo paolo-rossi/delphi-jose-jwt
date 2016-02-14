@@ -148,8 +148,8 @@ begin
 end;
 
 procedure TJWTClaims.CheckRegisteredClaims(AOptions: TClaimVerifications = []);
-var
-  LOption: TClaimVerification;
+//var
+//  LOption: TClaimVerification;
 begin
 {
   for LOption in AOptions do
