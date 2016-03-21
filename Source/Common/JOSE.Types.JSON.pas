@@ -78,102 +78,102 @@ uses
 
 class function TJSONUtils.GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
+  LJSONValue := AJSON.GetValue(AName);
 
-  if not Assigned(LValue) then
+  if not Assigned(LJSONValue) then
     Result := TValue.Empty
-  else if LValue is TJSONTrue then
+  else if LJSONValue is TJSONTrue then
     Result := True
-  else if LValue is TJSONFalse then
+  else if LJSONValue is TJSONFalse then
     Result := False
-  else if LValue is TJSONNumber then
-    Result := TJSONNumber(LValue).AsDouble
+  else if LJSONValue is TJSONNumber then
+    Result := TJSONNumber(LJSONValue).AsDouble
   else
-    Result := LValue.Value;
+    Result := LJSONValue.Value;
 end;
 
 class function TJSONUtils.GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
 var
-  LValue: string;
+  LJSONValue: string;
 begin
-  LValue := TJSONUtils.GetJSONValue(AName, AJSON).AsString;
-  if LValue = '' then
+  LJSONValue := TJSONUtils.GetJSONValue(AName, AJSON).AsString;
+  if LJSONValue = '' then
     Result := 0
   else
-    Result := ISO8601ToDate(LValue)
+    Result := ISO8601ToDate(LJSONValue)
 end;
 
 class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 var
-  LValue: Int64;
+  LJSONValue: Int64;
 begin
-  LValue := TJSONUtils.GetJSONValueInt64(AName, AJSON).AsInt64;
-  if LValue = 0 then
+  LJSONValue := TJSONUtils.GetJSONValueInt64(AName, AJSON).AsInt64;
+  if LJSONValue = 0 then
     Result := 0
   else
-    Result := UnixToDateTime(LValue)
+    Result := UnixToDateTime(LJSONValue)
 end;
 
 class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
+  LJSONValue := AJSON.GetValue(AName);
 
-  if not Assigned(LValue) then
+  if not Assigned(LJSONValue) then
     Result := TValue.Empty
-  else if LValue is TJSONNumber then
-    Result := TJSONNumber(LValue).AsDouble
+  else if LJSONValue is TJSONNumber then
+    Result := TJSONNumber(LJSONValue).AsDouble
   else
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Double');
 end;
 
 class function TJSONUtils.GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
+  LJSONValue := AJSON.GetValue(AName);
 
-  if not Assigned(LValue) then
+  if not Assigned(LJSONValue) then
     Result := TValue.Empty
-  else if LValue is TJSONNumber then
-    Result := TJSONNumber(LValue).AsInt
+  else if LJSONValue is TJSONNumber then
+    Result := TJSONNumber(LJSONValue).AsInt
   else
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Integer');
 end;
 
 class function TJSONUtils.GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
+  LJSONValue := AJSON.GetValue(AName);
 
-  if not Assigned(LValue) then
+  if not Assigned(LJSONValue) then
     Result := TValue.Empty
-  else if LValue is TJSONNumber then
-    Result := TJSONNumber(LValue).AsInt64
+  else if LJSONValue is TJSONNumber then
+    Result := TJSONNumber(LJSONValue).AsInt64
   else
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
 end;
 
 class procedure TJSONUtils.RemoveJSONNode(const AName: string; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LPair: TJSONPair;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LPair := AJSON.RemovePair(AName);
+  if Assigned(LPair) then
+    LPair.Free;
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LJSONValue := AJSON.GetValue(AName);
+  if Assigned(LJSONValue) then
+    AJSON.RemovePair(AName).Free;
 
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
@@ -185,44 +185,44 @@ end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LJSONValue := AJSON.GetValue(AName);
+  if Assigned(LJSONValue) then
+    AJSON.RemovePair(AName).Free;
 
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LJSONValue := AJSON.GetValue(AName);
+  if Assigned(LJSONValue) then
+    AJSON.RemovePair(AName).Free;
 
   AJSON.AddPair(TJSONPair.Create(AName, AValue));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LJSONValue := AJSON.GetValue(AName);
+  if Assigned(LJSONValue) then
+    AJSON.RemovePair(AName).Free;
 
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject);
 var
-  LValue: TJSONValue;
+  LJSONValue: TJSONValue;
 begin
-  LValue := AJSON.GetValue(AName);
-  if Assigned(LValue) then
-    AJSON.RemovePair(AName);
+  LJSONValue := AJSON.GetValue(AName);
+  if Assigned(LJSONValue) then
+    AJSON.RemovePair(AName).Free;
 
   if AValue then
     AJSON.AddPair(TJSONPair.Create(AName, TJSONTrue.Create))

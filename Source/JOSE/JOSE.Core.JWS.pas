@@ -148,7 +148,9 @@ var
 begin
   Empty;
 
-  FToken.Header.Algorithm := AAlg.AsString;
+  if FToken.Header.Algorithm <> AAlg.AsString then
+    FToken.Header.Algorithm := AAlg.AsString;
+
   Header := TBase64.URLEncode(FToken.Header.JSON.ToJSON);
   Payload := TBase64.URLEncode(FToken.Claims.JSON.ToJSON);
 

@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'JWT Demo'
-  ClientHeight = 542
-  ClientWidth = 793
+  ClientHeight = 559
+  ClientWidth = 893
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -11,62 +11,41 @@ object frmMain: TfrmMain
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
-  DesignSize = (
-    793
-    542)
+  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
-  object Label1: TLabel
-    Left = 320
-    Top = 8
-    Width = 91
-    Height = 13
-    Caption = 'JSON Visualization:'
-  end
-  object Label2: TLabel
-    Left = 8
-    Top = 304
-    Width = 107
-    Height = 13
-    Caption = 'Compact Visualization:'
-  end
-  object mmoJSON: TMemo
-    Left = 320
-    Top = 29
-    Width = 465
-    Height = 273
-    Font.Charset = ANSI_CHARSET
-    Font.Color = clWindowText
-    Font.Height = -13
-    Font.Name = 'Courier New'
-    Font.Style = []
-    ParentFont = False
-    TabOrder = 0
-  end
-  object mmoCompact: TMemo
-    Left = 8
-    Top = 320
-    Width = 777
-    Height = 214
-    Anchors = [akLeft, akTop, akRight, akBottom]
-    Font.Charset = ANSI_CHARSET
-    Font.Color = clWindowText
-    Font.Height = -13
-    Font.Name = 'Courier New'
-    Font.Style = []
-    ParentFont = False
-    TabOrder = 1
-  end
   object PageControl1: TPageControl
-    Left = 8
-    Top = 8
-    Width = 297
-    Height = 294
-    ActivePage = tsSimple
+    Left = 0
+    Top = 0
+    Width = 893
+    Height = 559
+    ActivePage = tsDebugger
+    Align = alClient
     Style = tsFlatButtons
-    TabOrder = 2
+    TabOrder = 0
+    object tsDebugger: TTabSheet
+      Caption = 'JWT Debugger'
+      ImageIndex = 2
+    end
     object tsSimple: TTabSheet
       Caption = 'Simple Token'
+      DesignSize = (
+        885
+        528)
+      object Label1: TLabel
+        Left = 376
+        Top = 0
+        Width = 91
+        Height = 13
+        Caption = 'JSON Visualization:'
+      end
+      object Label2: TLabel
+        Left = 0
+        Top = 293
+        Width = 107
+        Height = 13
+        Caption = 'Compact Visualization:'
+      end
       object btnBuild: TButton
         Left = 0
         Top = 81
@@ -102,6 +81,34 @@ object frmMain: TfrmMain
         Caption = 'Test Date Claims'
         TabOrder = 3
         OnClick = btnTestClaimsClick
+      end
+      object mmoJSON: TMemo
+        Left = 376
+        Top = 19
+        Width = 509
+        Height = 270
+        Anchors = [akLeft, akTop, akRight, akBottom]
+        Font.Charset = ANSI_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -13
+        Font.Name = 'Courier New'
+        Font.Style = []
+        ParentFont = False
+        TabOrder = 4
+      end
+      object mmoCompact: TMemo
+        Left = 0
+        Top = 312
+        Width = 885
+        Height = 216
+        Align = alBottom
+        Font.Charset = ANSI_CHARSET
+        Font.Color = clWindowText
+        Font.Height = -13
+        Font.Name = 'Courier New'
+        Font.Style = []
+        ParentFont = False
+        TabOrder = 5
       end
     end
     object tsCustom: TTabSheet

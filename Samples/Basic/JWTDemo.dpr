@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015 Paolo Rossi                                              }
+{  Copyright (c) 2015-2016 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -23,8 +23,12 @@
 program JWTDemo;
 
 uses
+  {$IFDEF FASTMM4}
+  FastMM4,
+  {$ENDIF }
   Vcl.Forms,
-  JWTDemo.Form.Main in 'JWTDemo.Form.Main.pas' {frmMain};
+  JWTDemo.Form.Main in 'JWTDemo.Form.Main.pas' {frmMain},
+  JWTDemo.Form.Debugger in 'JWTDemo.Form.Debugger.pas' {frmDebugger};
 
 {$R *.res}
 

@@ -93,7 +93,6 @@ var
 begin
   LJSONStr := TBase64.Decode(Value);
   FJSON.Parse(LJSONStr, 0)
-
 end;
 
 procedure TJOSEBase.SetURLEncoded(const Value: TSuperBytes);

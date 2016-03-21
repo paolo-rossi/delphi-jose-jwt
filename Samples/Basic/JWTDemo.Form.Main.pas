@@ -28,22 +28,29 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, IdGlobal, System.Generics.Defaults,
   System.Generics.Collections, Vcl.ExtCtrls, Vcl.ComCtrls,
-  JOSE.Core.JWT, JOSE.Core.JWS, JOSE.Core.JWK, JOSE.Core.JWA, JOSE.Types.JSON;
+  JWTDemo.Form.Debugger,
+  JOSE.Core.JWT,
+  JOSE.Core.JWS,
+  JOSE.Core.JWK,
+  JOSE.Core.JWA,
+  JOSE.Types.JSON;
 
 type
   TMyClaims = class(TJWTClaims)
   private
     function GetAppIssuer: string;
+    function GetEmail: string;
     procedure SetAppIssuer(const Value: string);
+    procedure SetEmail(const Value: string);
+    function GetAppSite: string;
+    procedure SetAppSite(const Value: string);
   public
     property AppIssuer: string read GetAppIssuer write SetAppIssuer;
+    property AppSite: string read GetAppSite write SetAppSite;
+    property Email: string read GetEmail write SetEmail;
   end;
 
   TfrmMain = class(TForm)
-    mmoJSON: TMemo;
-    mmoCompact: TMemo;
-    Label1: TLabel;
-    Label2: TLabel;
     PageControl1: TPageControl;
     tsSimple: TTabSheet;
     tsCustom: TTabSheet;
@@ -68,11 +75,18 @@ type
     btnTJOSEBuild: TButton;
     btnTJOSEVerify: TButton;
     btnTestClaims: TButton;
+    tsDebugger: TTabSheet;
+    Label1: TLabel;
+    mmoJSON: TMemo;
+    Label2: TLabel;
+    mmoCompact: TMemo;
+    procedure FormCreate(Sender: TObject);
     procedure btnTJOSEVerifyClick(Sender: TObject);
     procedure btnBuildClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
     procedure btnTJOSEBuildClick(Sender: TObject);
   private
+    FDebuggerView: TfrmDebugger;
     //FToken: TJWT;
   public
     { Public declarations }
@@ -89,6 +103,17 @@ uses
   JOSE.Core.Builder;
 
 {$R *.dfm}
+
+procedure TfrmMain.FormCreate(Sender: TObject);
+begin
+  FDebuggerView := TfrmDebugger.Create(Application);
+  FDebuggerView.BorderStyle := bsNone;
+  FDebuggerView.Top := 0;
+  FDebuggerView.Left := 0;
+  FDebuggerView.Parent := tsDebugger;
+  FDebuggerView.Align := alClient;
+  FDebuggerView.Show;
+end;
 
 procedure TfrmMain.btnTJOSEVerifyClick(Sender: TObject);
 var
@@ -117,13 +142,16 @@ var
   LToken: TJWT;
   LSigner: TJWS;
   LKey: TJWK;
-  LClaims: TMyClaims;
 begin
-  LToken := TJWT.Create(TJWTClaims);
+  LToken := TJWT.Create(TMyClaims);
   try
-    LToken.Claims.Issuer := 'WiRL REST Library';
+    LToken.Claims.Issuer := 'Delphi JOSE Library';
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
+    //Custom Claims
+    (LToken.Claims as TMyClaims).AppIssuer := 'MARS REST Library';
+    (LToken.Claims as TMyClaims).AppSite := 'https://github.com/MARS-library/MARS';
+    (LToken.Claims as TMyClaims).Email := 'my@mail.com';
 
     LSigner := TJWS.Create(LToken);
     LKey := TJWK.Create('secret');
@@ -170,7 +198,7 @@ begin
     // Token claims
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
-    LToken.Claims.Issuer := 'WiRL REST Library';
+    LToken.Claims.Issuer := 'Delphi JOSE Library';
 
     // Signing and Compact format creation
     mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
@@ -185,12 +213,32 @@ end;
 
 function TMyClaims.GetAppIssuer: string;
 begin
-  Result := TJSONUtils.GetJSONValue('ais', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValue('appissuer', FJSON).AsString;
+end;
+
+function TMyClaims.GetAppSite: string;
+begin
+  Result := TJSONUtils.GetJSONValue('appsite', FJSON).AsString;
+end;
+
+function TMyClaims.GetEmail: string;
+begin
+  Result := TJSONUtils.GetJSONValue('email', FJSON).AsString;
 end;
 
 procedure TMyClaims.SetAppIssuer(const Value: string);
 begin
-  TJSONUtils.SetJSONValueFrom<string>('ais', Value, FJSON);
+  TJSONUtils.SetJSONValueFrom<string>('appissuer', Value, FJSON);
+end;
+
+procedure TMyClaims.SetAppSite(const Value: string);
+begin
+  TJSONUtils.SetJSONValueFrom<string>('appsite', Value, FJSON);
+end;
+
+procedure TMyClaims.SetEmail(const Value: string);
+begin
+  TJSONUtils.SetJSONValueFrom<string>('email', Value, FJSON);
 end;
 
 end.
