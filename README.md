@@ -1,8 +1,13 @@
 # Delphi JOSE and JWT Library
 
+[Delphi](http://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE is support planned) compact serializations with several JOSE algorithms.
+
 ![Image of Delphi-JOSE Demo](http://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
 
-[Delphi](http://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE is support planned) compact serializations with several JOSE algorithms.
+## Important!
+The HMAC algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
+The client doesn't have to generate or verify the token (using HMAC) so on the client-side there's no need for the OpenSSL DLLs.
+You can download the packages at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always download the latest version)
 
 ## What is JOSE
 
@@ -44,7 +49,7 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 
 
 ## Prerequisite
-This library is built with **Delphi XE8**, but with a minumum amount of work it will compile with **D2010 and higher**
+This library is built with **Delphi XE8**, but with a minimum amount of work it will compile with **D2010 and higher**
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
 
