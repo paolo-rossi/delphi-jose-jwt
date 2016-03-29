@@ -1,8 +1,8 @@
-# <div style="text-align:center">Delphi JOSE and JWT Library</div>
+# <div align="center">Delphi JOSE and JWT Library</div>
 
 <br />
 
-<div style="text-align:center">[![Browse on jwt.io](http://paolo-rossi.github.io/delphi-jose-jwt/images/jwt-badge.svg "Browse on jwt.io")](http://jwt.io/)</div>
+<div align="center"><a href="http://jwt.io/" target="_blank">![Browse on jwt.io](http://paolo-rossi.github.io/delphi-jose-jwt/images/jwt-badge.svg)</a></div>
 
 <hr />
 
