@@ -49,6 +49,7 @@ type
     chkKeyBase64: TCheckBox;
     shpStatus: TShape;
     lblStatus: TLabel;
+    procedure cbbDebuggerAlgoChange(Sender: TObject);
     procedure chkKeyBase64Click(Sender: TObject);
     procedure edtKeyChange(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -57,6 +58,7 @@ type
     procedure memoPayloadChange(Sender: TObject);
   private
     FJWT: TJWT;
+    FAlg: TJWAEnum;
 
     procedure GenerateToken;
     procedure WriteCompactHeader(const AHeader: string);
@@ -79,6 +81,16 @@ var
 implementation
 
 {$R *.dfm}
+
+procedure TfrmDebugger.cbbDebuggerAlgoChange(Sender: TObject);
+begin
+  case cbbDebuggerAlgo.ItemIndex of
+    0: FAlg := HS256;
+    1: FAlg := HS384;
+    2: FAlg := HS512;
+  end;
+  GenerateToken;
+end;
 
 procedure TfrmDebugger.chkKeyBase64Click(Sender: TObject);
 begin
@@ -116,6 +128,8 @@ begin
   FJWT.Claims.JSON.Free;
   FJWT.Claims.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoPayload.Lines.Text));
 
+  FAlg := HS256;
+
   WriteDefault;
 end;
 
@@ -137,7 +151,7 @@ begin
       LKey := TJWK.Create(edtKey.Text);
 
     try
-      LSigner.Sign(LKey, HS256);
+      LSigner.Sign(LKey, FAlg);
 
       WriteCompactHeader(LSigner.Header);
       WriteCompactSeparator;

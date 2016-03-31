@@ -179,7 +179,7 @@ var
   LToken: TJWT;
 begin
   // Create a JWT Object
-  LToken := TJWT.Create(TJWTClaims);
+  LToken := TJWT.Create;
   try
     LToken.Claims.IssuedAt := Now;
     mmoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));

@@ -171,6 +171,7 @@ object frmDebugger: TfrmDebugger
     ItemIndex = 0
     TabOrder = 3
     Text = 'HS256'
+    OnChange = cbbDebuggerAlgoChange
     Items.Strings = (
       'HS256'
       'HS384'

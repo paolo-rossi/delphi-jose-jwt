@@ -29,46 +29,30 @@ interface
 
 uses
   System.SysUtils,
-  IdGlobal,
-  IdHMAC,
-  IdHMACSHA1,
-  IdSSLOpenSSL,
-  IdHash,
+  System.Hash,
   JOSE.Encoding.Base64;
 
 type
   THMACAlgorithm = (SHA256, SHA384, SHA512);
-  TIdHMACClass = class of TIdHMAC;
 
   THMAC = class
   public
     class function Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
-
   end;
 
 implementation
 
 class function THMAC.Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
 var
-  LSigner: TIdHMAC;
+  LHashAlg: THashSHA2.TSHA2Version;
 begin
-  LSigner := nil;
-
-  if not IdSSLOpenSSL.LoadOpenSSLLibrary then
-    raise Exception.Create('Cannot load OpenSSL Library.');
-
+  LHashAlg := THashSHA2.TSHA2Version.SHA256;
   case AAlg of
-    SHA256: LSigner := TIdHMACSHA256.Create;
-    SHA384: LSigner := TIdHMACSHA384.Create;
-    SHA512: LSigner := TIdHMACSHA512.Create;
+    SHA256: LHashAlg := THashSHA2.TSHA2Version.SHA256;
+    SHA384: LHashAlg := THashSHA2.TSHA2Version.SHA384;
+    SHA512: LHashAlg := THashSHA2.TSHA2Version.SHA512;
   end;
-
-  try
-    LSigner.Key := TIdBytes(AKey);
-    Result:= TBytes(LSigner.HashValue(TIdBytes(AInput)));
-  finally
-    LSigner.Free;
-  end;
+  Result := THashSHA2.GetHMACAsBytes(AInput, AKey, LHashAlg);
 end;
 
 end.

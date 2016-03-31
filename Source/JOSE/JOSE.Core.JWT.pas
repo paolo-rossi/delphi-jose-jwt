@@ -113,7 +113,8 @@ type
     FClaims: TJWTClaims;
     FHeader: TJWTHeader;
   public
-    constructor Create(AClaimsClass: TJWTClaimsClass);
+    constructor Create; overload;
+    constructor Create(AClaimsClass: TJWTClaimsClass); overload;
     destructor Destroy; override;
 
     property Header: TJWTHeader read FHeader;
@@ -124,6 +125,7 @@ type
 implementation
 
 uses
+  System.Hash,
   JOSE.Encoding.Base64;
 
 constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);
@@ -131,6 +133,11 @@ begin
   FHeader := TJWTHeader.Create;
   FHeader.HeaderType := 'JWT';
   FClaims := AClaimsClass.Create;
+end;
+
+constructor TJWT.Create;
+begin
+  Create(TJWTClaims);
 end;
 
 destructor TJWT.Destroy;
