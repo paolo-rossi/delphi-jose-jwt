@@ -29,7 +29,15 @@ interface
 
 uses
   System.SysUtils,
+  {$IF CompilerVersion >= 30 }  // Delphi 10 Seattle or greater
   System.Hash,
+  {$ELSE}
+  IdGlobal,
+  IdHMAC,
+  IdHMACSHA1,
+  IdSSLOpenSSL,
+  IdHash,
+  {$IFEND}
   JOSE.Encoding.Base64;
 
 type
@@ -42,6 +50,7 @@ type
 
 implementation
 
+{$IF CompilerVersion >= 30 }  // Delphi 10 Seattle or greater
 class function THMAC.Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
 var
   LHashAlg: THashSHA2.TSHA2Version;
@@ -54,5 +63,31 @@ begin
   end;
   Result := THashSHA2.GetHMACAsBytes(AInput, AKey, LHashAlg);
 end;
+
+{$ELSE}
+class function THMAC.Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
+var
+  LSigner: TIdHMAC;
+begin
+  LSigner := nil;
+
+  if not IdSSLOpenSSL.LoadOpenSSLLibrary then
+    raise Exception.Create('Error Message');
+
+  case AAlg of
+    SHA256: LSigner := TIdHMACSHA256.Create;
+    SHA384: LSigner := TIdHMACSHA384.Create;
+    SHA512: LSigner := TIdHMACSHA512.Create;
+  end;
+
+  try
+    LSigner.Key := TIdBytes(AKey);
+    Result:= TBytes(LSigner.HashValue(TIdBytes(AInput)));
+  finally
+    LSigner.Free;
+  end;
+end;
+{$IFEND}
+
 
 end.

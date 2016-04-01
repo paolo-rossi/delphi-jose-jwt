@@ -29,6 +29,10 @@ object frmMain: TfrmMain
     end
     object tsSimple: TTabSheet
       Caption = 'Simple Token'
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       DesignSize = (
         885
         528)
@@ -114,6 +118,10 @@ object frmMain: TfrmMain
     object tsCustom: TTabSheet
       Caption = 'Custom Token'
       ImageIndex = 1
+      ExplicitLeft = 0
+      ExplicitTop = 0
+      ExplicitWidth = 0
+      ExplicitHeight = 0
       object Label3: TLabel
         Left = 12
         Top = 44
