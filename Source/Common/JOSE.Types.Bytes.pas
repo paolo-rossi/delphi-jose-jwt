@@ -32,29 +32,29 @@ uses
   System.Classes;
 
 type
-  TSuperBytes = record
+  TJOSEBytes = record
   private
     FPayload: TBytes;
 
     procedure SetAsString(const Value: string);
     function GetAsString: string; inline;
   public
-    class operator Implicit(const AValue: TSuperBytes): string;
-    class operator Implicit(const AValue: TSuperBytes): TBytes;
-    class operator Implicit(const AValue: string): TSuperBytes;
-    class operator Implicit(const AValue: TBytes): TSuperBytes;
+    class operator Implicit(const AValue: TJOSEBytes): string;
+    class operator Implicit(const AValue: TJOSEBytes): TBytes;
+    class operator Implicit(const AValue: string): TJOSEBytes;
+    class operator Implicit(const AValue: TBytes): TJOSEBytes;
 
-    class operator Equal(const A: TSuperBytes; const B: TSuperBytes): Boolean;
-    class operator Equal(const A: TSuperBytes; const B: string): Boolean;
-    class operator Equal(const A: TSuperBytes; const B: TBytes): Boolean;
+    class operator Equal(const A: TJOSEBytes; const B: TJOSEBytes): Boolean;
+    class operator Equal(const A: TJOSEBytes; const B: string): Boolean;
+    class operator Equal(const A: TJOSEBytes; const B: TBytes): Boolean;
 
-    class operator Add(const A: TSuperBytes; const B: TSuperBytes): TSuperBytes;
-    class operator Add(const A: TSuperBytes; const B: Byte): TSuperBytes;
-    class operator Add(const A: TSuperBytes; const B: string): TSuperBytes;
-    class operator Add(const A: TSuperBytes; const B: TBytes): TSuperBytes;
+    class operator Add(const A: TJOSEBytes; const B: TJOSEBytes): TJOSEBytes;
+    class operator Add(const A: TJOSEBytes; const B: Byte): TJOSEBytes;
+    class operator Add(const A: TJOSEBytes; const B: string): TJOSEBytes;
+    class operator Add(const A: TJOSEBytes; const B: TBytes): TJOSEBytes;
 
-    class function Empty: TSuperBytes; static;
-    class function RandomBytes(ANumberOfBytes: Integer): TSuperBytes; static;
+    class function Empty: TJOSEBytes; static;
+    class function RandomBytes(ANumberOfBytes: Integer): TJOSEBytes; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -62,7 +62,7 @@ type
 
     function Contains(const AByte: Byte): Boolean; overload;
     function Contains(const ABytes: TBytes): Boolean; overload;
-    function Contains(const ABytes: TSuperBytes): Boolean; overload;
+    function Contains(const ABytes: TJOSEBytes): Boolean; overload;
 
     property AsBytes: TBytes read FPayload write FPayload;
     property AsString: string read GetAsString write SetAsString;
@@ -87,30 +87,30 @@ begin
 end;
 
 
-{ TSuperBytes }
+{ TJOSEBytes }
 
-class operator TSuperBytes.Add(const A: TSuperBytes; const B: Byte): TSuperBytes;
+class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: Byte): TJOSEBytes;
 begin
   SetLength(Result.FPayload, A.Size + 1);
   Move(A.FPayload[0], Result.FPayload[0], A.Size);
   Result.FPayload[Result.Size-1] := B;
 end;
 
-class operator TSuperBytes.Add(const A, B: TSuperBytes): TSuperBytes;
+class operator TJOSEBytes.Add(const A, B: TJOSEBytes): TJOSEBytes;
 begin
   SetLength(Result.FPayload, A.Size + B.Size);
   Move(A.FPayload[0], Result.FPayload[0], A.Size);
   Move(B.FPayload[0], Result.FPayload[A.Size], B.Size);
 end;
 
-class operator TSuperBytes.Add(const A: TSuperBytes; const B: TBytes): TSuperBytes;
+class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: TBytes): TJOSEBytes;
 begin
   SetLength(Result.FPayload, A.Size + Length(B));
   Move(A.FPayload[0], Result.FPayload[0], A.Size);
   Move(B[0], Result.FPayload[A.Size], Length(B));
 end;
 
-class operator TSuperBytes.Add(const A: TSuperBytes; const B: string): TSuperBytes;
+class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: string): TJOSEBytes;
 var
   LB: TBytes;
 begin
@@ -121,72 +121,72 @@ begin
   Move(LB[0], Result.FPayload[A.Size], Length(LB));
 end;
 
-procedure TSuperBytes.Clear;
+procedure TJOSEBytes.Clear;
 begin
   SetLength(FPayload, 0);
 end;
 
-function TSuperBytes.Contains(const AByte: Byte): Boolean;
+function TJOSEBytes.Contains(const AByte: Byte): Boolean;
 begin
   Result := False;
 end;
 
-function TSuperBytes.Contains(const ABytes: TBytes): Boolean;
+function TJOSEBytes.Contains(const ABytes: TBytes): Boolean;
 begin
   Result := False;
 end;
 
-function TSuperBytes.Contains(const ABytes: TSuperBytes): Boolean;
+function TJOSEBytes.Contains(const ABytes: TJOSEBytes): Boolean;
 begin
   Result := False;
 end;
 
-class function TSuperBytes.Empty: TSuperBytes;
+class function TJOSEBytes.Empty: TJOSEBytes;
 begin
   SetLength(Result.FPayload, 0);
 end;
 
-class operator TSuperBytes.Equal(const A: TSuperBytes; const B: string): Boolean;
+class operator TJOSEBytes.Equal(const A: TJOSEBytes; const B: string): Boolean;
 begin
   Result := CompareBytes(A.FPayload, TEncoding.UTF8.GetBytes(B));
 end;
 
-class operator TSuperBytes.Equal(const A: TSuperBytes; const B: TBytes): Boolean;
+class operator TJOSEBytes.Equal(const A: TJOSEBytes; const B: TBytes): Boolean;
 begin
   Result := CompareBytes(A.FPayload, B);
 end;
 
-class operator TSuperBytes.Equal(const A: TSuperBytes; const B: TSuperBytes): Boolean;
+class operator TJOSEBytes.Equal(const A: TJOSEBytes; const B: TJOSEBytes): Boolean;
 begin
   Result := CompareBytes(A.FPayload, B.FPayload);
 end;
 
-function TSuperBytes.GetAsString: string;
+function TJOSEBytes.GetAsString: string;
 begin
   Result := TEncoding.UTF8.GetString(FPayload);
 end;
 
-class operator TSuperBytes.Implicit(const AValue: TSuperBytes): TBytes;
+class operator TJOSEBytes.Implicit(const AValue: TJOSEBytes): TBytes;
 begin
   Result := AValue.AsBytes;
 end;
 
-class operator TSuperBytes.Implicit(const AValue: TSuperBytes): string;
+class operator TJOSEBytes.Implicit(const AValue: TJOSEBytes): string;
 begin
   Result := TEncoding.UTF8.GetString(AValue.FPayload);
 end;
 
-class operator TSuperBytes.Implicit(const AValue: TBytes): TSuperBytes;
+class operator TJOSEBytes.Implicit(const AValue: TBytes): TJOSEBytes;
 begin
   Result.FPayload := AValue;
 end;
 
-function TSuperBytes.IsEmpty: Boolean;
+function TJOSEBytes.IsEmpty: Boolean;
 begin
   Result := Size = 0;
 end;
 
-class function TSuperBytes.RandomBytes(ANumberOfBytes: Integer): TSuperBytes;
+class function TJOSEBytes.RandomBytes(ANumberOfBytes: Integer): TJOSEBytes;
 var
   LIndex: Integer;
 begin
@@ -195,17 +195,17 @@ begin
     Result.FPayload[LIndex] := Random(255);
 end;
 
-function TSuperBytes.Size: Integer;
+function TJOSEBytes.Size: Integer;
 begin
   Result := Length(FPayload);
 end;
 
-class operator TSuperBytes.Implicit(const AValue: string): TSuperBytes;
+class operator TJOSEBytes.Implicit(const AValue: string): TJOSEBytes;
 begin
   Result.FPayload := TEncoding.UTF8.GetBytes(AValue);
 end;
 
-procedure TSuperBytes.SetAsString(const Value: string);
+procedure TJOSEBytes.SetAsString(const Value: string);
 begin
   FPayload := TEncoding.UTF8.GetBytes(Value);
 end;

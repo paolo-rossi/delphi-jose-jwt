@@ -58,7 +58,7 @@ begin
   inherited Create(AToken);
 
   for LIndex := 0 to COMPACT_PARTS - 1 do
-    FParts.Add(TSuperBytes.Empty);
+    FParts.Add(TJOSEBytes.Empty);
 end;
 
 end.

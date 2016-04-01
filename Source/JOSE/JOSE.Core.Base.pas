@@ -41,10 +41,10 @@ type
 
   TJOSEBase = class
   private
-    function GetEncoded: TSuperBytes;
-    function GetURLEncoded: TSuperBytes;
-    procedure SetEncoded(const Value: TSuperBytes);
-    procedure SetURLEncoded(const Value: TSuperBytes);
+    function GetEncoded: TJOSEBytes;
+    function GetURLEncoded: TJOSEBytes;
+    procedure SetEncoded(const Value: TJOSEBytes);
+    procedure SetURLEncoded(const Value: TJOSEBytes);
   protected
     FJSON: TJSONObject;
 
@@ -54,8 +54,8 @@ type
     destructor Destroy; override;
 
     property JSON: TJSONObject read FJSON write FJSON;
-    property Encoded: TSuperBytes read GetEncoded write SetEncoded;
-    property URLEncoded: TSuperBytes read GetURLEncoded write SetURLEncoded;
+    property Encoded: TJOSEBytes read GetEncoded write SetEncoded;
+    property URLEncoded: TJOSEBytes read GetURLEncoded write SetURLEncoded;
   end;
 
 
@@ -77,27 +77,27 @@ begin
   inherited;
 end;
 
-function TJOSEBase.GetEncoded: TSuperBytes;
+function TJOSEBase.GetEncoded: TJOSEBytes;
 begin
   Result := TBase64.Encode(FJSON.ToJSON);
 end;
 
-function TJOSEBase.GetURLEncoded: TSuperBytes;
+function TJOSEBase.GetURLEncoded: TJOSEBytes;
 begin
   Result := TBase64.URLEncode(FJSON.ToJSON);
 end;
 
-procedure TJOSEBase.SetEncoded(const Value: TSuperBytes);
+procedure TJOSEBase.SetEncoded(const Value: TJOSEBytes);
 var
-  LJSONStr: TSuperBytes;
+  LJSONStr: TJOSEBytes;
 begin
   LJSONStr := TBase64.Decode(Value);
   FJSON.Parse(LJSONStr, 0)
 end;
 
-procedure TJOSEBase.SetURLEncoded(const Value: TSuperBytes);
+procedure TJOSEBase.SetURLEncoded(const Value: TJOSEBytes);
 var
-  LJSONStr: TSuperBytes;
+  LJSONStr: TJOSEBytes;
   LValue: TJSONValue;
 begin
   LJSONStr := TBase64.URLDecode(Value);

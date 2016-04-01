@@ -176,9 +176,9 @@ end;
 
 function TJWTClaims.GenerateJWTId(ANumberOfBytes: Integer): string;
 var
-  LID: TSuperBytes;
+  LID: TJOSEBytes;
 begin
-  LID := TSuperBytes.RandomBytes(ANumberOfBytes);
+  LID := TJOSEBytes.RandomBytes(ANumberOfBytes);
   Result := TBase64.URLEncode(LID);
 end;
 

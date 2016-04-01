@@ -39,17 +39,17 @@ uses
 type
   TJWK = class(TJOSEBase)
   private
-    FKey: TSuperBytes;
+    FKey: TJOSEBytes;
   public
-    constructor Create(AKey: TSuperBytes);
-    property Key: TSuperBytes read FKey write FKey;
+    constructor Create(AKey: TJOSEBytes);
+    property Key: TJOSEBytes read FKey write FKey;
   end;
 
 implementation
 
 { TJWK }
 
-constructor TJWK.Create(AKey: TSuperBytes);
+constructor TJWK.Create(AKey: TJOSEBytes);
 begin
   inherited Create;
   FKey := AKey;

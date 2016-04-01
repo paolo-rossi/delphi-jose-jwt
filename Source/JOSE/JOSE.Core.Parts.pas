@@ -36,17 +36,17 @@ uses
 type
   TJOSEParts = class
   protected
-    FParts: TList<TSuperBytes>;
+    FParts: TList<TJOSEBytes>;
     FToken: TJWT;
-    function GetCompactToken: TSuperBytes; virtual; abstract;
-    procedure SetCompactToken(const Value: TSuperBytes); virtual; abstract;
+    function GetCompactToken: TJOSEBytes; virtual; abstract;
+    procedure SetCompactToken(const Value: TJOSEBytes); virtual; abstract;
   public
     constructor Create(AToken: TJWT); virtual;
     destructor Destroy; override;
 
     procedure Clear;
     procedure Empty;
-    property CompactToken: TSuperBytes read GetCompactToken write SetCompactToken;
+    property CompactToken: TJOSEBytes read GetCompactToken write SetCompactToken;
   end;
 
 implementation
@@ -61,7 +61,7 @@ end;
 constructor TJOSEParts.Create(AToken: TJWT);
 begin
   FToken := AToken;
-  FParts := TList<TSuperBytes>.Create;
+  FParts := TList<TJOSEBytes>.Create;
 end;
 
 destructor TJOSEParts.Destroy;
@@ -75,7 +75,7 @@ var
   LIndex: Integer;
 begin
   for LIndex := 0 to FParts.Count - 1 do
-    FParts[LIndex] := TSuperBytes.Empty;
+    FParts[LIndex] := TJOSEBytes.Empty;
 end;
 
 end.

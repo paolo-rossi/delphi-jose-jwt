@@ -34,27 +34,27 @@ uses
 
 type
   TBase64 = class
-    class function Encode(const ASource: TSuperBytes): TSuperBytes; overload;
-    class function Decode(const ASource: TSuperBytes): TSuperBytes; overload;
-    class function URLEncode(const ASource: TSuperBytes): TSuperBytes; overload;
-    class function URLDecode(const ASource: TSuperBytes): TSuperBytes; overload;
+    class function Encode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function Decode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function URLEncode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function URLDecode(const ASource: TJOSEBytes): TJOSEBytes; overload;
   end;
 
 implementation
 
 { TBase64 }
 
-class function TBase64.Decode(const ASource: TSuperBytes): TSuperBytes;
+class function TBase64.Decode(const ASource: TJOSEBytes): TJOSEBytes;
 begin
   Result := TNetEncoding.Base64.Decode(ASource.AsBytes);
 end;
 
-class function TBase64.Encode(const ASource: TSuperBytes): TSuperBytes;
+class function TBase64.Encode(const ASource: TJOSEBytes): TJOSEBytes;
 begin
   Result := TNetEncoding.Base64.Encode(ASource.AsBytes);
 end;
 
-class function TBase64.URLDecode(const ASource: TSuperBytes): TSuperBytes;
+class function TBase64.URLDecode(const ASource: TJOSEBytes): TJOSEBytes;
 var
   LBase64Str: string;
 begin
@@ -66,7 +66,7 @@ begin
   Result := TBase64.Decode(LBase64Str);
 end;
 
-class function TBase64.URLEncode(const ASource: TSuperBytes): TSuperBytes;
+class function TBase64.URLEncode(const ASource: TJOSEBytes): TJOSEBytes;
 var
   LBase64Str: string;
 begin

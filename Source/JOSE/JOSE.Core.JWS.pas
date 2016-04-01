@@ -44,26 +44,26 @@ type
   private
     const COMPACT_PARTS = 3;
 
-    function GetSigningInput: TSuperBytes;
-    function GetHeader: TSuperBytes;
-    function GetPayload: TSuperBytes;
-    function GetSignature: TSuperBytes;
-    procedure SetHeader(const Value: TSuperBytes);
-    procedure SetPayload(const Value: TSuperBytes);
-    procedure SetSignature(const Value: TSuperBytes);
+    function GetSigningInput: TJOSEBytes;
+    function GetHeader: TJOSEBytes;
+    function GetPayload: TJOSEBytes;
+    function GetSignature: TJOSEBytes;
+    procedure SetHeader(const Value: TJOSEBytes);
+    procedure SetPayload(const Value: TJOSEBytes);
+    procedure SetSignature(const Value: TJOSEBytes);
   protected
-    function GetCompactToken: TSuperBytes; override;
-    procedure SetCompactToken(const Value: TSuperBytes); override;
+    function GetCompactToken: TJOSEBytes; override;
+    procedure SetCompactToken(const Value: TJOSEBytes); override;
   public
     constructor Create(AToken: TJWT); override;
 
-    function Sign(AKey: TJWK; AAlg: TJWAEnum): TSuperBytes;
-    procedure Verify(AKey: TJWK; const ACompactToken: TSuperBytes);
+    function Sign(AKey: TJWK; AAlg: TJWAEnum): TJOSEBytes;
+    procedure Verify(AKey: TJWK; const ACompactToken: TJOSEBytes);
 
-    property Header: TSuperBytes read GetHeader write SetHeader;
-    property Payload: TSuperBytes read GetPayload write SetPayload;
-    property Signature: TSuperBytes read GetSignature write SetSignature;
-    property SigningInput: TSuperBytes read GetSigningInput;
+    property Header: TJOSEBytes read GetHeader write SetHeader;
+    property Payload: TJOSEBytes read GetPayload write SetPayload;
+    property Signature: TJOSEBytes read GetSignature write SetSignature;
+    property SigningInput: TJOSEBytes read GetSigningInput;
   end;
 
 implementation
@@ -81,35 +81,35 @@ begin
   inherited Create(AToken);
 
   for LIndex := 0 to COMPACT_PARTS - 1 do
-    FParts.Add(TSuperBytes.Empty);
+    FParts.Add(TJOSEBytes.Empty);
 end;
 
-function TJWS.GetCompactToken: TSuperBytes;
+function TJWS.GetCompactToken: TJOSEBytes;
 begin
   Result := Header + PART_SEPARATOR + Payload + PART_SEPARATOR + Signature;
 end;
 
-function TJWS.GetHeader: TSuperBytes;
+function TJWS.GetHeader: TJOSEBytes;
 begin
   Result := FParts[0]
 end;
 
-function TJWS.GetPayload: TSuperBytes;
+function TJWS.GetPayload: TJOSEBytes;
 begin
   Result := FParts[1];
 end;
 
-function TJWS.GetSignature: TSuperBytes;
+function TJWS.GetSignature: TJOSEBytes;
 begin
   Result := FParts[2];
 end;
 
-function TJWS.GetSigningInput: TSuperBytes;
+function TJWS.GetSigningInput: TJOSEBytes;
 begin
   Result := Header + PART_SEPARATOR + Payload;
 end;
 
-procedure TJWS.SetCompactToken(const Value: TSuperBytes);
+procedure TJWS.SetCompactToken(const Value: TJOSEBytes);
 var
   LRes: TStringDynArray;
 begin
@@ -127,24 +127,24 @@ begin
     raise EJOSEException.CreateFmt('A JWS Compact Serialization must have %d parts', [COMPACT_PARTS]);
 end;
 
-procedure TJWS.SetHeader(const Value: TSuperBytes);
+procedure TJWS.SetHeader(const Value: TJOSEBytes);
 begin
   FParts[0] := Value;
 end;
 
-procedure TJWS.SetPayload(const Value: TSuperBytes);
+procedure TJWS.SetPayload(const Value: TJOSEBytes);
 begin
   FParts[1] := Value;
 end;
 
-procedure TJWS.SetSignature(const Value: TSuperBytes);
+procedure TJWS.SetSignature(const Value: TJOSEBytes);
 begin
   FParts[2] := Value;
 end;
 
-function TJWS.Sign(AKey: TJWK; AAlg: TJWAEnum): TSuperBytes;
+function TJWS.Sign(AKey: TJWK; AAlg: TJWAEnum): TJOSEBytes;
 var
-  LSign: TSuperBytes;
+  LSign: TJOSEBytes;
 begin
   Empty;
 
@@ -167,9 +167,9 @@ begin
   Result := Signature;
 end;
 
-procedure TJWS.Verify(AKey: TJWK; const ACompactToken: TSuperBytes);
+procedure TJWS.Verify(AKey: TJWK; const ACompactToken: TJOSEBytes);
 var
-  LExpectedSign: TSuperBytes;
+  LExpectedSign: TJOSEBytes;
   LAlg: TJWAEnum;
 begin
   CompactToken := ACompactToken;
