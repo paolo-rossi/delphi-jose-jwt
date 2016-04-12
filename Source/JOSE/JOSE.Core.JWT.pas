@@ -125,7 +125,6 @@ type
 implementation
 
 uses
-  System.Hash,
   JOSE.Encoding.Base64;
 
 constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);

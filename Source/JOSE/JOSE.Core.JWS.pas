@@ -151,8 +151,8 @@ begin
   if FToken.Header.Algorithm <> AAlg.AsString then
     FToken.Header.Algorithm := AAlg.AsString;
 
-  Header := TBase64.URLEncode(FToken.Header.JSON.ToJSON);
-  Payload := TBase64.URLEncode(FToken.Claims.JSON.ToJSON);
+  Header := TBase64.URLEncode(ToJSON(FToken.Header.JSON));
+  Payload := TBase64.URLEncode(ToJSON(FToken.Claims.JSON));
 
   case AAlg of
     None:  LSign.Clear;

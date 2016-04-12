@@ -58,11 +58,29 @@ type
     property URLEncoded: TJOSEBytes read GetURLEncoded write SetURLEncoded;
   end;
 
+function ToJSON(Value: TJSONAncestor): string;
 
 implementation
 
 uses
   JOSE.Encoding.Base64;
+
+{$IF CompilerVersion >= 28}
+function ToJSON(Value: TJSONAncestor): string;
+begin
+  Result := Value.ToJson;
+end;
+{$ELSE}
+function ToJSON(Value: TJSONAncestor): string;
+var
+  bytes: TBytes;
+  len: Integer;
+begin
+  SetLength(bytes, Value.EstimatedByteSize);
+  len := Value.ToBytes(bytes, 0);
+  Result := TEncoding.UTF8.GetString(bytes, 0, len);
+end;
+{$ENDIF}
 
 { TJOSEBase }
 
@@ -79,12 +97,12 @@ end;
 
 function TJOSEBase.GetEncoded: TJOSEBytes;
 begin
-  Result := TBase64.Encode(FJSON.ToJSON);
+  Result := TBase64.Encode(ToJSON(FJSON));
 end;
 
 function TJOSEBase.GetURLEncoded: TJOSEBytes;
 begin
-  Result := TBase64.URLEncode(FJSON.ToJSON);
+  Result := TBase64.URLEncode(ToJSON(FJSON));
 end;
 
 procedure TJOSEBase.SetEncoded(const Value: TJOSEBytes);
