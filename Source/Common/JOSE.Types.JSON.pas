@@ -168,13 +168,8 @@ begin
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject);
-var
-  LJSONValue: TJSONValue;
 begin
-  LJSONValue := AJSON.GetValue(AName);
-  if Assigned(LJSONValue) then
-    AJSON.RemovePair(AName).Free;
-
+  RemoveJSONNode(AName, AJSON);
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
@@ -184,46 +179,26 @@ begin
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject);
-var
-  LJSONValue: TJSONValue;
 begin
-  LJSONValue := AJSON.GetValue(AName);
-  if Assigned(LJSONValue) then
-    AJSON.RemovePair(AName).Free;
-
+  RemoveJSONNode(AName, AJSON);
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject);
-var
-  LJSONValue: TJSONValue;
 begin
-  LJSONValue := AJSON.GetValue(AName);
-  if Assigned(LJSONValue) then
-    AJSON.RemovePair(AName).Free;
-
+  RemoveJSONNode(AName, AJSON);
   AJSON.AddPair(TJSONPair.Create(AName, AValue));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject);
-var
-  LJSONValue: TJSONValue;
 begin
-  LJSONValue := AJSON.GetValue(AName);
-  if Assigned(LJSONValue) then
-    AJSON.RemovePair(AName).Free;
-
+  RemoveJSONNode(AName, AJSON);
   AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject);
-var
-  LJSONValue: TJSONValue;
 begin
-  LJSONValue := AJSON.GetValue(AName);
-  if Assigned(LJSONValue) then
-    AJSON.RemovePair(AName).Free;
-
+  RemoveJSONNode(AName, AJSON);
   if AValue then
     AJSON.AddPair(TJSONPair.Create(AName, TJSONTrue.Create))
   else
