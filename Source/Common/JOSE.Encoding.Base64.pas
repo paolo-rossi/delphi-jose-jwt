@@ -51,11 +51,11 @@ type
       0: (b0, b1, b2, b3: Byte);
       1: (i: Integer);
       2: (a: array[0..3] of Byte);
-    end;
+  end;
 
-function DecodeBase64(const Input: string): TBytes;
+function DecodeBase64(const AInput: string): TBytes;
 const
-  DecodeTable: array[#0..#127] of Integer = (
+  DECODE_TABLE: array[#0..#127] of Integer = (
     Byte('='), 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
     64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
     64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 62, 64, 64, 64, 63,
@@ -63,96 +63,98 @@ const
     64,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
     15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 64, 64, 64, 64, 64,
     64, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 64, 64, 64, 64, 64);
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 64, 64, 64, 64, 64
+  );
 
-  function DecodePacket(InBuf: PChar; var nChars: Integer): TPacket;
+  function DecodePacket(AInputBuffer: PChar; var ANumChars: Integer): TPacket;
   begin
-    Result.a[0] := (DecodeTable[InBuf[0]] shl 2) or
-      (DecodeTable[InBuf[1]] shr 4);
-    NChars := 1;
-    if InBuf[2] <> '=' then
+    Result.a[0] :=
+      (DECODE_TABLE[AInputBuffer[0]] shl 2) or (DECODE_TABLE[AInputBuffer[1]] shr 4);
+    ANumChars := 1;
+    if AInputBuffer[2] <> '=' then
     begin
-      Inc(NChars);
-      Result.a[1] := (DecodeTable[InBuf[1]] shl 4) or (DecodeTable[InBuf[2]] shr 2);
+      Inc(ANumChars);
+      Result.a[1] := (DECODE_TABLE[AInputBuffer[1]] shl 4) or (DECODE_TABLE[AInputBuffer[2]] shr 2);
     end;
-    if InBuf[3] <> '=' then
+    if AInputBuffer[3] <> '=' then
     begin
-      Inc(NChars);
-      Result.a[2] := (DecodeTable[InBuf[2]] shl 6) or DecodeTable[InBuf[3]];
+      Inc(ANumChars);
+      Result.a[2] := (DECODE_TABLE[AInputBuffer[2]] shl 6) or DECODE_TABLE[AInputBuffer[3]];
     end;
   end;
 
 var
   I, J, K: Integer;
-  Packet: TPacket;
-  Len: integer;
+  LPacket: TPacket;
+  LLen: Integer;
 begin
-  SetLength(Result, Length(Input) div 4 * 3);
-  Len := 0;
-  for I := 1 to Length(Input) div 4 do
+  SetLength(Result, Length(AInput) div 4 * 3);
+  LLen := 0;
+  for I := 1 to Length(AInput) div 4 do
   begin
-    Packet := DecodePacket(PChar(@Input[(I - 1) * 4 + 1]), J);
+    LPacket := DecodePacket(PChar(@AInput[(I - 1) * 4 + 1]), J);
     K := 0;
     while J > 0 do
     begin
-      Result[Len] := Packet.a[K];
-      Inc(Len);
+      Result[LLen] := LPacket.a[K];
+      Inc(LLen);
       Inc(K);
       Dec(J);
     end;
   end;
-  SetLength(Result, Len);
+  SetLength(Result, LLen);
 end;
 
-function EncodeBase64(const Input: TBytes): string;
+function EncodeBase64(const AInput: TBytes): string;
 const
-  EncodeTable: array[0..63] of Char =
+  ENCODE_TABLE: array[0..63] of Char =
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ' +
     'abcdefghijklmnopqrstuvwxyz' +
     '0123456789+/';
 
-  procedure EncodePacket(const Packet: TPacket; NumChars: Integer; OutBuf: PChar);
+  procedure EncodePacket(const APacket: TPacket; ANumChars: Integer; AOutBuffer: PChar);
   begin
-    OutBuf[0] := EnCodeTable[Packet.a[0] shr 2];
-    OutBuf[1] := EnCodeTable[((Packet.a[0] shl 4) or (Packet.a[1] shr 4)) and $0000003f];
+    AOutBuffer[0] := ENCODE_TABLE[APacket.a[0] shr 2];
+    AOutBuffer[1] := ENCODE_TABLE[((APacket.a[0] shl 4) or (APacket.a[1] shr 4)) and $0000003f];
 
-    if NumChars < 2 then
-      OutBuf[2] := '='
+    if ANumChars < 2 then
+      AOutBuffer[2] := '='
     else
-      OutBuf[2] := EnCodeTable[((Packet.a[1] shl 2) or (Packet.a[2] shr 6)) and $0000003f];
+      AOutBuffer[2] := ENCODE_TABLE[((APacket.a[1] shl 2) or (APacket.a[2] shr 6)) and $0000003f];
 
-    if NumChars < 3 then
-      OutBuf[3] := '='
+    if ANumChars < 3 then
+      AOutBuffer[3] := '='
     else
-      OutBuf[3] := EnCodeTable[Packet.a[2] and $0000003f];
+      AOutBuffer[3] := ENCODE_TABLE[APacket.a[2] and $0000003f];
   end;
 
 var
   I, K, J: Integer;
-  Packet: TPacket;
+  LPacket: TPacket;
 begin
   Result := '';
-  I := (Length(Input) div 3) * 4;
-  if Length(Input) mod 3 > 0 then Inc(I, 4);
+  I := (Length(AInput) div 3) * 4;
+  if Length(AInput) mod 3 > 0 then
+    Inc(I, 4);
   SetLength(Result, I);
   J := 1;
-  for I := 1 to Length(Input) div 3 do
+  for I := 1 to Length(AInput) div 3 do
   begin
-    Packet.i := 0;
-    Packet.a[0] := Input[(I - 1) * 3];
-    Packet.a[1] := Input[(I - 1) * 3 + 1];
-    Packet.a[2] := Input[(I - 1) * 3 + 2];
-    EncodePacket(Packet, 3, PChar(@Result[J]));
+    LPacket.i := 0;
+    LPacket.a[0] := AInput[(I - 1) * 3];
+    LPacket.a[1] := AInput[(I - 1) * 3 + 1];
+    LPacket.a[2] := AInput[(I - 1) * 3 + 2];
+    EncodePacket(LPacket, 3, PChar(@Result[J]));
     Inc(J, 4);
   end;
   K := 0;
-  Packet.i := 0;
-  for I := Length(Input) - (Length(Input) mod 3) + 1 to Length(Input) do
+  LPacket.i := 0;
+  for I := Length(AInput) - (Length(AInput) mod 3) + 1 to Length(AInput) do
   begin
-    Packet.a[K] := Byte(Input[I - 1]);
+    LPacket.a[K] := Byte(AInput[I - 1]);
     Inc(K);
-    if I = Length(Input) then
-      EncodePacket(Packet, Length(Input) mod 3, PChar(@Result[J]));
+    if I = Length(AInput) then
+      EncodePacket(LPacket, Length(AInput) mod 3, PChar(@Result[J]));
   end;
 end;
 {$ENDIF}
@@ -207,3 +209,4 @@ begin
 end;
 
 end.
+

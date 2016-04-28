@@ -73,12 +73,12 @@ end;
 {$ELSE}
 function ToJSON(Value: TJSONAncestor): string;
 var
-  bytes: TBytes;
-  len: Integer;
+  LBytes: TBytes;
+  LLen: Integer;
 begin
-  SetLength(bytes, Value.EstimatedByteSize);
-  len := Value.ToBytes(bytes, 0);
-  Result := TEncoding.UTF8.GetString(bytes, 0, len);
+  SetLength(LBytes, Value.EstimatedByteSize);
+  LLen := Value.ToBytes(LBytes, 0);
+  Result := TEncoding.UTF8.GetString(LBytes, 0, LLen);
 end;
 {$ENDIF}
 

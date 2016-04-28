@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015 Paolo Rossi                                              }
+{  Copyright (c) 2015-2016 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -69,8 +69,6 @@ type
     procedure SetErrorJSON;
     function VerifyToken(AKey: TJWK): Boolean;
     procedure WriteDefault;
-  protected
-    procedure TestJSON;
   public
     { Public declarations }
   end;
@@ -204,25 +202,6 @@ begin
     shpStatus.Brush.Color := clRed;
     lblStatus.Caption := 'Invalid Signature';
   end;
-end;
-
-procedure TfrmDebugger.TestJSON;
-var
-  Lw: TJSONObject;
-begin
-  Lw := TJSONObject(TJSONObject.ParseJSONValue(memoHeader.Lines.Text));
-
-  TJSONUtils.SetJSONValueFrom<Double>('alg', 10.44, Lw);
-
-  {
-  LP := Lw.RemovePair('alg');
-  if Assigned(LP) then
-    LP.Free;
-  lw.AddPair('alg', 'SHSHSH');
-  }
-  FJWT.Header.Algorithm := 'HS256';
-
-  Lw.Free;
 end;
 
 function TfrmDebugger.VerifyToken(AKey: TJWK): Boolean;

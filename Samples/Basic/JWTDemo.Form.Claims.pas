@@ -20,60 +20,42 @@
 {                                                                              }
 {******************************************************************************}
 
-unit JWTDemo.Form.Main;
+unit JWTDemo.Form.Claims;
 
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
-  JWTDemo.Form.Debugger,
-  JWTDemo.Form.Simple,
-  JWTDemo.Form.Claims,
-  JWTDemo.Form.Misc;
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls;
 
 type
-  TfrmMain = class(TForm)
-    pgcMain: TPageControl;
-    procedure FormCreate(Sender: TObject);
+  TfrmClaims = class(TForm)
+    Label3: TLabel;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
+    edtIssuer: TLabeledEdit;
+    edtIssuedAtTime: TDateTimePicker;
+    edtNotBeforeDate: TDateTimePicker;
+    edtExpiresDate: TDateTimePicker;
+    chkIssuer: TCheckBox;
+    chkIssuedAt: TCheckBox;
+    chkExpires: TCheckBox;
+    chkNotBefore: TCheckBox;
+    btnCustomJWS: TButton;
+    edtIssuedAtDate: TDateTimePicker;
+    edtExpiresTime: TDateTimePicker;
+    edtNotBeforeTime: TDateTimePicker;
+    cbbAlgorithm: TComboBox;
   private
-    procedure PasteForm(AFormClass: TFormClass; ATabName, ATabTitle: string);
+    { Private declarations }
   public
     { Public declarations }
   end;
 
-var
-  frmMain: TfrmMain;
 
 implementation
 
 {$R *.dfm}
-
-procedure TfrmMain.FormCreate(Sender: TObject);
-begin
-  PasteForm(TfrmDebugger, 'tsDebugger', 'JWT Debugger');
-  PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
-  PasteForm(TfrmClaims, 'tsClaims', 'Custom Token');
-  PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
-end;
-
-procedure TfrmMain.PasteForm(AFormClass: TFormClass; ATabName, ATabTitle: string);
-var
-  LView: TForm;
-  LTab: TTabSheet;
-begin
-  LTab := TTabSheet.Create(Self);
-  LTab.PageControl := pgcMain;
-  LTab.Name := ATabName;
-  LTab.Caption := ATabTitle;
-
-  LView := AFormClass.Create(Application);
-  LView.BorderStyle := bsNone;
-  LView.Top := 0;
-  LView.Left := 0;
-  LView.Parent := LTab;
-  LView.Align := alClient;
-  LView.Show;
-end;
 
 end.

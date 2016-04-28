@@ -46,7 +46,7 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 ##### Features
 - Token validation: `aud`, `iss`, `sub`
 - RSA algorithms implementation
-- Creation of `TJWTClaims` derived classes
+- Easy creation of `TJWTClaims` derived classes
 
 ##### Code
 - D2010+ porting
@@ -55,7 +55,7 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 
 
 ## Prerequisite
-This library is built with **Delphi XE8**, but with a minimum amount of work it will compile with **D2010 and higher**
+This library has been tested with **Delphi XE8**, **Delphi 10 Seattle** and **Delphi 10.1 Berlin** but with a minimum amount of work it should compile with **D2010 and higher**
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
 
@@ -64,7 +64,7 @@ Delphi units used:
 - System.Rtti (D2010+)
 - System.Generics.Collections (D2009+)
 - System.NetEncoding (DXE7+)
-- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (use last versions from svn)
+- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (please use latest version from svn)
 
 ## Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are done!
