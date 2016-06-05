@@ -41,6 +41,11 @@ You can download the packages at the [fulgan website](https://indy.fulgan.com/SS
 
 This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
 
+## Projects using Delphi JOSE and JWT
+
+- [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
+- The [**MARS REST Library**](https://github.com/MARS-library/MARS)
+
 ## Todo
 
 ##### Features
@@ -55,7 +60,8 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 
 
 ## Prerequisite
-This library has been tested with **Delphi XE8**, **Delphi 10 Seattle** and **Delphi 10.1 Berlin** but with a minimum amount of work it should compile with **D2010 and higher**
+This library has been tested with **Delphi 10.1 Berlin**, **Delphi 10 Seattle** and **Delphi XE8** but with a minimum amount of work it should compile with **D2010 and higher**
+
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
 
@@ -67,7 +73,7 @@ Delphi units used:
 - Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (please use latest version from svn)
 
 ## Installation
-Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are done!
+Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!
 
 ## Code Examples
 
