@@ -113,7 +113,7 @@ begin
   if LJSONValue = 0 then
     Result := 0
   else
-    Result := UnixToDateTime(LJSONValue)
+    Result := UnixToDateTime(LJSONValue, False)
 end;
 
 class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
@@ -231,7 +231,7 @@ begin
       if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
          SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
          SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
-        SetJSONValue(AName, DateTimeToUnix(AValue.AsType<TDateTime>), AJSON)
+        SetJSONValue(AName, DateTimeToUnix(AValue.AsType<TDateTime>, False), AJSON)
       else
         if AValue.Kind = tkFloat then
           SetJSONValue(AName, AValue.AsType<Double>, AJSON)
