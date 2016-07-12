@@ -91,6 +91,7 @@ type
     procedure SetNotBefore(Value: TDateTime);
     procedure SetSubject(Value: string);
   public
+    constructor Create; virtual;
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
     procedure CheckRegisteredClaims(AOptions: TClaimVerifications = []); virtual;
@@ -171,6 +172,11 @@ begin
     end;
   end;
 }
+end;
+
+constructor TJWTClaims.Create;
+begin
+  inherited Create;
 end;
 
 function TJWTClaims.GenerateJWTId(ANumberOfBytes: Integer): string;
