@@ -63,6 +63,7 @@ function ToJSON(Value: TJSONAncestor): string;
 implementation
 
 uses
+  System.JSON,
   JOSE.Encoding.Base64;
 
 {$IF CompilerVersion >= 28}
