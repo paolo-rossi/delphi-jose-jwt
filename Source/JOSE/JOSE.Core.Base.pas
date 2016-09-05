@@ -53,6 +53,8 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    function Clone: TJSONObject;
+
     property JSON: TJSONObject read FJSON write FJSON;
     property Encoded: TJOSEBytes read GetEncoded write SetEncoded;
     property URLEncoded: TJOSEBytes read GetURLEncoded write SetURLEncoded;
@@ -84,6 +86,11 @@ end;
 {$ENDIF}
 
 { TJOSEBase }
+
+function TJOSEBase.Clone: TJSONObject;
+begin
+  Result := FJSON.Clone as TJSONObject;
+end;
 
 constructor TJOSEBase.Create;
 begin

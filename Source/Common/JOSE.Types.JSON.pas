@@ -50,7 +50,6 @@ type
 
   TJSONUtils = class
   private
-
     class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject); overload;
