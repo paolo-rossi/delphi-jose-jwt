@@ -164,7 +164,7 @@ begin
   {$IF CompilerVersion >= 28}
   Result := TNetEncoding.Base64.Decode(ASource.AsBytes);
   {$ELSE}
-  Result := EncodeBase64(ASource.AsBytes);
+  Result := DecodeBase64(ASource.AsString);
   {$ENDIF}
 end;
 
@@ -173,7 +173,7 @@ begin
   {$IF CompilerVersion >= 28}
   Result := TNetEncoding.Base64.Encode(ASource.AsBytes);
   {$ELSE}
-  Result := DecodeBase64(ASource.AsString);
+  Result := EncodeBase64(ASource.AsBytes);
   {$ENDIF}
 end;
 
