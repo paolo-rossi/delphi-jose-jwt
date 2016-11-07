@@ -57,6 +57,7 @@ type
     class procedure SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject); overload;
     class procedure SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject); overload;
   public
+    class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
@@ -74,6 +75,11 @@ uses
   System.TypInfo;
 
 { TJSONUtils }
+
+class function TJSONUtils.CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
+begin
+  Result := Assigned(AJSON.GetValue(AName));
+end;
 
 class function TJSONUtils.GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
 var

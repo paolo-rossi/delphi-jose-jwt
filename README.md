@@ -44,7 +44,7 @@ This library is not susceptible to the [recently discussed encryption vulnerabil
 ## Projects using Delphi JOSE and JWT
 
 - [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
-- The [**MARS REST Library**](https://github.com/MARS-library/MARS)
+- The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
 
 ## Todo
 

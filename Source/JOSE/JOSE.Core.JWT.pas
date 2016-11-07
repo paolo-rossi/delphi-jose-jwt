@@ -90,6 +90,9 @@ type
     procedure SetJWTId(Value: string);
     procedure SetNotBefore(Value: TDateTime);
     procedure SetSubject(Value: string);
+    function GetHasAudience: Boolean;
+
+    function ClaimExists(const AClaimName: string): Boolean;
   public
     constructor Create; virtual;
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
@@ -97,6 +100,7 @@ type
     procedure CheckRegisteredClaims(AOptions: TClaimVerifications = []); virtual;
 
     property Audience: string read GetAudience write SetAudience;
+    property HasAudience: Boolean read GetHasAudience;
     property Expiration: TDateTime read GetExpiration write SetExpiration;
     property IssuedAt: TDateTime read GetIssuedAt write SetIssuedAt;
     property Issuer: string read GetIssuer write SetIssuer;
@@ -118,6 +122,8 @@ type
     constructor Create(AClaimsClass: TJWTClaimsClass); overload;
     destructor Destroy; override;
 
+    function GetClaimsAs<T: TJWTClaims>: T;
+
     property Header: TJWTHeader read FHeader;
     property Claims: TJWTClaims read FClaims;
     property Verified: Boolean read FVerified write FVerified;
@@ -127,6 +133,11 @@ implementation
 
 uses
   JOSE.Encoding.Base64;
+
+function TJWT.GetClaimsAs<T>: T;
+begin
+  Result := FClaims as T;
+end;
 
 constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);
 begin
@@ -174,6 +185,11 @@ begin
 }
 end;
 
+function TJWTClaims.ClaimExists(const AClaimName: string): Boolean;
+begin
+  Result := TJSONUtils.CheckPair(AClaimName, FJSON);
+end;
+
 constructor TJWTClaims.Create;
 begin
   inherited Create;
@@ -188,13 +204,33 @@ begin
 end;
 
 function TJWTClaims.GetAudience: string;
+var
+  LValue, LAudValue: TJSONValue;
+  LValueArray: TJSONArray;
 begin
-  Result := TJSONUtils.GetJSONValue(TReservedClaimNames.AUDIENCE, FJSON).AsString;
+  Result := '';
+  LAudValue := FJSON.GetValue(TReservedClaimNames.AUDIENCE);
+  if Assigned(LAudValue) and (LAudValue is TJSONArray) then
+  begin
+    LValueArray := LAudValue as TJSONArray;
+
+    for LValue in LValueArray do
+      Result := Result + LValue.Value + ',';
+
+    Result := Result.TrimRight([',']);
+  end
+  else
+    Result := TJSONUtils.GetJSONValue(TReservedClaimNames.AUDIENCE, FJSON).AsString;
 end;
 
 function TJWTClaims.GetExpiration: TDateTime;
 begin
   Result := TJSONUtils.GetJSONValueAsEpoch(TReservedClaimNames.EXPIRATION, FJSON);
+end;
+
+function TJWTClaims.GetHasAudience: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.AUDIENCE);
 end;
 
 function TJWTClaims.GetIssuedAt: TDateTime;
@@ -223,10 +259,31 @@ begin
 end;
 
 procedure TJWTClaims.SetAudience(Value: string);
+var
+  LAudienceArray: TArray<string>;
+  LAudience: string;
+  LPair: TJSONPair;
+  LArray: TJSONArray;
 begin
-  if Value = '' then
-    TJSONUtils.RemoveJSONNode(TReservedClaimNames.AUDIENCE, FJSON)
-  else
+  if Value.IsEmpty then
+  begin
+    TJSONUtils.RemoveJSONNode(TReservedClaimNames.AUDIENCE, FJSON);
+    Exit;
+  end;
+
+  LAudienceArray := Value.Split([',']);
+
+  if Length(LAudienceArray) > 1 then
+  begin
+    LArray := TJSONArray.Create;
+    for LAudience in LAudienceArray do
+    begin
+      LArray.Add(LAudience);
+    end;
+    FJSON.AddPair(TJSONPair.Create(TReservedClaimNames.AUDIENCE, LArray));
+  end;
+
+  if (Length(LAudienceArray) = 1) then
     TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, Value, FJSON);
 end;
 
