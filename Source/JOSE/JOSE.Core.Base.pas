@@ -39,6 +39,44 @@ const
 type
   EJOSEException = class(Exception);
 
+  TJOSEStringArray = TArray<string>;
+  TJOSEStringArrayHelper = record helper for TJOSEStringArray
+    function IsEmpty: Boolean;
+    function Size: Integer;
+    function Contains(const AValue: string): Boolean;
+    function ToString: string;
+    function ToStringPluralForm(const APluralPrefix: string): string;
+  end;
+
+
+  TJOSENumericDate = record
+  private
+    const CONVERSION: Int64 = 1000;
+  private
+    FValue: TDateTime;
+    function GetAsMilliSeconds: Int64;
+    function GetAsSeconds: Int64;
+    procedure SetAsSeconds(const AValue: Int64);
+  public
+    constructor Create(AValue: TDateTime);
+    class function FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate; static;
+    class function FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate; static;
+
+    procedure AddSeconds(ASeconds: Int64);
+    function IsBefore(const AWhen: TJOSENumericDate): Boolean;
+    function IsOnOrAfter(const AWhen: TJOSENumericDate): Boolean;
+    function IsAfter(const AWhen: TJOSENumericDate): Boolean;
+
+    property AsSeconds: Int64 read GetAsSeconds write SetAsSeconds;
+    property AsMilliSeconds: Int64 read GetAsMilliSeconds;
+  end;
+
+  THeaderNames = class
+  public const
+    HEADER_TYPE = 'typ';
+    ALGORITHM = 'alg';
+  end;
+
   TJOSEBase = class
   private
     function GetEncoded: TJOSEBytes;
@@ -61,10 +99,12 @@ type
   end;
 
 function ToJSON(Value: TJSONAncestor): string;
+function JSONDate(ADate: TDateTime): Int64;
 
 implementation
 
 uses
+  System.DateUtils,
   System.JSON,
   JOSE.Encoding.Base64;
 
@@ -84,6 +124,11 @@ begin
   Result := TEncoding.UTF8.GetString(LBytes, 0, LLen);
 end;
 {$ENDIF}
+
+function JSONDate(ADate: TDateTime): Int64;
+begin
+  Result := DateTimeToUnix(ADate, False);
+end;
 
 { TJOSEBase }
 
@@ -134,12 +179,98 @@ begin
     FJSON.Free;
     FJSON := LValue as TJSONObject;
   end;
-
 end;
 
 procedure TJOSEBase.AddPairOfType<T>(const AName: string; const AValue: T);
 begin
   TJSONUtils.SetJSONValueFrom<T>(AName, AValue, FJSON);
+end;
+
+{ TJOSENumericDate }
+
+procedure TJOSENumericDate.AddSeconds(ASeconds: Int64);
+begin
+  FValue := System.DateUtils.IncSecond(FValue, ASeconds);
+end;
+
+constructor TJOSENumericDate.Create(AValue: TDateTime);
+begin
+  FValue := AValue;
+end;
+
+class function TJOSENumericDate.FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate;
+begin
+  Result := TJOSENumericDate.Create(UnixToDateTime(AMillisecondsFromEpoch div CONVERSION, False));
+end;
+
+class function TJOSENumericDate.FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate;
+begin
+  Result := TJOSENumericDate.Create(UnixToDateTime(ASecondsFromEpoch, False));
+end;
+
+function TJOSENumericDate.GetAsMilliSeconds: Int64;
+begin
+  Result := DateTimeToUnix(FValue, False) * CONVERSION;
+end;
+
+function TJOSENumericDate.GetAsSeconds: Int64;
+begin
+  Result := DateTimeToUnix(FValue, False);
+end;
+
+function TJOSENumericDate.IsAfter(const AWhen: TJOSENumericDate): Boolean;
+begin
+  Result := (Self.AsSeconds > AWhen.AsSeconds);
+end;
+
+function TJOSENumericDate.IsBefore(const AWhen: TJOSENumericDate): Boolean;
+begin
+  Result := (Self.AsSeconds < AWhen.AsSeconds);
+end;
+
+function TJOSENumericDate.IsOnOrAfter(const AWhen: TJOSENumericDate): Boolean;
+begin
+  Result := (Self.AsSeconds >= AWhen.AsSeconds);
+end;
+
+procedure TJOSENumericDate.SetAsSeconds(const AValue: Int64);
+begin
+  FValue := UnixToDateTime(AValue);
+end;
+
+{ TJOSEStringArrayHelper }
+
+function TJOSEStringArrayHelper.Contains(const AValue: string): Boolean;
+var
+  LIndexValue: string;
+begin
+  Exit(False);
+  for LIndexValue in Self do
+    if LIndexValue = AValue then
+      Exit(True);
+end;
+
+function TJOSEStringArrayHelper.IsEmpty: Boolean;
+begin
+  Result := Length(Self) = 0;
+end;
+
+function TJOSEStringArrayHelper.Size: Integer;
+begin
+  Result := Length(Self);
+end;
+
+function TJOSEStringArrayHelper.ToString: string;
+begin
+  Result := string.Join(',', Self);
+end;
+
+function TJOSEStringArrayHelper.ToStringPluralForm(const APluralPrefix: string): string;
+begin
+  if Self.Size > 1 then
+    Result := APluralPrefix + ToString
+  else
+    Result := ToString;
 end;
 
 end.

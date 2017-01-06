@@ -43,9 +43,9 @@ type
     procedure FormCreate(Sender: TObject);
   private
     FJWT: TJWT;
+  protected
     procedure SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject); overload;
     procedure SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject); overload;
-  protected
     procedure TestJSON;
   public
     { Public declarations }

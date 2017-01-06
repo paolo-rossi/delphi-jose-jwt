@@ -35,6 +35,7 @@ uses
   System.StrUtils,
   System.DateUtils,
   System.Rtti,
+  System.JSON,
   System.Generics.Collections,
   JOSE.Types.JSON,
   JOSE.Types.Bytes,
@@ -43,12 +44,6 @@ uses
   JOSE.Core.JWK;
 
 type
-  THeaderNames = class
-  public const
-    HEADER_TYPE = 'typ';
-    ALGORITHM = 'alg';
-  end;
-
   TJWTHeader = class sealed(TJOSEBase)
   private
     function GetAlgorithm: string;
@@ -76,6 +71,8 @@ type
 
   TJWTClaims = class(TJOSEBase)
   private
+    const AUDIENCE_SEPARATOR = ',';
+  private
     function GetAudience: string;
     function GetExpiration: TDateTime;
     function GetIssuedAt: TDateTime;
@@ -90,23 +87,38 @@ type
     procedure SetJWTId(Value: string);
     procedure SetNotBefore(Value: TDateTime);
     procedure SetSubject(Value: string);
+
     function GetHasAudience: Boolean;
+    function GetHasExpiration: Boolean;
+    function GetHasIssuedAt: Boolean;
+    function GetHasIssuer: Boolean;
+    function GetHasJWTId: Boolean;
+    function GetHasNotBefore: Boolean;
+    function GetHasSubject: Boolean;
 
     function ClaimExists(const AClaimName: string): Boolean;
+    function GetAudienceArray: TJOSEStringArray;
+    procedure SetAudienceArray(const Value: TJOSEStringArray);
   public
     constructor Create; virtual;
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
-    procedure CheckRegisteredClaims(AOptions: TClaimVerifications = []); virtual;
 
     property Audience: string read GetAudience write SetAudience;
+    property AudienceArray: TJOSEStringArray read GetAudienceArray write SetAudienceArray;
     property HasAudience: Boolean read GetHasAudience;
     property Expiration: TDateTime read GetExpiration write SetExpiration;
+    property HasExpiration: Boolean read GetHasExpiration;
     property IssuedAt: TDateTime read GetIssuedAt write SetIssuedAt;
+    property HasIssuedAt: Boolean read GetHasIssuedAt;
     property Issuer: string read GetIssuer write SetIssuer;
+    property HasIssuer: Boolean read GetHasIssuer;
     property JWTId: string read GetJWTId write SetJWTId;
+    property HasJWTId: Boolean read GetHasJWTId;
     property NotBefore: TDateTime read GetNotBefore write SetNotBefore;
+    property HasNotBefore: Boolean read GetHasNotBefore;
     property Subject: string read GetSubject write SetSubject;
+    property HasSubject: Boolean read GetHasSubject;
   end;
 
   TJWTClaimsClass = class of TJWTClaims;
@@ -165,26 +177,6 @@ begin
   AddPairOfType<T>(AName, AValue);
 end;
 
-procedure TJWTClaims.CheckRegisteredClaims(AOptions: TClaimVerifications = []);
-//var
-//  LOption: TClaimVerification;
-begin
-{
-  for LOption in AOptions do
-  begin
-    case LOption of
-      Audience: ;
-      Expiration: ;
-      IssuedAt: ;
-      Issuer: ;
-      TokenId: ;
-      NotBefore: ;
-      Subject: ;
-    end;
-  end;
-}
-end;
-
 function TJWTClaims.ClaimExists(const AClaimName: string): Boolean;
 begin
   Result := TJSONUtils.CheckPair(AClaimName, FJSON);
@@ -215,12 +207,17 @@ begin
     LValueArray := LAudValue as TJSONArray;
 
     for LValue in LValueArray do
-      Result := Result + LValue.Value + ',';
+      Result := Result + LValue.Value + AUDIENCE_SEPARATOR;
 
-    Result := Result.TrimRight([',']);
+    Result := Result.TrimRight([AUDIENCE_SEPARATOR]);
   end
   else
     Result := TJSONUtils.GetJSONValue(TReservedClaimNames.AUDIENCE, FJSON).AsString;
+end;
+
+function TJWTClaims.GetAudienceArray: TJOSEStringArray;
+begin
+  Result := Audience.Split([AUDIENCE_SEPARATOR]);
 end;
 
 function TJWTClaims.GetExpiration: TDateTime;
@@ -231,6 +228,36 @@ end;
 function TJWTClaims.GetHasAudience: Boolean;
 begin
   Result := ClaimExists(TReservedClaimNames.AUDIENCE);
+end;
+
+function TJWTClaims.GetHasExpiration: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.EXPIRATION);
+end;
+
+function TJWTClaims.GetHasIssuedAt: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.ISSUED_AT);
+end;
+
+function TJWTClaims.GetHasIssuer: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.ISSUER);
+end;
+
+function TJWTClaims.GetHasJWTId: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.JWT_ID);
+end;
+
+function TJWTClaims.GetHasNotBefore: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.NOT_BEFORE);
+end;
+
+function TJWTClaims.GetHasSubject: Boolean;
+begin
+  Result := ClaimExists(TReservedClaimNames.SUBJECT);
 end;
 
 function TJWTClaims.GetIssuedAt: TDateTime;
@@ -262,7 +289,6 @@ procedure TJWTClaims.SetAudience(Value: string);
 var
   LAudienceArray: TArray<string>;
   LAudience: string;
-  LPair: TJSONPair;
   LArray: TJSONArray;
 begin
   if Value.IsEmpty then
@@ -271,7 +297,7 @@ begin
     Exit;
   end;
 
-  LAudienceArray := Value.Split([',']);
+  LAudienceArray := Value.Split([AUDIENCE_SEPARATOR]);
 
   if Length(LAudienceArray) > 1 then
   begin
@@ -285,6 +311,11 @@ begin
 
   if (Length(LAudienceArray) = 1) then
     TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, Value, FJSON);
+end;
+
+procedure TJWTClaims.SetAudienceArray(const Value: TJOSEStringArray);
+begin
+  Audience := string.Join(AUDIENCE_SEPARATOR, Value);
 end;
 
 procedure TJWTClaims.SetExpiration(Value: TDateTime);
