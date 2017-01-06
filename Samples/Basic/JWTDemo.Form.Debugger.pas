@@ -29,10 +29,10 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
+  JOSE.Core.JWE,
   JOSE.Core.JWK,
   JOSE.Core.JWA,
   JOSE.Types.JSON,
-  JOSE.Core.Builder,
   JOSE.Encoding.Base64;
 
 type
@@ -58,7 +58,7 @@ type
     procedure memoPayloadChange(Sender: TObject);
   private
     FJWT: TJWT;
-    FAlg: TJWAEnum;
+    FAlg: TJOSEAlgorithmId;
 
     procedure GenerateToken;
     procedure WriteCompactHeader(const AHeader: string);
@@ -83,9 +83,9 @@ implementation
 procedure TfrmDebugger.cbbDebuggerAlgoChange(Sender: TObject);
 begin
   case cbbDebuggerAlgo.ItemIndex of
-    0: FAlg := HS256;
-    1: FAlg := HS384;
-    2: FAlg := HS512;
+    0: FAlg := TJOSEAlgorithmId.HS256;
+    1: FAlg := TJOSEAlgorithmId.HS384;
+    2: FAlg := TJOSEAlgorithmId.HS512;
   end;
   GenerateToken;
 end;
@@ -126,7 +126,7 @@ begin
   FJWT.Claims.JSON.Free;
   FJWT.Claims.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoPayload.Lines.Text));
 
-  FAlg := HS256;
+  FAlg := TJOSEAlgorithmId.HS256;
 
   WriteDefault;
 end;
@@ -149,6 +149,7 @@ begin
       LKey := TJWK.Create(edtKey.Text);
 
     try
+      LSigner.SkipKeyValidation := True;
       LSigner.Sign(LKey, FAlg);
 
       WriteCompactHeader(LSigner.Header);
@@ -207,11 +208,25 @@ end;
 function TfrmDebugger.VerifyToken(AKey: TJWK): Boolean;
 var
   LToken: TJWT;
+  LSigner: TJWS;
+  LCompactToken: string;
 begin
   Result := False;
-  LToken := TJOSE.Verify(AKey, StringReplace(richEncoded.Lines.Text, sLineBreak, '', [rfReplaceAll]));
+  LCompactToken := StringReplace(richEncoded.Lines.Text, sLineBreak, '', [rfReplaceAll]);
+
+  LToken := TJWT.Create;
   try
-    if Assigned(LToken) and (LToken.Verified) then
+    LSigner := TJWS.Create(LToken);
+    LSigner.SkipKeyValidation := True;
+    try
+      LSigner.SetKey(AKey);
+      LSigner.CompactToken := LCompactToken;
+      LSigner.VerifySignature;
+    finally
+      LSigner.Free;
+    end;
+
+    if LToken.Verified then
       Result := True;
   finally
     LToken.Free;

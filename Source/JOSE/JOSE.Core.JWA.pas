@@ -30,10 +30,24 @@ unit JOSE.Core.JWA;
 
 interface
 
-type
-  TJWAEnum = (None, HS256, HS384, HS512, RS256, RS348, RS512);
+uses
+  System.SysUtils,
+  System.Generics.Defaults,
+  System.Generics.Collections,
+  JOSE.Types.Bytes;
 
-  TJWAEnumHelper = record helper for TJWAEnum
+type
+  {$SCOPEDENUMS ON}
+  TJOSEKeyCategory = (None, Symmetric, Asymmetric);
+
+  TJOSEAlgorithmId = (
+    Unknown, None,
+    HS256, HS384, HS512,
+    RS256, RS384, RS512,
+    ES256, ES384, ES512,
+    PS256, PS384, PS512
+  );
+  TJOSEAlgorithmIdHelper = record helper for TJOSEAlgorithmId
   private
     function GetAsString: string;
     procedure SetAsString(const Value: string);
@@ -41,37 +55,106 @@ type
     property AsString: string read GetAsString write SetAsString;
   end;
 
+  IJOSEAlgorithm = interface
+  ['{1BA290C7-D139-4CD8-86FE-7F80B9826007}']
+    function GetAlgorithmIdentifier: TJOSEAlgorithmId;
+    function GetKeyCategory: TJOSEKeyCategory;
+    function GetKeyType: string;
+  end;
+
+  IJOSEKeyManagementAlgorithm = interface(IJOSEAlgorithm)
+  ['{2A2FBF37-8267-4DA3-AA11-7E1C3ED235DD}']
+  end;
+
+  TJOSEAlgorithm = class(TInterfacedObject, IJOSEAlgorithm)
+    FAlgorithmIdentifier: TJOSEAlgorithmId;
+    FKeyCategory: TJOSEKeyCategory;
+    FKeyType: string;
+  public
+    function GetAlgorithmIdentifier: TJOSEAlgorithmId;
+    function GetKeyCategory: TJOSEKeyCategory;
+    function GetKeyType: string;
+  end;
+
 implementation
 
-function TJWAEnumHelper.GetAsString: string;
+{ TJOSEAlgorithm }
+
+function TJOSEAlgorithm.GetAlgorithmIdentifier: TJOSEAlgorithmId;
+begin
+  Result := FAlgorithmIdentifier;
+end;
+
+function TJOSEAlgorithm.GetKeyCategory: TJOSEKeyCategory;
+begin
+  Result := FKeyCategory;
+end;
+
+function TJOSEAlgorithm.GetKeyType: string;
+begin
+  Result := FKeyType;
+end;
+
+{ TJOSEAlgorithmIdHelper }
+
+function TJOSEAlgorithmIdHelper.GetAsString: string;
 begin
   case Self of
-    None:  Result := 'none';
-    HS256: Result := 'HS256';
-    HS384: Result := 'HS384';
-    HS512: Result := 'HS512';
-    RS256: Result := 'RS256';
-    RS348: Result := 'RS348';
-    RS512: Result := 'RS512';
+    TJOSEAlgorithmId.None:  Result := 'none';
+
+    TJOSEAlgorithmId.HS256: Result := 'HS256';
+    TJOSEAlgorithmId.HS384: Result := 'HS384';
+    TJOSEAlgorithmId.HS512: Result := 'HS512';
+
+    TJOSEAlgorithmId.RS256: Result := 'RS256';
+    TJOSEAlgorithmId.RS384: Result := 'RS384';
+    TJOSEAlgorithmId.RS512: Result := 'RS512';
+
+    TJOSEAlgorithmId.ES256: Result := 'ES256';
+    TJOSEAlgorithmId.ES384: Result := 'ES384';
+    TJOSEAlgorithmId.ES512: Result := 'ES512';
+
+    TJOSEAlgorithmId.PS256: Result := 'PS256';
+    TJOSEAlgorithmId.PS384: Result := 'PS384';
+    TJOSEAlgorithmId.PS512: Result := 'PS512';
   end;
 end;
 
-procedure TJWAEnumHelper.SetAsString(const Value: string);
+procedure TJOSEAlgorithmIdHelper.SetAsString(const Value: string);
 begin
   if Value = 'none' then
-    Self := None
+    Self := TJOSEAlgorithmId.None
+
   else if Value = 'HS256' then
-    Self := HS256
+    Self := TJOSEAlgorithmId.HS256
   else if Value = 'HS384' then
-    Self := HS384
+    Self := TJOSEAlgorithmId.HS384
   else if Value = 'HS512' then
-    Self := HS512
+    Self := TJOSEAlgorithmId.HS512
+
   else if Value = 'RS256' then
-    Self := RS256
-  else if Value = 'RS348' then
-    Self := RS348
+    Self := TJOSEAlgorithmId.RS256
+  else if Value = 'RS384' then
+    Self := TJOSEAlgorithmId.RS384
   else if Value = 'RS512' then
-    Self := RS512;
+    Self := TJOSEAlgorithmId.RS512
+
+  else if Value = 'ES256' then
+    Self := TJOSEAlgorithmId.ES256
+  else if Value = 'ES384' then
+    Self := TJOSEAlgorithmId.ES384
+  else if Value = 'ES512' then
+    Self := TJOSEAlgorithmId.ES512
+
+  else if Value = 'PS256' then
+    Self := TJOSEAlgorithmId.PS256
+  else if Value = 'PS384' then
+    Self := TJOSEAlgorithmId.PS384
+  else if Value = 'PS512' then
+    Self := TJOSEAlgorithmId.PS512
+
+  else
+    Self := TJOSEAlgorithmId.Unknown;
 end;
 
 end.

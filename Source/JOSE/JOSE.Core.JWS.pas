@@ -37,13 +37,16 @@ uses
   JOSE.Core.Parts,
   JOSE.Core.JWA,
   JOSE.Core.JWK,
-  JOSE.Core.JWT;
+  JOSE.Core.JWT,
+  JOSE.Core.JWA.Signing;
 
 type
   TJWS = class(TJOSEParts)
   private
     const COMPACT_PARTS = 3;
-
+  private
+    FKey: TJOSEBytes;
+  private
     function GetSigningInput: TJOSEBytes;
     function GetHeader: TJOSEBytes;
     function GetPayload: TJOSEBytes;
@@ -52,14 +55,23 @@ type
     procedure SetPayload(const Value: TJOSEBytes);
     procedure SetSignature(const Value: TJOSEBytes);
   protected
+    function GetAlgorithm(AAlgId: TJOSEAlgorithmId): IJOSESigningAlgorithm;
     function GetCompactToken: TJOSEBytes; override;
     procedure SetCompactToken(const Value: TJOSEBytes); override;
   public
     constructor Create(AToken: TJWT); override;
 
-    function Sign(AKey: TJWK; AAlg: TJWAEnum): TJOSEBytes;
-    procedure Verify(AKey: TJWK; const ACompactToken: TJOSEBytes);
+    procedure SetKey(const AKey: TBytes); overload;
+    procedure SetKey(const AKey: TJOSEBytes); overload;
+    procedure SetKey(const AKey: TJWK); overload;
 
+    function Sign: TJOSEBytes; overload;
+    function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes; overload;
+
+    function VerifySignature: Boolean; overload;
+    function VerifySignature(AKey: TJWK; const ACompactToken: TJOSEBytes): Boolean; overload;
+
+    property Key: TJOSEBytes read FKey;
     property Header: TJOSEBytes read GetHeader write SetHeader;
     property Payload: TJOSEBytes read GetPayload write SetPayload;
     property Signature: TJOSEBytes read GetSignature write SetSignature;
@@ -72,7 +84,8 @@ uses
   System.Types,
   System.StrUtils,
   JOSE.Encoding.Base64,
-  JOSE.Hashing.HMAC;
+  JOSE.Hashing.HMAC,
+  JOSE.Core.JWA.Factory;
 
 constructor TJWS.Create(AToken: TJWT);
 var
@@ -82,6 +95,20 @@ begin
 
   for LIndex := 0 to COMPACT_PARTS - 1 do
     FParts.Add(TJOSEBytes.Empty);
+end;
+
+function TJWS.GetAlgorithm(AAlgId: TJOSEAlgorithmId): IJOSESigningAlgorithm;
+var
+  LAlgId: string;
+begin
+  LAlgId := FToken.Header.Algorithm;
+
+  if LAlgId.IsEmpty then
+    raise EJOSEException.CreateFmt('Signature algorithm header (%s) not set.',
+      [THeaderNames.ALGORITHM]);
+
+  Result := TJOSEAlgorithmRegistryFactory.Instance
+    .SigningAlgorithmRegistry.GetAlgorithm(LAlgId);
 end;
 
 function TJWS.GetCompactToken: TJOSEBytes;
@@ -132,6 +159,21 @@ begin
   FParts[0] := Value;
 end;
 
+procedure TJWS.SetKey(const AKey: TBytes);
+begin
+  FKey := AKey;
+end;
+
+procedure TJWS.SetKey(const AKey: TJOSEBytes);
+begin
+  FKey := AKey;
+end;
+
+procedure TJWS.SetKey(const AKey: TJWK);
+begin
+  FKey := AKey.Key;
+end;
+
 procedure TJWS.SetPayload(const Value: TJOSEBytes);
 begin
   FParts[1] := Value;
@@ -142,54 +184,52 @@ begin
   FParts[2] := Value;
 end;
 
-function TJWS.Sign(AKey: TJWK; AAlg: TJWAEnum): TJOSEBytes;
-var
-  LSign: TJOSEBytes;
+function TJWS.Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes;
 begin
-  Empty;
+  SetKey(AKey);
+  SetHeaderAlgorithm(AAlgId);
 
-  if FToken.Header.Algorithm <> AAlg.AsString then
-    FToken.Header.Algorithm := AAlg.AsString;
+  Result := Sign();
+end;
+
+function TJWS.Sign: TJOSEBytes;
+var
+  LAlgId: TJOSEAlgorithmId;
+  LAlg: IJOSESigningAlgorithm;
+begin
+  LAlgId.AsString := FToken.Header.Algorithm;
+  LAlg := GetAlgorithm(LAlgId);
+
+  if not FSkipKeyValidation then
+    LAlg.ValidateSigningKey(FKey);
 
   Header := TBase64.URLEncode(ToJSON(FToken.Header.JSON));
   Payload := TBase64.URLEncode(ToJSON(FToken.Claims.JSON));
-
-  case AAlg of
-    None:  LSign.Clear;
-    HS256: LSign := THMAC.Sign(SigningInput, AKey.Key, SHA256);
-    HS384: LSign := THMAC.Sign(SigningInput, AKey.Key, SHA384);
-    HS512: LSign := THMAC.Sign(SigningInput, AKey.Key, SHA512);
-  else
-    raise EJOSEException.Create('Signing algorithm not supported');
-  end;
-  Signature := TBase64.URLEncode(LSign.AsBytes);
+  Signature := LAlg.Sign(FKey, SigningInput);
 
   Result := Signature;
 end;
 
-procedure TJWS.Verify(AKey: TJWK; const ACompactToken: TJOSEBytes);
-var
-  LExpectedSign: TJOSEBytes;
-  LAlg: TJWAEnum;
+function TJWS.VerifySignature(AKey: TJWK; const ACompactToken: TJOSEBytes): Boolean;
 begin
-  CompactToken := ACompactToken;
+  SetKey(AKey);
+  SetCompactToken(ACompactToken);
 
-  LAlg.AsString := FToken.Header.Algorithm;
-  case LAlg of
-    None : FToken.Verified := AKey.Key.IsEmpty;
-    HS256: LExpectedSign := THMAC.Sign(SigningInput, AKey.Key, SHA256);
-    HS384: LExpectedSign := THMAC.Sign(SigningInput, AKey.Key, SHA384);
-    HS512: LExpectedSign := THMAC.Sign(SigningInput, AKey.Key, SHA512);
-  else
-    raise EJOSEException.Create('Signing algorithm not supported');
-  end;
+  Result := VerifySignature;
+end;
 
-  if LAlg <> None then
-  begin
-    LExpectedSign := TBase64.URLEncode(LExpectedSign);
-    if LExpectedSign = Signature then
-      FToken.Verified := True;
-  end;
+function TJWS.VerifySignature: Boolean;
+var
+  LAlgId: TJOSEAlgorithmId;
+  LAlg: IJOSESigningAlgorithm;
+begin
+  LAlgId.AsString := FToken.Header.Algorithm;
+  LAlg := GetAlgorithm(LAlgId);
+
+  if not FSkipKeyValidation then
+    LAlg.ValidateVerificationKey(FKey);
+
+  Result := LAlg.VerifySignature(FKey, Payload, Signature);
 end;
 
 end.

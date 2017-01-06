@@ -42,6 +42,10 @@ uses
 
 type
   THMACAlgorithm = (SHA256, SHA384, SHA512);
+  THMACAlgorithmHelper = record helper for THMACAlgorithm
+    procedure FromString(const AValue: string);
+    function ToString: string;
+  end;
 
   THMAC = class
   public
@@ -89,5 +93,28 @@ begin
 end;
 {$IFEND}
 
+
+{ THMACAlgorithmHelper }
+
+procedure THMACAlgorithmHelper.FromString(const AValue: string);
+begin
+  if AValue = 'SHA256' then
+    Self := SHA256
+  else if AValue = 'SHA388' then
+    Self := SHA384
+  else if AValue = 'SHA512' then
+    Self := SHA512
+  else
+    raise Exception.Create('Invalid HMAC algorithm type');
+end;
+
+function THMACAlgorithmHelper.ToString: string;
+begin
+  case Self of
+    SHA256: Result := 'SHA256';
+    SHA384: Result := 'SHA384';
+    SHA512: Result := 'SHA512';
+  end;
+end;
 
 end.

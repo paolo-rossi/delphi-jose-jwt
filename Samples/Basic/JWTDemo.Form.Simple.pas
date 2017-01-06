@@ -97,7 +97,7 @@ begin
     LSigner := TJWS.Create(LToken);
     LKey := TJWK.Create('secret');
     try
-      LSigner.Sign(LKey, HS256);
+      LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
 
       memoJSON.Lines.Add('Header: ' + LToken.Header.JSON.ToJSON);
       memoJSON.Lines.Add('Claims: ' + LToken.Claims.JSON.ToJSON);

@@ -21,85 +21,27 @@
 {******************************************************************************}
 
 /// <summary>
-///   Token Parts
+///   JSON Web Algorithms (JWA) RFC implementation (partial) <br />
 /// </summary>
-unit JOSE.Core.Parts;
+/// <seealso href="https://tools.ietf.org/html/rfc7518">
+///   JWA RFC Document
+/// </seealso>
+unit JOSE.Core.JWA.Compression;
 
 interface
 
 uses
   System.SysUtils,
-  System.Generics.Collections,
   JOSE.Types.Bytes,
-  JOSE.Core.JWA,
-  JOSE.Core.JWT;
+  JOSE.Core.JWA;
 
 type
-  TJOSEParts = class
-  protected
-    FParts: TList<TJOSEBytes>;
-    FToken: TJWT;
-    FSkipKeyValidation: Boolean;
-    function GetCompactToken: TJOSEBytes; virtual; abstract;
-    procedure SetCompactToken(const Value: TJOSEBytes); virtual; abstract;
-
-    function GetHeaderAlgorithm: string;
-  public
-    constructor Create(AToken: TJWT); virtual;
-    destructor Destroy; override;
-
-    procedure SetHeaderAlgorithm(const AAlg: string); overload;
-    procedure SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId); overload;
-
-    procedure Clear;
-    procedure Empty;
-    property CompactToken: TJOSEBytes read GetCompactToken write SetCompactToken;
-    property HeaderAlgorithm: string read GetHeaderAlgorithm;
-    property SkipKeyValidation: Boolean read FSkipKeyValidation write FSkipKeyValidation;
+  IJOSECompressionAlgorithm = interface(IJOSEAlgorithm)
+  ['{B2782386-F5A2-43BF-B86C-B103A0221FC4}']
+    function Compress(const Data: TBytes): TBytes;
+    function Decompress(const CompressedData: TBytes): TBytes;
   end;
 
 implementation
-
-{ TJOSEParts }
-
-procedure TJOSEParts.Clear;
-begin
-  FParts.Clear;
-end;
-
-constructor TJOSEParts.Create(AToken: TJWT);
-begin
-  FToken := AToken;
-  FParts := TList<TJOSEBytes>.Create;
-end;
-
-destructor TJOSEParts.Destroy;
-begin
-  FParts.Free;
-  inherited;
-end;
-
-procedure TJOSEParts.Empty;
-var
-  LIndex: Integer;
-begin
-  for LIndex := 0 to FParts.Count - 1 do
-    FParts[LIndex] := TJOSEBytes.Empty;
-end;
-
-function TJOSEParts.GetHeaderAlgorithm: string;
-begin
-  Result := FToken.Header.Algorithm;
-end;
-
-procedure TJOSEParts.SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId);
-begin
-  FToken.Header.Algorithm := AAlg.AsString;
-end;
-
-procedure TJOSEParts.SetHeaderAlgorithm(const AAlg: string);
-begin
-  FToken.Header.Algorithm := AAlg;
-end;
 
 end.

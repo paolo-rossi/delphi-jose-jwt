@@ -21,85 +21,50 @@
 {******************************************************************************}
 
 /// <summary>
-///   Token Parts
+///   JSON Web Encryption (JWE) RFC implementation (initial)
 /// </summary>
-unit JOSE.Core.Parts;
+/// <seealso href="https://tools.ietf.org/html/rfc7516">
+///   JWE RFC Document
+/// </seealso>
+unit JOSE.Core.JWA.Encryption;
 
 interface
 
 uses
   System.SysUtils,
-  System.Generics.Collections,
   JOSE.Types.Bytes,
-  JOSE.Core.JWA,
-  JOSE.Core.JWT;
+  JOSE.Core.JWA;
 
 type
-  TJOSEParts = class
-  protected
-    FParts: TList<TJOSEBytes>;
-    FToken: TJWT;
-    FSkipKeyValidation: Boolean;
-    function GetCompactToken: TJOSEBytes; virtual; abstract;
-    procedure SetCompactToken(const Value: TJOSEBytes); virtual; abstract;
-
-    function GetHeaderAlgorithm: string;
+  TEncryptionParts = class
+  private
+    FAuthenticationTag: TBytes;
+    FCiphertext: TBytes;
+    FIv: TBytes;
   public
-    constructor Create(AToken: TJWT); virtual;
-    destructor Destroy; override;
+    constructor Create(const AIv,ACiphertext, AAuthenticationTag: TBytes);
 
-    procedure SetHeaderAlgorithm(const AAlg: string); overload;
-    procedure SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId); overload;
+    property Iv: TBytes read FIv;
+    property Ciphertext: TBytes read FCiphertext;
+    property AuthenticationTag: TBytes read FAuthenticationTag;
+  end;
 
-    procedure Clear;
-    procedure Empty;
-    property CompactToken: TJOSEBytes read GetCompactToken write SetCompactToken;
-    property HeaderAlgorithm: string read GetHeaderAlgorithm;
-    property SkipKeyValidation: Boolean read FSkipKeyValidation write FSkipKeyValidation;
+  IJOSEEncryptionAlgorithm = interface(IJOSEAlgorithm)
+  ['{D802ABF3-82E2-494B-B96A-D13C5A782574}']
+    //function GetContentEncryptionKeyDescriptor: TContentEncryptionKeyDescriptor;
+    function Encrypt(const APlaintext, AAdditionalData, AContentEncryptionKey, IvOverride: TBytes{; AHeaders headers}): TEncryptionParts;
+    function Decrypt(AEncryptionParts: TEncryptionParts; const AAdditionalData, AContentEncryptionKey: TBytes{; Headers headers}): TBytes;
   end;
 
 implementation
 
-{ TJOSEParts }
+{ TEncryptionParts }
 
-procedure TJOSEParts.Clear;
+constructor TEncryptionParts.Create(const AIv, ACiphertext, AAuthenticationTag: TBytes);
 begin
-  FParts.Clear;
-end;
-
-constructor TJOSEParts.Create(AToken: TJWT);
-begin
-  FToken := AToken;
-  FParts := TList<TJOSEBytes>.Create;
-end;
-
-destructor TJOSEParts.Destroy;
-begin
-  FParts.Free;
-  inherited;
-end;
-
-procedure TJOSEParts.Empty;
-var
-  LIndex: Integer;
-begin
-  for LIndex := 0 to FParts.Count - 1 do
-    FParts[LIndex] := TJOSEBytes.Empty;
-end;
-
-function TJOSEParts.GetHeaderAlgorithm: string;
-begin
-  Result := FToken.Header.Algorithm;
-end;
-
-procedure TJOSEParts.SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId);
-begin
-  FToken.Header.Algorithm := AAlg.AsString;
-end;
-
-procedure TJOSEParts.SetHeaderAlgorithm(const AAlg: string);
-begin
-  FToken.Header.Algorithm := AAlg;
+  FIv := AIv;
+  FCiphertext := ACiphertext;
+  FAuthenticationTag := AAuthenticationTag;
 end;
 
 end.
