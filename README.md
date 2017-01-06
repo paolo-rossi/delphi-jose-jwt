@@ -13,7 +13,7 @@
 ## Important!
 The HMAC algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
 The client doesn't have to generate or verify the token (using HMAC) so on the client-side there's no need for the OpenSSL DLLs.
-You can download the packages at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always download the latest version)
+You can download the OpenSSL package at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always update to the latest version)
 
 ## What is JOSE
 
@@ -25,7 +25,7 @@ You can download the packages at the [fulgan website](https://indy.fulgan.com/SS
 - [JWA (JSON Web Algorithms)](https://tools.ietf.org/html/rfc7518) - describes cryptographic algorithms used in JOSE
 - [JWK (JSON Web Key)](https://tools.ietf.org/html/rfc7517) - describes format and handling of cryptographic keys in JOSE
 
-## Features
+## General Features
 
 - Token serialization
 - Token deserialization
