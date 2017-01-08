@@ -51,11 +51,6 @@ type
   TJSONUtils = class
   private
     class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
-    class procedure SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject); overload;
-    class procedure SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject); overload;
-    class procedure SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject); overload;
-    class procedure SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject); overload;
-    class procedure SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject); overload;
   public
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
@@ -172,76 +167,58 @@ begin
     LPair.Free;
 end;
 
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Int64; AJSON: TJSONObject);
-begin
-  RemoveJSONNode(AName, AJSON);
-  AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
-end;
-
 class procedure TJSONUtils.SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
 begin
   SetJSONValue(AName, TValue.From<T>(AValue), AJSON);
 end;
 
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Double; AJSON: TJSONObject);
-begin
-  RemoveJSONNode(AName, AJSON);
-  AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
-end;
-
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: string; AJSON: TJSONObject);
-begin
-  RemoveJSONNode(AName, AJSON);
-  AJSON.AddPair(TJSONPair.Create(AName, AValue));
-end;
-
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Integer; AJSON: TJSONObject);
-begin
-  RemoveJSONNode(AName, AJSON);
-  AJSON.AddPair(TJSONPair.Create(AName, TJSONNumber.Create(AValue)));
-end;
-
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: Boolean; AJSON: TJSONObject);
-begin
-  RemoveJSONNode(AName, AJSON);
-  if AValue then
-    AJSON.AddPair(TJSONPair.Create(AName, TJSONTrue.Create))
-  else
-    AJSON.AddPair(TJSONPair.Create(AName, TJSONFalse.Create));
-end;
-
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
+var
+  LPair: TJSONPair;
 begin
-  case AValue.Kind of
-    tkChar,
-    tkString,
-    tkWChar,
-    tkLString,
-    tkWString,
-    tkUString:
-    begin
-      SetJSONValue(AName, AValue.AsType<string>, AJSON);
-    end;
+  LPair := AJSON.Get(AName);
+  if Assigned(LPair) then
+  begin
+    case AValue.Kind of
+      tkChar,
+      tkString,
+      tkWChar,
+      tkLString,
+      tkWString,
+      tkUString:
+      begin
+        LPair.JsonValue.Free;
+        LPair.JsonValue := TJSONString.Create(AValue.AsType<string>);
+      end;
 
-    tkEnumeration:
-    begin
-      if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
-        SetJSONValue(AName, AValue.AsType<Boolean>, AJSON);
-    end;
+      tkEnumeration:
+      begin
+        if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
+        begin
+          LPair.JsonValue.Free;
 
-    tkInteger,
-    tkInt64,
-    tkFloat:
-    begin
-      if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
-        SetJSONValue(AName, DateTimeToUnix(AValue.AsType<TDateTime>, False), AJSON)
-      else
-        if AValue.Kind = tkFloat then
-          SetJSONValue(AName, AValue.AsType<Double>, AJSON)
+          if AValue.AsType<Boolean> then
+            LPair.JsonValue := TJSONTrue.Create
+          else
+            LPair.JsonValue := TJSONFalse.Create;
+        end;
+      end;
+
+      tkInteger,
+      tkInt64,
+      tkFloat:
+      begin
+        LPair.JsonValue.Free;
+        if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
+           SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
+           SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
+          LPair.JsonValue := TJSONNumber.Create(DateTimeToUnix(AValue.AsType<TDateTime>, False))
         else
-          SetJSONValue(AName, AValue.AsType<Integer>, AJSON);
+          if AValue.Kind = tkFloat then
+            LPair.JsonValue := TJSONNumber.Create(AValue.AsType<Double>)
+          else
+            LPair.JsonValue := TJSONNumber.Create(AValue.AsType<Integer>)
+      end;
     end;
   end;
 end;

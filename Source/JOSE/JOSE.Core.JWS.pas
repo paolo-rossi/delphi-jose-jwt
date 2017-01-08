@@ -229,7 +229,8 @@ begin
   if not FSkipKeyValidation then
     LAlg.ValidateVerificationKey(FKey);
 
-  Result := LAlg.VerifySignature(FKey, Payload, Signature);
+  Result := LAlg.VerifySignature(FKey, SigningInput, Signature);
+  FToken.Verified := Result;
 end;
 
 end.
