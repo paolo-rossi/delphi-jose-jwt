@@ -97,8 +97,8 @@ begin
 
     mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
 
-    mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-    mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+    mmoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
+    mmoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
   finally
     LToken.Free;
   end;

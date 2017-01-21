@@ -52,6 +52,7 @@ type
   private
     class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
   public
+    class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
@@ -170,6 +171,15 @@ end;
 class procedure TJSONUtils.SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
 begin
   SetJSONValue(AName, TValue.From<T>(AValue), AJSON);
+end;
+
+class function TJSONUtils.ToJSON(AJSONValue: TJSONValue): string;
+var
+  LBytes: TBytes;
+begin
+  SetLength(LBytes, AJSONValue.ToString.Length * 6);
+  SetLength(LBytes, AJSONValue.ToBytes(LBytes, 0));
+  Result := TEncoding.Default.GetString(LBytes);
 end;
 
 class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);

@@ -99,8 +99,8 @@ begin
     try
       LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
 
-      memoJSON.Lines.Add('Header: ' + LToken.Header.JSON.ToJSON);
-      memoJSON.Lines.Add('Claims: ' + LToken.Claims.JSON.ToJSON);
+      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
 
       memoCompact.Lines.Add('Header: ' + LSigner.Header);
       memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
@@ -145,8 +145,8 @@ begin
     memoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
 
     // Header and Claims JSON representation
-    memoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-    memoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
+    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
   finally
     LToken.Free;
   end;

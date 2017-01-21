@@ -199,7 +199,6 @@ object frmClaims: TfrmClaims
     Height = 25
     Caption = 'btnConsumer'
     TabOrder = 16
-    OnClick = btnConsumerClick
   end
   object edtSubject: TLabeledEdit
     Left = 12

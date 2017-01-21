@@ -126,12 +126,12 @@ begin
   }
 
   //TJSONUtils.SetJSONValueFrom<Double>('alg', 10.44, LJObj);
-  memoLog.Lines.Add(LJObj.ToJSON);
+  memoLog.Lines.Add(TJSONUtils.ToJSON(LJObj));
 
 
   LJObj.AddPair('alg', 'SHSHSH');
 
-  memoLog.Lines.Add(LJObj.ToJSON);
+  memoLog.Lines.Add(TJSONUtils.ToJSON(LJObj));
   FJWT.Header.Algorithm := 'HS256';
 
   LJObj.Free;

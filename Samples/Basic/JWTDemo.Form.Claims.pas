@@ -37,7 +37,6 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.Builder,
   JOSE.Hashing.HMAC,
-  JOSE.Consumer,
   JOSE.Encoding.Base64;
 
 type
@@ -77,7 +76,6 @@ type
     chkAudience: TCheckBox;
     Button3: TButton;
     procedure FormCreate(Sender: TObject);
-    procedure btnConsumerClick(Sender: TObject);
     procedure btnCustomJWSClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button1Click(Sender: TObject);
@@ -85,7 +83,6 @@ type
     procedure Button3Click(Sender: TObject);
   private
     FJWT: TJWT;
-    c: TJOSEConsumer;
     FCompact: TJOSEBytes;
   public
     { Public declarations }
@@ -106,23 +103,6 @@ begin
 
   edtNotBeforeDate.Date := Now;
   edtNotBeforeTime.Time := Now;
-end;
-
-procedure TfrmClaims.btnConsumerClick(Sender: TObject);
-begin
-  c := TJOSEConsumerBuilder.NewConsumer
-    .SetVerificationKey('secret')
-    .SetDisableRequireSignature
-    .SetClaimsClass(TJWTClaims)
-    .SetExpectedSubject('paolo')
-    .Build();
-
-  //c.Process('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ').Free;
-  try
-    c.Process(FCompact);
-  finally
-    c.Free;
-  end;
 end;
 
 procedure TfrmClaims.btnCustomJWSClick(Sender: TObject);
@@ -167,7 +147,7 @@ end;
 procedure TfrmClaims.Button2Click(Sender: TObject);
 begin
 
-  Memo1.Lines.Add(FJWT.Claims.JSON.ToJSON);
+  Memo1.Lines.Add(TJSONUtils.ToJSON(FJWT.Claims.JSON));
   //if FJWT.Claims.HasAudience then
     Memo1.Lines.Add(FJWT.Claims.Audience);
   Memo1.Lines.Add(FJWT.GetClaimsAs<TMyClaims>.AppIssuer);
@@ -176,7 +156,7 @@ end;
 
 procedure TfrmClaims.Button3Click(Sender: TObject);
 begin
-  THMAC.Sign([3, 45, 44, 55, 43, 56], [56, 48, 52, 53, 54, 55, 56], THMACAlgorithm.SHA256);
+
 end;
 
 { TMyClaims }

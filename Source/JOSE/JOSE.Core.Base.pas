@@ -40,6 +40,7 @@ type
   EJOSEException = class(Exception);
 
   TJOSEStringArray = TArray<string>;
+  {$IF CompilerVersion > 28}
   TJOSEStringArrayHelper = record helper for TJOSEStringArray
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -47,6 +48,7 @@ type
     function ToString: string;
     function ToStringPluralForm(const APluralPrefix: string): string;
   end;
+  {$ENDIF}
 
 
   TJOSENumericDate = record
@@ -238,6 +240,8 @@ begin
   FValue := UnixToDateTime(AValue);
 end;
 
+{$IF CompilerVersion > 28}
+
 { TJOSEStringArrayHelper }
 
 function TJOSEStringArrayHelper.Contains(const AValue: string): Boolean;
@@ -268,9 +272,11 @@ end;
 function TJOSEStringArrayHelper.ToStringPluralForm(const APluralPrefix: string): string;
 begin
   if Self.Size > 1 then
-    Result := APluralPrefix + ToString
+    Result := APluralPrefix + Self.ToString
   else
-    Result := ToString;
+    Result := Self.ToString;
 end;
+
+{$ENDIF}
 
 end.
