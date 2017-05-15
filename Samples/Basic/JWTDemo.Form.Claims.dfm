@@ -43,6 +43,13 @@ object frmClaims: TfrmClaims
     Height = 13
     Caption = 'Hash Algorithm'
   end
+  object Label1: TLabel
+    Left = 400
+    Top = 296
+    Width = 31
+    Height = 13
+    Caption = 'Label1'
+  end
   object edtIssuer: TLabeledEdit
     Left = 12
     Top = 21
@@ -52,6 +59,7 @@ object frmClaims: TfrmClaims
     EditLabel.Height = 13
     EditLabel.Caption = 'Issuer'
     TabOrder = 0
+    Text = 'delphi-jose-jwt'
   end
   object edtIssuedAtTime: TDateTimePicker
     Left = 124
@@ -77,8 +85,8 @@ object frmClaims: TfrmClaims
     Top = 201
     Width = 106
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42757.710233020840000000
+    Time = 42757.710233020840000000
     TabOrder = 3
   end
   object chkIssuer: TCheckBox
@@ -95,6 +103,8 @@ object frmClaims: TfrmClaims
     Width = 73
     Height = 17
     Caption = 'Include'
+    Checked = True
+    State = cbChecked
     TabOrder = 5
   end
   object chkExpires: TCheckBox
@@ -103,6 +113,8 @@ object frmClaims: TfrmClaims
     Width = 73
     Height = 17
     Caption = 'Include'
+    Checked = True
+    State = cbChecked
     TabOrder = 6
   end
   object chkNotBefore: TCheckBox
@@ -136,8 +148,8 @@ object frmClaims: TfrmClaims
     Top = 201
     Width = 74
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.427592592590000000
+    Time = 42207.427592592590000000
     Kind = dtkTime
     TabOrder = 10
   end
@@ -166,7 +178,7 @@ object frmClaims: TfrmClaims
       'HMAC SHA512')
   end
   object Button1: TButton
-    Left = 336
+    Left = 283
     Top = 8
     Width = 75
     Height = 25
@@ -175,7 +187,7 @@ object frmClaims: TfrmClaims
     OnClick = Button1Click
   end
   object Button2: TButton
-    Left = 417
+    Left = 364
     Top = 8
     Width = 75
     Height = 25
@@ -184,21 +196,22 @@ object frmClaims: TfrmClaims
     OnClick = Button2Click
   end
   object Memo1: TMemo
-    Left = 336
+    Left = 283
     Top = 41
-    Width = 185
+    Width = 291
     Height = 89
     Lines.Strings = (
       'Memo1')
     TabOrder = 15
   end
-  object btnConsumer: TButton
-    Left = 344
-    Top = 160
-    Width = 75
+  object btnConsumerBuild: TButton
+    Left = 131
+    Top = 324
+    Width = 94
     Height = 25
-    Caption = 'btnConsumer'
+    Caption = 'Build Consumer'
     TabOrder = 16
+    OnClick = btnConsumerBuildClick
   end
   object edtSubject: TLabeledEdit
     Left = 12
@@ -209,6 +222,7 @@ object frmClaims: TfrmClaims
     EditLabel.Height = 13
     EditLabel.Caption = 'Subject'
     TabOrder = 17
+    Text = 'paolo-rossi'
   end
   object chkSubject: TCheckBox
     Left = 204
@@ -216,6 +230,8 @@ object frmClaims: TfrmClaims
     Width = 73
     Height = 17
     Caption = 'Include'
+    Checked = True
+    State = cbChecked
     TabOrder = 18
   end
   object edtAudience: TLabeledEdit
@@ -237,12 +253,48 @@ object frmClaims: TfrmClaims
     TabOrder = 20
   end
   object Button3: TButton
-    Left = 432
-    Top = 256
+    Left = 445
+    Top = 8
     Width = 75
     Height = 25
     Caption = 'Button3'
     TabOrder = 21
     OnClick = Button3Click
+  end
+  object Button4: TButton
+    Left = 283
+    Top = 142
+    Width = 75
+    Height = 25
+    Caption = 'Button4'
+    TabOrder = 22
+    OnClick = Button4Click
+  end
+  object btnArray: TButton
+    Left = 400
+    Top = 256
+    Width = 75
+    Height = 25
+    Caption = 'btnArray'
+    TabOrder = 23
+    OnClick = btnArrayClick
+  end
+  object btnConsumerProcess: TButton
+    Left = 231
+    Top = 324
+    Width = 102
+    Height = 25
+    Caption = 'Process Consumer'
+    TabOrder = 24
+    OnClick = btnConsumerProcessClick
+  end
+  object Button5: TButton
+    Left = 512
+    Top = 184
+    Width = 75
+    Height = 25
+    Caption = 'Button5'
+    TabOrder = 25
+    OnClick = Button5Click
   end
 end

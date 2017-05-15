@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -97,15 +97,15 @@ type
     function GetHasSubject: Boolean;
 
     function ClaimExists(const AClaimName: string): Boolean;
-    function GetAudienceArray: TJOSEStringArray;
-    procedure SetAudienceArray(const Value: TJOSEStringArray);
+    function GetAudienceArray: TArray<string>;
+    procedure SetAudienceArray(const Value: TArray<string>);
   public
     constructor Create; virtual;
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
 
     property Audience: string read GetAudience write SetAudience;
-    property AudienceArray: TJOSEStringArray read GetAudienceArray write SetAudienceArray;
+    property AudienceArray: TArray<string> read GetAudienceArray write SetAudienceArray;
     property HasAudience: Boolean read GetHasAudience;
     property Expiration: TDateTime read GetExpiration write SetExpiration;
     property HasExpiration: Boolean read GetHasExpiration;
@@ -215,7 +215,7 @@ begin
     Result := TJSONUtils.GetJSONValue(TReservedClaimNames.AUDIENCE, FJSON).AsString;
 end;
 
-function TJWTClaims.GetAudienceArray: TJOSEStringArray;
+function TJWTClaims.GetAudienceArray: TArray<string>;
 begin
   Result := Audience.Split([AUDIENCE_SEPARATOR]);
 end;
@@ -313,7 +313,7 @@ begin
     TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, Value, FJSON);
 end;
 
-procedure TJWTClaims.SetAudienceArray(const Value: TJOSEStringArray);
+procedure TJWTClaims.SetAudienceArray(const Value: TArray<string>);
 begin
   Audience := string.Join(AUDIENCE_SEPARATOR, Value);
 end;

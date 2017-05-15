@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -55,6 +55,7 @@ begin
   PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
   PasteForm(TfrmClaims, 'tsClaims', 'Custom Token');
   PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
+  pgcMain.ActivePageIndex := 2;
 end;
 
 procedure TfrmMain.PasteForm(AFormClass: TFormClass; ATabName, ATabTitle: string);

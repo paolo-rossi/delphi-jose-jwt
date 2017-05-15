@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -27,7 +27,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
-  rtti,
+  System.Rtti, System.Generics.Collections,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWE,
@@ -37,6 +37,7 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.Builder,
   JOSE.Hashing.HMAC,
+  JOSE.Consumer,
   JOSE.Encoding.Base64;
 
 type
@@ -69,20 +70,36 @@ type
     Button1: TButton;
     Button2: TButton;
     Memo1: TMemo;
-    btnConsumer: TButton;
+    btnConsumerBuild: TButton;
     edtSubject: TLabeledEdit;
     chkSubject: TCheckBox;
     edtAudience: TLabeledEdit;
     chkAudience: TCheckBox;
     Button3: TButton;
+    Button4: TButton;
+    btnArray: TButton;
+    Label1: TLabel;
+    btnConsumerProcess: TButton;
+    Button5: TButton;
+    procedure btnArrayClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure btnConsumerBuildClick(Sender: TObject);
     procedure btnCustomJWSClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure btnConsumerProcessClick(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+  private
+    const JWT_SUB =
+      'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.' +
+      'eyJzdWIiOiJQYW9sbyIsImlhdCI6NTEzMTgxNzcxOX0.' +
+      'KhWaLAR2_VUaID1hjwDwy6p7FEYCIVkFhGAetvtfBQw';
   private
     FJWT: TJWT;
+    FConsumer: TJOSEConsumer;
     FCompact: TJOSEBytes;
   public
     { Public declarations }
@@ -91,7 +108,36 @@ type
 
 implementation
 
+uses
+  System.DateUtils,
+  JOSE.Types.Arrays,
+  JOSE.Consumer.Validators;
+
 {$R *.dfm}
+
+procedure TfrmClaims.btnArrayClick(Sender: TObject);
+var
+  LJA, LJB, LJC: TJOSEArray<string>;
+  LA, LB, LC: TArray<string>;
+begin
+  LJA := TJOSEArray<string>.Create;
+
+  LJA.Push('Paolo');
+  LJA.Push('Pluto');
+  LJA.Push('Pippo');
+
+  LA := LJA;
+
+  LJA.Pop;
+
+  Memo1.Lines.Add(LJA.ToString);
+
+  LB := LA;
+
+  LJA := LJA + LA + LB;
+
+  Memo1.Lines.Add(LJA.ToString);
+end;
 
 procedure TfrmClaims.FormCreate(Sender: TObject);
 begin
@@ -105,7 +151,85 @@ begin
   edtNotBeforeTime.Time := Now;
 end;
 
+procedure TfrmClaims.btnConsumerBuildClick(Sender: TObject);
+begin
+  if not Assigned(FConsumer) then
+    FConsumer := TJOSEConsumerBuilder.NewConsumer
+      .SetRequireIssuedAt
+      .SetClaimsClass(TJWTClaims)
+      .SetVerificationKey('secret')
+      .SetSkipVerificationKeyValidation
+      .SetDisableRequireSignature
+      .SetExpectedSubject('paolo-rossi')
+      .SetRequireExpirationTime
+      .SetExpectedAudience()
+      .SetAllowedClockSkewInSeconds(2)
+      .Build();
+end;
+
+procedure TfrmClaims.btnConsumerProcessClick(Sender: TObject);
+begin
+  if Assigned(FConsumer) then
+    FConsumer.Process(FCompact);
+end;
+
 procedure TfrmClaims.btnCustomJWSClick(Sender: TObject);
+var
+  LJWT: TJWT;
+begin
+  LJWT := TJWT.Create;
+
+  if chkIssuer.Checked then
+    LJWT.Claims.Issuer := edtIssuer.Text;
+
+  if chkSubject.Checked then
+    LJWT.Claims.Subject := edtSubject.Text;
+
+  if chkAudience.Checked then
+    LJWT.Claims.Audience := edtAudience.Text;
+
+  if chkIssuedAt.Checked then
+    LJWT.Claims.IssuedAt := edtIssuedAtDate.Date + edtIssuedAtTime.Time;
+
+  if chkNotBefore.Checked then
+    LJWT.Claims.NotBefore := edtNotBeforeDate.Date + edtNotBeforeTime.Time;
+
+  FCompact := TJOSE.SHA256CompactToken('secret', LJWT);
+
+  Memo1.Lines.Text := FCompact;
+  LJWT.Free;
+end;
+
+procedure TfrmClaims.FormDestroy(Sender: TObject);
+begin
+  FJWT.Free;
+  FConsumer.Free;
+end;
+
+procedure TfrmClaims.Button1Click(Sender: TObject);
+begin
+  FJWT := TJWT.Create(TMyClaims);
+
+  //FJWT.Claims.Audience := 'paolo';
+  FJWT.GetClaimsAs<TMyClaims>.AppIssuer := 'WiRL';
+end;
+
+procedure TfrmClaims.Button2Click(Sender: TObject);
+begin
+
+  Memo1.Lines.Add(TJSONUtils.ToJSON(FJWT.Claims.JSON));
+  //if FJWT.Claims.HasAudience then
+    Memo1.Lines.Add(FJWT.Claims.Audience);
+  Memo1.Lines.Add(FJWT.GetClaimsAs<TMyClaims>.AppIssuer);
+
+end;
+
+procedure TfrmClaims.Button3Click(Sender: TObject);
+begin
+  //THMAC.Sign([3, 45, 44, 55, 43, 56], [56, 48, 52, 53, 54, 55, 56], THMACAlgorithm.SHA256);
+end;
+
+procedure TfrmClaims.Button4Click(Sender: TObject);
 var
   LJWT: TJWT;
 begin
@@ -121,7 +245,10 @@ begin
     LJWT.Claims.Issuer := edtIssuer.Text;
 
   if chkIssuedAt.Checked then
-    LJWT.Claims.IssuedAt := edtIssuedAtDate.Date + edtIssuedAtTime.Time;
+    LJWT.Claims.IssuedAt := Now;
+
+  if chkExpires.Checked then
+    LJWT.Claims.Expiration := IncSecond(Now, 5);
 
   FCompact := TJOSE.SHA256CompactToken('secret', LJWT);
 
@@ -129,33 +256,12 @@ begin
   LJWT.Free;
 end;
 
-procedure TfrmClaims.FormDestroy(Sender: TObject);
+procedure TfrmClaims.Button5Click(Sender: TObject);
+var
+  E: EStringListError;
 begin
-  FJWT.Free;
-end;
-
-procedure TfrmClaims.Button1Click(Sender: TObject);
-begin
-  FJWT := TJWT.Create(TMyClaims);
-
-  //FJWT.Claims.Audience := 'paolo';
-  FJWT.GetClaimsAs<TMyClaims>.AppIssuer := 'WiRL';
-
-
-end;
-
-procedure TfrmClaims.Button2Click(Sender: TObject);
-begin
-
-  Memo1.Lines.Add(TJSONUtils.ToJSON(FJWT.Claims.JSON));
-  //if FJWT.Claims.HasAudience then
-    Memo1.Lines.Add(FJWT.Claims.Audience);
-  Memo1.Lines.Add(FJWT.GetClaimsAs<TMyClaims>.AppIssuer);
-
-end;
-
-procedure TfrmClaims.Button3Click(Sender: TObject);
-begin
+  E := EStringListError.Create('errore');
+  raise E;
 
 end;
 

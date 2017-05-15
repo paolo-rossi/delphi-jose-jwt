@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2016 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -31,7 +31,8 @@ uses
   JWTDemo.Form.Debugger in 'JWTDemo.Form.Debugger.pas' {frmDebugger},
   JWTDemo.Form.Misc in 'JWTDemo.Form.Misc.pas' {frmMisc},
   JWTDemo.Form.Simple in 'JWTDemo.Form.Simple.pas' {frmSimple},
-  JWTDemo.Form.Claims in 'JWTDemo.Form.Claims.pas' {frmClaims};
+  JWTDemo.Form.Claims in 'JWTDemo.Form.Claims.pas' {frmClaims},
+  JOSE.Types.Arrays in '..\..\Source\Common\JOSE.Types.Arrays.pas';
 
 {$R *.res}
 

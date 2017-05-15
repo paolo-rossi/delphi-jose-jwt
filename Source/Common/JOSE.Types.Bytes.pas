@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -75,6 +75,7 @@ type
 
 implementation
 
+{ CompareBytes }
 
 function CompareBytes(const A, B: TBytes): Boolean;
 var
@@ -85,7 +86,6 @@ begin
   if Result and (LLen > 0) then
     Result := CompareMem(Pointer(A), Pointer(B), LLen);
 end;
-
 
 { TJOSEBytes }
 

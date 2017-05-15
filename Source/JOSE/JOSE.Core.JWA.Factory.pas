@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -70,12 +70,13 @@ type
   public
     destructor Destroy; override;
 
-    property SigningAlgorithmRegistry:
-        TJOSEAlgorithmRegistry<IJOSESigningAlgorithm> read FSigningAlgorithmRegistry;
-    property EncryptionAlgorithmRegistry:
-        TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm> read FEncryptionAlgorithmRegistry;
-    property CompressionAlgorithmRegistry:
-        TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm> read FCompressionAlgorithmRegistry;
+    property SigningAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSESigningAlgorithm>
+      read FSigningAlgorithmRegistry;
+    property EncryptionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>
+      read FEncryptionAlgorithmRegistry;
+    property CompressionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>
+      read FCompressionAlgorithmRegistry;
+
     class property Instance: TJOSEAlgorithmRegistryFactory read GetInstance;
   end;
 

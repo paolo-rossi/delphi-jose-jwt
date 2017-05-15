@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                              }
+{  Copyright (c) 2015-2017 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -30,6 +30,7 @@ interface
 uses
   System.SysUtils,
   System.Generics.Collections,
+  JOSE.Types.Arrays,
   JOSE.Types.Bytes,
   JOSE.Types.JSON;
 
@@ -39,7 +40,7 @@ const
 type
   EJOSEException = class(Exception);
 
-  TJOSEStringArray = TArray<string>;
+  TJOSEStringArray = TJOSEArray<string>;
   {$IF CompilerVersion > 28}
   TJOSEStringArrayHelper = record helper for TJOSEStringArray
     function IsEmpty: Boolean;
@@ -49,7 +50,6 @@ type
     function ToStringPluralForm(const APluralPrefix: string): string;
   end;
   {$ENDIF}
-
 
   TJOSENumericDate = record
   private
@@ -71,6 +71,7 @@ type
 
     property AsSeconds: Int64 read GetAsSeconds write SetAsSeconds;
     property AsMilliSeconds: Int64 read GetAsMilliSeconds;
+    property AsDateTime: TDateTime read FValue write FValue;
   end;
 
   THeaderNames = class

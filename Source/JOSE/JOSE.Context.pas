@@ -21,85 +21,112 @@
 {******************************************************************************}
 
 /// <summary>
-///   Token Parts
+///   Utility class to encode and decode a JWT
 /// </summary>
-unit JOSE.Core.Parts;
+unit JOSE.Context;
 
 interface
 
 uses
-  System.SysUtils,
-  System.Generics.Collections,
+  System.SysUtils, System.Generics.Collections,
   JOSE.Types.Bytes,
+  JOSE.Core.Base,
+  JOSE.Core.Parts,
   JOSE.Core.JWA,
-  JOSE.Core.JWT;
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Core.JWS,
+  JOSE.Core.JWE;
 
 type
-  TJOSEParts = class
-  protected
-    FParts: TList<TJOSEBytes>;
-    FToken: TJWT;
-    FSkipKeyValidation: Boolean;
-    function GetCompactToken: TJOSEBytes; virtual; abstract;
-    procedure SetCompactToken(const Value: TJOSEBytes); virtual; abstract;
-
-    function GetHeaderAlgorithm: string;
+  TJOSEContext = class
+  private
+    FCompactToken: TJOSEBytes;
+    FClaimsClass: TJWTClaimsClass;
+    FJOSEObject: TJOSEParts;
+    FJWT: TJWT;
+    procedure FromCompactToken;
   public
-    constructor Create(AToken: TJWT); virtual;
+    constructor Create(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass);
     destructor Destroy; override;
 
-    procedure SetHeaderAlgorithm(const AAlg: string); overload;
-    procedure SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId); overload;
+    function GetJOSEObject: TJOSEParts; overload;
+    function GetJOSEObject<T: TJOSEParts>: T; overload;
 
-    procedure Clear;
-    procedure Empty;
-    property CompactToken: TJOSEBytes read GetCompactToken write SetCompactToken;
-    property HeaderAlgorithm: string read GetHeaderAlgorithm;
-    property SkipKeyValidation: Boolean read FSkipKeyValidation write FSkipKeyValidation;
+    function GetClaims: TJWTClaims; overload;
+    function GetClaims<T: TJWTClaims>: T; overload;
   end;
 
 implementation
 
-{ TJOSEParts }
+uses
+  System.Types,
+  System.StrUtils;
 
-procedure TJOSEParts.Clear;
+{ TJOSEContext }
+
+constructor TJOSEContext.Create(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass);
 begin
-  FParts.Clear;
+  FCompactToken := ACompactToken;
+  FClaimsClass := AClaimsClass;
+  FJWT := TJWT.Create(FClaimsClass);
+  try
+    FromCompactToken;
+  except
+    FreeAndNil(FJWT);
+  end;
 end;
 
-constructor TJOSEParts.Create(AToken: TJWT);
+destructor TJOSEContext.Destroy;
 begin
-  FToken := AToken;
-  FParts := TList<TJOSEBytes>.Create;
-end;
-
-destructor TJOSEParts.Destroy;
-begin
-  FParts.Free;
+  FJWT.Free;
+  FJOSEObject.Free;
   inherited;
 end;
 
-procedure TJOSEParts.Empty;
+procedure TJOSEContext.FromCompactToken;
 var
-  LIndex: Integer;
+  LRes: TStringDynArray;
 begin
-  for LIndex := 0 to FParts.Count - 1 do
-    FParts[LIndex] := TJOSEBytes.Empty;
+  LRes := SplitString(FCompactToken, PART_SEPARATOR);
+
+  case Length(LRes) of
+    3:
+    begin
+      FJOSEObject := TJWS.Create(FJWT);
+      try
+        FJOSEObject.CompactToken := FCompactToken;
+      except
+        FreeAndNil(FJOSEObject);
+      end;
+    end;
+    5:
+    begin
+      raise EJOSEException.Create('Compact Serialization appears to be a JWE Token wich is not (yet) supported');
+    end;
+    else
+      raise EJOSEException.Create('Malformed Compact Serialization');
+  end;
 end;
 
-function TJOSEParts.GetHeaderAlgorithm: string;
+function TJOSEContext.GetClaims: TJWTClaims;
 begin
-  Result := FToken.Header.Algorithm;
+  Result := FJWT.Claims;
 end;
 
-procedure TJOSEParts.SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId);
+function TJOSEContext.GetClaims<T>: T;
 begin
-  FToken.Header.Algorithm := AAlg.AsString;
+  Result := FJWT.Claims as T;
 end;
 
-procedure TJOSEParts.SetHeaderAlgorithm(const AAlg: string);
+function TJOSEContext.GetJOSEObject: TJOSEParts;
 begin
-  FToken.Header.Algorithm := AAlg;
+  Result := FJOSEObject;
+end;
+
+function TJOSEContext.GetJOSEObject<T>: T;
+begin
+  Result := FJOSEObject as T;
 end;
 
 end.
