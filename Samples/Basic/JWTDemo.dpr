@@ -31,8 +31,8 @@ uses
   JWTDemo.Form.Debugger in 'JWTDemo.Form.Debugger.pas' {frmDebugger},
   JWTDemo.Form.Misc in 'JWTDemo.Form.Misc.pas' {frmMisc},
   JWTDemo.Form.Simple in 'JWTDemo.Form.Simple.pas' {frmSimple},
-  JWTDemo.Form.Claims in 'JWTDemo.Form.Claims.pas' {frmClaims},
-  JOSE.Types.Arrays in '..\..\Source\Common\JOSE.Types.Arrays.pas';
+  JWTDemo.Form.Consumer in 'JWTDemo.Form.Consumer.pas' {frmConsumer},
+  JWTDemo.Form.Claims in 'JWTDemo.Form.Claims.pas' {frmClaims};
 
 {$R *.res}
 

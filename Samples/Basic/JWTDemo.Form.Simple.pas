@@ -35,21 +35,6 @@ uses
   JOSE.Types.JSON;
 
 type
-  TMyClaims = class(TJWTClaims)
-  private
-    function GetAppIssuer: string;
-    function GetEmail: string;
-    procedure SetAppIssuer(const Value: string);
-    procedure SetEmail(const Value: string);
-    function GetAppSite: string;
-    procedure SetAppSite(const Value: string);
-  public
-    property AppIssuer: string read GetAppIssuer write SetAppIssuer;
-    property AppSite: string read GetAppSite write SetAppSite;
-    property Email: string read GetEmail write SetEmail;
-  end;
-
-
   TfrmSimple = class(TForm)
     lbl1: TLabel;
     lbl2: TLabel;
@@ -64,7 +49,8 @@ type
     procedure btnTJOSEBuildClick(Sender: TObject);
     procedure btnTJOSEVerifyClick(Sender: TObject);
   private
-    { Private declarations }
+    procedure BuildJWT;
+    procedure VerifyJWT;
   public
     { Public declarations }
   end;
@@ -84,15 +70,11 @@ var
   LSigner: TJWS;
   LKey: TJWK;
 begin
-  LToken := TJWT.Create(TMyClaims);
+  LToken := TJWT.Create;
   try
     LToken.Claims.Issuer := 'Delphi JOSE Library';
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
-    //Custom Claims
-    (LToken.Claims as TMyClaims).AppIssuer := 'MARS REST Library';
-    (LToken.Claims as TMyClaims).AppSite := 'https://github.com/MARS-library/MARS';
-    (LToken.Claims as TMyClaims).Email := 'my@mail.com';
 
     LSigner := TJWS.Create(LToken);
     LKey := TJWK.Create('secret');
@@ -130,6 +112,16 @@ begin
 end;
 
 procedure TfrmSimple.btnTJOSEBuildClick(Sender: TObject);
+begin
+  BuildJWT;
+end;
+
+procedure TfrmSimple.btnTJOSEVerifyClick(Sender: TObject);
+begin
+  VerifyJWT;
+end;
+
+procedure TfrmSimple.BuildJWT;
 var
   LToken: TJWT;
 begin
@@ -141,7 +133,8 @@ begin
     LToken.Claims.Expiration := Now + 1;
     LToken.Claims.Issuer := 'Delphi JOSE Library';
 
-    // Signing and Compact format creation
+    // Signing and Compact format creation.
+    // Please use a different secret key in production!!!!!
     memoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
 
     // Header and Claims JSON representation
@@ -152,11 +145,12 @@ begin
   end;
 end;
 
-procedure TfrmSimple.btnTJOSEVerifyClick(Sender: TObject);
+procedure TfrmSimple.VerifyJWT;
 var
   LKey: TJWK;
   LToken: TJWT;
 begin
+  // 'secret' is the value of the secret key. Only suitable for a demo!!!
   LKey := TJWK.Create('secret');
   // Unpack and verify the token
   LToken := TJOSE.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
@@ -172,36 +166,6 @@ begin
       LToken.Free;
     end;
   end;
-end;
-
-function TMyClaims.GetAppIssuer: string;
-begin
-  Result := TJSONUtils.GetJSONValue('appissuer', FJSON).AsString;
-end;
-
-function TMyClaims.GetAppSite: string;
-begin
-  Result := TJSONUtils.GetJSONValue('appsite', FJSON).AsString;
-end;
-
-function TMyClaims.GetEmail: string;
-begin
-  Result := TJSONUtils.GetJSONValue('email', FJSON).AsString;
-end;
-
-procedure TMyClaims.SetAppIssuer(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('appissuer', Value, FJSON);
-end;
-
-procedure TMyClaims.SetAppSite(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('appsite', Value, FJSON);
-end;
-
-procedure TMyClaims.SetEmail(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('email', Value, FJSON);
 end;
 
 end.

@@ -1,7 +1,7 @@
-object frmClaims: TfrmClaims
+object frmConsumer: TfrmConsumer
   Left = 0
   Top = 0
-  Caption = 'frmClaims'
+  Caption = 'frmConsumer'
   ClientHeight = 487
   ClientWidth = 952
   Color = clBtnFace
@@ -13,9 +13,6 @@ object frmClaims: TfrmClaims
   OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  DesignSize = (
-    952
-    487)
   PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
@@ -32,7 +29,6 @@ object frmClaims: TfrmClaims
     Lines.Strings = (
       'memoLog')
     ParentFont = False
-    ScrollBars = ssVertical
     TabOrder = 0
   end
   object grpClaims: TGroupBox
@@ -322,20 +318,216 @@ object frmClaims: TfrmClaims
       TabOrder = 22
     end
   end
-  object memoJSON: TMemo
-    Left = 488
-    Top = 15
-    Width = 456
-    Height = 370
-    Anchors = [akLeft, akTop, akRight, akBottom]
-    Font.Charset = ANSI_CHARSET
-    Font.Color = clWindowText
-    Font.Height = -13
-    Font.Name = 'Courier New'
-    Font.Style = []
-    ParentFont = False
-    ScrollBars = ssVertical
+  object GroupBox1: TGroupBox
+    Left = 479
+    Top = 8
+    Width = 465
+    Height = 377
+    Caption = 'JWS Consumer '
     TabOrder = 2
+    object Label1: TLabel
+      Left = 209
+      Top = 68
+      Width = 98
+      Height = 13
+      Caption = 'Evaluation DateTime'
+    end
+    object btnConsumerBuild: TButton
+      Left = 110
+      Top = 297
+      Width = 245
+      Height = 28
+      Action = actBuildJWTConsumer
+      TabOrder = 0
+    end
+    object btnBuildJWTCustomConsumer: TButton
+      Left = 110
+      Top = 263
+      Width = 245
+      Height = 28
+      Action = actBuildJWTCustomConsumer
+      TabOrder = 1
+    end
+    object edtConsumerSecret: TLabeledEdit
+      Left = 209
+      Top = 42
+      Width = 186
+      Height = 21
+      EditLabel.Width = 31
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Secret'
+      TabOrder = 2
+      Text = 'mysecretkey256bitwide(32characters)'
+    end
+    object chkCosnumerSecret: TCheckBox
+      Left = 401
+      Top = 44
+      Width = 73
+      Height = 17
+      Caption = 'Include'
+      Checked = True
+      State = cbChecked
+      TabOrder = 3
+    end
+    object chkConsumerSkipVerificationKey: TCheckBox
+      Left = 209
+      Top = 174
+      Width = 193
+      Height = 17
+      Caption = 'Skip Verification Key Validation'
+      TabOrder = 4
+    end
+    object chkConsumerSetDisableRequireSignature: TCheckBox
+      Left = 209
+      Top = 144
+      Width = 149
+      Height = 17
+      Caption = 'Disable Require Signature'
+      TabOrder = 5
+    end
+    object edtConsumerSubject: TLabeledEdit
+      Left = 10
+      Top = 84
+      Width = 117
+      Height = 21
+      EditLabel.Width = 36
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Subject'
+      TabOrder = 6
+    end
+    object chkConsumerSubject: TCheckBox
+      Left = 133
+      Top = 86
+      Width = 73
+      Height = 17
+      Caption = 'Include'
+      TabOrder = 7
+    end
+    object edtConsumerAudience: TLabeledEdit
+      Left = 10
+      Top = 130
+      Width = 117
+      Height = 21
+      EditLabel.Width = 44
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Audience'
+      TabOrder = 8
+    end
+    object chkConsumerAudience: TCheckBox
+      Left = 133
+      Top = 132
+      Width = 73
+      Height = 17
+      Caption = 'Include'
+      TabOrder = 9
+    end
+    object edtConsumerIssuer: TLabeledEdit
+      Left = 10
+      Top = 42
+      Width = 117
+      Height = 21
+      EditLabel.Width = 30
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Issuer'
+      TabOrder = 10
+      Text = 'delphi-jose-jwt'
+    end
+    object chkConsumerIssuer: TCheckBox
+      Left = 133
+      Top = 44
+      Width = 73
+      Height = 17
+      Caption = 'Include'
+      Checked = True
+      State = cbChecked
+      TabOrder = 11
+    end
+    object edtConsumerJWTId: TLabeledEdit
+      Left = 10
+      Top = 172
+      Width = 117
+      Height = 21
+      EditLabel.Width = 34
+      EditLabel.Height = 13
+      EditLabel.Caption = 'JWT Id'
+      TabOrder = 12
+      Text = 'xyz123abc456'
+    end
+    object chkConsumerJWTId: TCheckBox
+      Left = 133
+      Top = 174
+      Width = 73
+      Height = 17
+      Caption = 'Include'
+      Checked = True
+      State = cbChecked
+      TabOrder = 13
+    end
+    object edtConsumerEvaluationDate: TDateTimePicker
+      Left = 209
+      Top = 84
+      Width = 106
+      Height = 21
+      Date = 42207.710233020840000000
+      Time = 42207.710233020840000000
+      TabOrder = 14
+    end
+    object edtConsumerEvaluationTime: TDateTimePicker
+      Left = 321
+      Top = 84
+      Width = 74
+      Height = 21
+      Date = 42207.710233020840000000
+      Time = 42207.710233020840000000
+      Kind = dtkTime
+      TabOrder = 15
+    end
+    object chkConsumerIssuedAt: TCheckBox
+      Left = 209
+      Top = 115
+      Width = 69
+      Height = 17
+      Caption = 'Issued At'
+      TabOrder = 16
+    end
+    object chkConsumerExpires: TCheckBox
+      Left = 294
+      Top = 115
+      Width = 58
+      Height = 17
+      Caption = 'Expires'
+      TabOrder = 17
+    end
+    object chkConsumerNotBefore: TCheckBox
+      Left = 358
+      Top = 115
+      Width = 80
+      Height = 17
+      Caption = 'Not Before'
+      TabOrder = 18
+    end
+    object edtSkewTime: TLabeledEdit
+      Left = 10
+      Top = 219
+      Width = 175
+      Height = 21
+      EditLabel.Width = 100
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Skew Time (seconds)'
+      TabOrder = 19
+      Text = '20'
+    end
+    object edtMaxFutureValidity: TLabeledEdit
+      Left = 209
+      Top = 219
+      Width = 175
+      Height = 21
+      EditLabel.Width = 140
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Max Future Validity (minutes)'
+      TabOrder = 20
+      Text = '30'
+    end
   end
   object actListMain: TActionList
     Images = ImageList1
@@ -348,10 +540,13 @@ object frmClaims: TfrmClaims
     object actBuildJWTConsumer: TAction
       Caption = 'Build Fixed Consumer'
       ImageIndex = 9
+      OnExecute = actBuildJWTConsumerExecute
+      OnUpdate = actBuildJWTConsumerUpdate
     end
     object actBuildJWTCustomConsumer: TAction
       Caption = 'Build Custom Consumer'
       ImageIndex = 14
+      OnExecute = actBuildJWTCustomConsumerExecute
     end
   end
   object ImageList1: TImageList

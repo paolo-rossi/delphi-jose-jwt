@@ -68,10 +68,6 @@ type
     class function DateClaimsValidator(
       ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 
-      {
-    class function expValidator(ADate: TDateTime;
-      ARequired: Boolean = True): TJOSEValidator;
-      }
     class function audValidator(AAudience: TJOSEStringArray;
       ARequired: Boolean = True): TJOSEValidator;
 
@@ -85,6 +81,9 @@ type
       ARequired: Boolean): TJOSEValidator; overload;
 
     class function subValidator(
+      ARequired: Boolean): TJOSEValidator; overload;
+
+    class function jtiValidator(const AJwtId: string;
       ARequired: Boolean): TJOSEValidator; overload;
 
     class function jtiValidator(
@@ -105,9 +104,9 @@ uses
 function TJOSEDateClaimsParams.GetEvaluationTime: TJOSENumericDate;
 begin
   if StaticEvaluationTime = 0 then
-    Result := TJOSENumericDate.Create(Now)
-  else
-    Result := TJOSENumericDate.Create(StaticEvaluationTime);
+    StaticEvaluationTime := Now;
+
+  Result := TJOSENumericDate.Create(StaticEvaluationTime);
 end;
 
 class function TJOSEDateClaimsParams.New: TJOSEDateClaimsParams;
@@ -205,18 +204,18 @@ begin
 
       if LClaims.HasExpiration then
       begin
-        if ADateParams.EvaluationTime.IsAfter(LExpiration) then
+        if ADateParams.EvaluationTime.IsAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(
             'The JWT is no longer valid - the evaluation time [%d] is on or after the Expiration Time [exp=%d] claim value %s',
             [ADateParams.EvaluationTime.AsSeconds, JSONDate(LClaims.Expiration), ADateParams.SkewMessage])
           );
 
-        if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt) then
+        if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the IssuedAt (iat=%d) claim value',
             [LExpiration.AsSeconds, LIssuedAt.AsSeconds])
           );
 
-        if LClaims.HasNotBefore and LExpiration.IsBefore(LNotBefore) then
+        if LClaims.HasNotBefore and LExpiration.IsBefore(LNotBefore, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the NotBefore (nbf=%d) claim value',
             [LExpiration.AsSeconds, LNotBefore.AsSeconds])
           );
@@ -279,7 +278,8 @@ begin
   ;
 end;
 
-class function TJOSEClaimsValidators.jtiValidator(ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.jtiValidator(const AJwtId: string;
+  ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -288,10 +288,21 @@ begin
     begin
       Result := '';
       LJWTId := AJOSEContext.GetClaims.JWTId;
-      if LJWTId.IsEmpty and ARequired then
-        Exit('No JWT ID [jti] claim present.');
+
+      if not AJOSEContext.GetClaims.HasJWTId and ARequired then
+        Exit('No JWT ID [jti] claim present.')
+      else
+      if not AJwtId.IsEmpty and not AJwtId.Equals(LJwtId) then
+        Exit(Format(
+          'JWT Id [jti] claim value [%s] doesn''t match expected value of [%s]',
+          [LJwtId, AJwtId]));
     end
   ;
+end;
+
+class function TJOSEClaimsValidators.jtiValidator(ARequired: Boolean): TJOSEValidator;
+begin
+  Result :=  TJOSEClaimsValidators.jtiValidator('', ARequired);
 end;
 
 class function TJOSEClaimsValidators.subValidator(const ASubject: string;
@@ -316,8 +327,7 @@ begin
   ;
 end;
 
-class function TJOSEClaimsValidators.subValidator(
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.subValidator(ARequired: Boolean): TJOSEValidator;
 begin
   Result := TJOSEClaimsValidators.subValidator('', ARequired);
 end;
@@ -331,8 +341,5 @@ begin
   SetLength(Self, Result + 1);
   Self[Result] := AValue;
 end;
-
-initialization
-
 
 end.

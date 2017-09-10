@@ -28,6 +28,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
   JWTDemo.Form.Debugger,
+  JWTDemo.Form.Consumer,
   JWTDemo.Form.Simple,
   JWTDemo.Form.Claims,
   JWTDemo.Form.Misc;
@@ -37,7 +38,7 @@ type
     pgcMain: TPageControl;
     procedure FormCreate(Sender: TObject);
   private
-    procedure PasteForm(AFormClass: TFormClass; ATabName, ATabTitle: string);
+    procedure PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string);
   public
     { Public declarations }
   end;
@@ -51,14 +52,15 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  PasteForm(TfrmDebugger, 'tsDebugger', 'JWT Debugger');
+  PasteForm(TfrmDebugger, 'tsDebugger', 'JWT Debugger (http://jwt.io)');
+  PasteForm(TfrmConsumer, 'tsConsumer', 'JWT Consumer (Claim Validation)');
+  PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims');
   PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
-  PasteForm(TfrmClaims, 'tsClaims', 'Custom Token');
   PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
   pgcMain.ActivePageIndex := 2;
 end;
 
-procedure TfrmMain.PasteForm(AFormClass: TFormClass; ATabName, ATabTitle: string);
+procedure TfrmMain.PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string);
 var
   LView: TForm;
   LTab: TTabSheet;

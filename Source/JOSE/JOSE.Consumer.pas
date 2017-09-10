@@ -46,7 +46,14 @@ type
     procedure SetDetails(ADetails: TStrings);
   end;
 
-  TJOSEConsumer = class
+  IJOSEConsumer = interface
+  ['{A270E909-6D79-4FC1-B4F6-B9911EAB8D36}']
+    procedure Process(const ACompactToken: TJOSEBytes);
+    procedure ProcessContext(AContext: TJOSEContext);
+    procedure Validate(AContext: TJOSEContext);
+  end;
+
+  TJOSEConsumer = class(TInterfacedObject, IJOSEConsumer)
   private
     FKey: TJOSEBytes;
     FValidators: TJOSEValidatorArray;
@@ -91,13 +98,14 @@ type
     function SetRequireSubject: IJOSEConsumerBuilder;
     function SetExpectedSubject(const ASubject: string): IJOSEConsumerBuilder;
     function SetRequireJwtId: IJOSEConsumerBuilder;
+    function SetExpectedJwtId(const AJwtId: string): IJOSEConsumerBuilder;
     // Date-based Claims
     function SetRequireExpirationTime: IJOSEConsumerBuilder;
     function SetRequireIssuedAt: IJOSEConsumerBuilder;
     function SetRequireNotBefore: IJOSEConsumerBuilder;
     function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
-    function SetAllowedClockSkewInSeconds(ASecondsOfAllowedClockSkew: Integer): IJOSEConsumerBuilder;
-    function SetMaxFutureValidityInMinutes(AMaxFutureValidityInMinutes: Integer): IJOSEConsumerBuilder;
+    function SetAllowedClockSkew(AClockSkew: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
+    function SetMaxFutureValidity(AMaxFutureValidity: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     // External validators
     function RegisterValidator(AValidator: TJOSEValidator): IJOSEConsumerBuilder;
     // Validators skipping
@@ -107,6 +115,9 @@ type
     function Build: TJOSEConsumer;
   end;
 
+  /// <summary>
+  ///   Used to create the appropriate TJOSEConsumer for the JWT processing needs
+  /// </summary>
   TJOSEConsumerBuilder = class(TInterfacedObject, IJOSEConsumerBuilder)
   private
     FValidators: TJOSEValidatorArray;
@@ -119,7 +130,6 @@ type
     FClaimsClass: TJWTClaimsClass;
     FDisableRequireSignature: Boolean;
     FEnableRequireEncryption: Boolean;
-    FEvaluationTime: TDateTime;
     FSkipVerificationKeyValidation: Boolean;
     FRequireJwtId: Boolean;
     FRequireSubject: Boolean;
@@ -128,6 +138,7 @@ type
     FSkipDefaultAudienceValidation: Boolean;
     FSkipSignatureVerification: Boolean;
     FSubject: string;
+    FJwtId: string;
     constructor Create;
     procedure BuildValidators(const ADateParams: TJOSEDateClaimsParams);
   public
@@ -151,13 +162,14 @@ type
     function SetRequireSubject: IJOSEConsumerBuilder;
     function SetExpectedSubject(const ASubject: string): IJOSEConsumerBuilder;
     function SetRequireJwtId: IJOSEConsumerBuilder;
+    function SetExpectedJwtId(const AJwtId: string): IJOSEConsumerBuilder;
     // Date-based Claims
     function SetRequireExpirationTime: IJOSEConsumerBuilder;
     function SetRequireIssuedAt: IJOSEConsumerBuilder;
     function SetRequireNotBefore: IJOSEConsumerBuilder;
     function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
-    function SetAllowedClockSkewInSeconds(ASecondsOfAllowedClockSkew: Integer): IJOSEConsumerBuilder;
-    function SetMaxFutureValidityInMinutes(AMaxFutureValidityInMinutes: Integer): IJOSEConsumerBuilder;
+    function SetAllowedClockSkew(AClockSkew: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
+    function SetMaxFutureValidity(AMaxFutureValidity: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     // External validators
     function RegisterValidator(AValidator: TJOSEValidator): IJOSEConsumerBuilder;
     // Validators skipping
@@ -216,7 +228,10 @@ begin
       else
         FValidators.Add(TJOSEClaimsValidators.subValidator(FSubject, FRequireSubject));
 
-      FValidators.Add(TJOSEClaimsValidators.jtiValidator(FRequireJwtId));
+      if FJwtId.IsEmpty then
+        FValidators.Add(TJOSEClaimsValidators.jtiValidator(FRequireJwtId))
+      else
+        FValidators.Add(TJOSEClaimsValidators.jtiValidator(FJwtId, FRequireJwtId));
     end;
   end;
 end;
@@ -234,7 +249,7 @@ end;
 
 class function TJOSEConsumerBuilder.NewConsumer: IJOSEConsumerBuilder;
 begin
-  Result := Self.Create as IJOSEConsumerBuilder;
+  Result := Self.Create;
 end;
 
 function TJOSEConsumerBuilder.RegisterValidator(AValidator: TJOSEValidator): IJOSEConsumerBuilder;
@@ -247,9 +262,10 @@ begin
   Result := Self as IJOSEConsumerBuilder;
 end;
 
-function TJOSEConsumerBuilder.SetAllowedClockSkewInSeconds(ASecondsOfAllowedClockSkew: Integer): IJOSEConsumerBuilder;
+function TJOSEConsumerBuilder.SetAllowedClockSkew(AClockSkew: Integer;
+    ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
 begin
-  FDateValidatorParams.AllowedClockSkewSeconds := ASecondsOfAllowedClockSkew;
+  FDateValidatorParams.AllowedClockSkewSeconds := ATimeUnit.ToSeconds(AClockSkew);
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -304,6 +320,13 @@ begin
   Result := Self as IJOSEConsumerBuilder;
 end;
 
+function TJOSEConsumerBuilder.SetExpectedJwtId(const AJwtId: string): IJOSEConsumerBuilder;
+begin
+  FJwtId := AJwtId;
+  SetRequireJwtId;
+  Result := Self as IJOSEConsumerBuilder;
+end;
+
 function TJOSEConsumerBuilder.SetExpectedSubject(const ASubject: string): IJOSEConsumerBuilder;
 begin
   FSubject := ASubject;
@@ -311,9 +334,10 @@ begin
   Result := Self as IJOSEConsumerBuilder;
 end;
 
-function TJOSEConsumerBuilder.SetMaxFutureValidityInMinutes(AMaxFutureValidityInMinutes: Integer): IJOSEConsumerBuilder;
+function TJOSEConsumerBuilder.SetMaxFutureValidity(AMaxFutureValidity: Integer;
+    ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
 begin
-  FDateValidatorParams.MaxFutureValidityInMinutes := AMaxFutureValidityInMinutes;
+  FDateValidatorParams.MaxFutureValidityInMinutes := ATimeUnit.ToMinutes(AMaxFutureValidity);
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -425,18 +449,19 @@ begin
         raise EJOSEException.Create('JWS signature is invalid: ' + LJWS.Signature);
     end;
 
-    if LJWS.HeaderAlgorithm = TJOSEAlgorithmId.None.AsString then
+    if LJWS.HeaderAlgorithm <> TJOSEAlgorithmId.None.AsString then
       LHasSignature := True;
 
-    //if FRequireSignature and not LHasSignature then
+    if FRequireSignature and not LHasSignature then
+      raise EJOSEException.Create('The JWT has no signature but the JWT Consumer is configured to require one');
 
-
-    Validate(AContext);
   end
   else if AContext.GetJOSEObject is TJWE then
   begin
 
   end;
+
+  Validate(AContext);
 end;
 
 function TJOSEConsumer.SetKey(const AKey: TJOSEBytes): TJOSEConsumer;

@@ -20,7 +20,7 @@
 {                                                                              }
 {******************************************************************************}
 
-unit JWTDemo.Form.Claims;
+unit JWTDemo.Form.Consumer;
 
 interface
 
@@ -41,21 +41,7 @@ uses
   JOSE.Encoding.Base64;
 
 type
-  TMyClaims = class(TJWTClaims)
-  private
-    function GetAppIssuer: string;
-    function GetEmail: string;
-    procedure SetAppIssuer(const Value: string);
-    procedure SetEmail(const Value: string);
-    function GetAppSite: string;
-    procedure SetAppSite(const Value: string);
-  public
-    property AppIssuer: string read GetAppIssuer write SetAppIssuer;
-    property AppSite: string read GetAppSite write SetAppSite;
-    property Email: string read GetEmail write SetEmail;
-  end;
-
-  TfrmClaims = class(TForm)
+  TfrmConsumer = class(TForm)
     memoLog: TMemo;
     grpClaims: TGroupBox;
     Label3: TLabel;
@@ -89,9 +75,34 @@ type
     edtHeader: TLabeledEdit;
     edtPayload: TLabeledEdit;
     edtSignature: TLabeledEdit;
+    GroupBox1: TGroupBox;
+    btnConsumerBuild: TButton;
     actBuildJWTCustomConsumer: TAction;
-    memoJSON: TMemo;
+    btnBuildJWTCustomConsumer: TButton;
+    edtConsumerSecret: TLabeledEdit;
+    chkCosnumerSecret: TCheckBox;
+    chkConsumerSkipVerificationKey: TCheckBox;
+    chkConsumerSetDisableRequireSignature: TCheckBox;
+    edtConsumerSubject: TLabeledEdit;
+    chkConsumerSubject: TCheckBox;
+    edtConsumerAudience: TLabeledEdit;
+    chkConsumerAudience: TCheckBox;
+    edtConsumerIssuer: TLabeledEdit;
+    chkConsumerIssuer: TCheckBox;
+    edtConsumerJWTId: TLabeledEdit;
+    chkConsumerJWTId: TCheckBox;
+    Label1: TLabel;
+    edtConsumerEvaluationDate: TDateTimePicker;
+    edtConsumerEvaluationTime: TDateTimePicker;
+    chkConsumerIssuedAt: TCheckBox;
+    chkConsumerExpires: TCheckBox;
+    chkConsumerNotBefore: TCheckBox;
+    edtSkewTime: TLabeledEdit;
+    edtMaxFutureValidity: TLabeledEdit;
     procedure actBuildJWSExecute(Sender: TObject);
+    procedure actBuildJWTConsumerExecute(Sender: TObject);
+    procedure actBuildJWTConsumerUpdate(Sender: TObject);
+    procedure actBuildJWTCustomConsumerExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -110,6 +121,7 @@ type
     function BuildJWT: TJOSEBytes;
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
+    procedure ProcessConsumer(AConsumer: TJOSEConsumer);
   public
     property Compact: TJOSEBytes read FCompact write SetCompact;
   end;
@@ -125,50 +137,106 @@ uses
 
 {$R *.dfm}
 
-procedure TfrmClaims.actBuildJWSExecute(Sender: TObject);
-var
-  LToken: TJWT;
-  LSigner: TJWS;
-  LKey: TJWK;
+procedure TfrmConsumer.actBuildJWSExecute(Sender: TObject);
 begin
-  LToken := TJWT.Create(TMyClaims);
-  try
-    LToken.Claims.Issuer := 'Delphi JOSE Library';
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 1;
-    //Custom Claims
-    (LToken.Claims as TMyClaims).AppIssuer := 'WiRL REST Library';
-    (LToken.Claims as TMyClaims).AppSite := 'https://github.com/delphi-blocks/WiRL';
-    (LToken.Claims as TMyClaims).Email := 'my@mail.com';
+  Compact := BuildJWT;
 
-    LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create('secret');
-    try
-      LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
-
-      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
-
-      edtHeader.Text := LSigner.Header;
-      edtPayload.Text := LSigner.Payload;
-      edtSignature.Text := LSigner.Signature;
-
-      memoLog.Lines.Add('Compact Token: ' + LSigner.CompactToken);
-    finally
-      LKey.Free;
-      LSigner.Free;
-    end;
-  finally
-    LToken.Free;
-  end;
+  edtHeader.Text := FCompactHeader;
+  edtPayload.Text := FCompactPayload;
+  edtSignature.Text := FCompactSignature;
 end;
 
-procedure TfrmClaims.FormCreate(Sender: TObject);
+procedure TfrmConsumer.actBuildJWTConsumerExecute(Sender: TObject);
+var
+  LAud: TArray<string>;
+begin
+  SetLength(LAud, 2);
+  LAud[0] := 'Paolo';
+  LAud[1] := 'Luca';
+
+  ProcessConsumer(TJOSEConsumerBuilder.NewConsumer
+    .SetClaimsClass(TJWTClaims)
+    // JWS-related validation
+    .SetVerificationKey(edtConsumerSecret.Text)
+    .SetSkipVerificationKeyValidation
+    .SetDisableRequireSignature
+    // string-based claims validation
+    .SetExpectedSubject('paolo-rossi')
+    .SetExpectedAudience(True, LAud)
+    // Time-related claims validation
+    .SetRequireIssuedAt
+    .SetRequireExpirationTime
+    .SetEvaluationTime(IncSecond(FNow, 26))
+    .SetAllowedClockSkew(20, TJOSETimeUnit.Seconds)
+    .SetMaxFutureValidity(20, TJOSETimeUnit.Minutes)
+    // Build the consumer object
+    .Build()
+  );
+
+end;
+
+procedure TfrmConsumer.actBuildJWTConsumerUpdate(Sender: TObject);
+begin
+  (Sender as TAction).Enabled := FCompact <> '';
+end;
+
+procedure TfrmConsumer.actBuildJWTCustomConsumerExecute(Sender: TObject);
+var
+  LBuilder: IJOSEConsumerBuilder;
+  LAud: TArray<string>;
+begin
+  SetLength(LAud, 1);
+  LAud[0] := 'Paolo';
+
+  LBuilder := TJOSEConsumerBuilder.NewConsumer;
+  LBuilder.SetClaimsClass(TJWTClaims);
+
+  // JWS-related validation
+  if chkCosnumerSecret.Checked then
+    LBuilder.SetVerificationKey(edtConsumerSecret.Text);
+
+  if chkConsumerSkipVerificationKey.Checked then
+    LBuilder.SetSkipVerificationKeyValidation;
+
+  if chkConsumerSetDisableRequireSignature.Checked then
+    LBuilder.SetDisableRequireSignature;
+
+  // string-based claims validation
+  if chkConsumerSubject.Checked then
+    LBuilder.SetExpectedSubject(edtSubject.Text);
+
+  if chkConsumerAudience.Checked then
+    LBuilder.SetExpectedAudience(True, string(edtConsumerAudience.Text).Split([',']));
+
+  // string-based claims validation
+  if chkConsumerJWTId.Checked then
+    LBuilder.SetRequireJwtId;
+
+  // Time-related claims validation
+  if chkConsumerIssuedAt.Checked then
+    LBuilder.SetRequireIssuedAt;
+
+  if chkConsumerExpires.Checked then
+    LBuilder.SetRequireExpirationTime;
+
+  if chkConsumerNotBefore.Checked then
+    LBuilder.SetRequireNotBefore;
+
+  LBuilder.SetEvaluationTime(edtConsumerEvaluationDate.Date + edtConsumerEvaluationTime.Time);
+
+  LBuilder.SetAllowedClockSkew(20, TJOSETimeUnit.Seconds);
+  LBuilder.SetMaxFutureValidity(20, TJOSETimeUnit.Minutes);
+
+  // Build the consumer object
+  ProcessConsumer(LBuilder.Build());
+end;
+
+procedure TfrmConsumer.FormCreate(Sender: TObject);
 begin
   SetNow;
 end;
 
-function TfrmClaims.BuildJWT: TJOSEBytes;
+function TfrmConsumer.BuildJWT: TJOSEBytes;
 var
   LJWT: TJWT;
   LAlg: TJOSEAlgorithmId;
@@ -211,12 +279,24 @@ begin
   end;
 end;
 
-procedure TfrmClaims.FormDestroy(Sender: TObject);
+procedure TfrmConsumer.FormDestroy(Sender: TObject);
 begin
   FJWT.Free;
 end;
 
-procedure TfrmClaims.SetCompact(const Value: TJOSEBytes);
+procedure TfrmConsumer.ProcessConsumer(AConsumer: TJOSEConsumer);
+begin
+  if Assigned(AConsumer) then
+  try
+    AConsumer.Process(Compact);
+  except
+    on E: Exception do
+      memoLog.Lines.Add(E.Message);
+  end;
+  AConsumer.Free;
+end;
+
+procedure TfrmConsumer.SetCompact(const Value: TJOSEBytes);
 var
   LSplit: TArray<string>;
 begin
@@ -231,7 +311,7 @@ begin
   FCompactSignature := LSplit[2];
 end;
 
-procedure TfrmClaims.SetNow;
+procedure TfrmConsumer.SetNow;
 begin
   FNow := Now;
 
@@ -243,36 +323,6 @@ begin
 
   edtNotBeforeDate.Date := IncMinute(FNow, -10);
   edtNotBeforeTime.Time := IncMinute(FNow, -10);
-end;
-
-function TMyClaims.GetAppIssuer: string;
-begin
-  Result := TJSONUtils.GetJSONValue('appissuer', FJSON).AsString;
-end;
-
-function TMyClaims.GetAppSite: string;
-begin
-  Result := TJSONUtils.GetJSONValue('appsite', FJSON).AsString;
-end;
-
-function TMyClaims.GetEmail: string;
-begin
-  Result := TJSONUtils.GetJSONValue('email', FJSON).AsString;
-end;
-
-procedure TMyClaims.SetAppIssuer(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('appissuer', Value, FJSON);
-end;
-
-procedure TMyClaims.SetAppSite(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('appsite', Value, FJSON);
-end;
-
-procedure TMyClaims.SetEmail(const Value: string);
-begin
-  TJSONUtils.SetJSONValueFrom<string>('email', Value, FJSON);
 end;
 
 

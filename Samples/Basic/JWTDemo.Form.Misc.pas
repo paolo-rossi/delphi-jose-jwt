@@ -38,6 +38,10 @@ type
     memoLog: TMemo;
     btnTestJSON: TButton;
     memoInput: TMemo;
+    btnArray: TButton;
+    btnSign: TButton;
+    procedure btnArrayClick(Sender: TObject);
+    procedure btnSignClick(Sender: TObject);
     procedure btnTestJSONClick(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -53,7 +57,39 @@ type
 
 implementation
 
+uses
+  JOSE.Types.Arrays;
+
 {$R *.dfm}
+
+procedure TfrmMisc.btnArrayClick(Sender: TObject);
+var
+  LJA: TJOSEArray<string>;
+  LA, LB: TArray<string>;
+begin
+  LJA := TJOSEArray<string>.Create;
+
+  LJA.Push('Paolo');
+  LJA.Push('Pluto');
+  LJA.Push('Pippo');
+
+  LA := LJA;
+
+  LJA.Pop;
+
+  memoLog.Lines.Add(LJA.ToString);
+
+  LB := LA;
+
+  LJA := LJA + LA + LB;
+
+  memoLog.Lines.Add(LJA.ToString);
+end;
+
+procedure TfrmMisc.btnSignClick(Sender: TObject);
+begin
+  //THMAC.Sign([3, 45, 44, 55, 43, 56], [56, 48, 52, 53, 54, 55, 56], THMACAlgorithm.SHA256);
+end;
 
 procedure TfrmMisc.btnTestJSONClick(Sender: TObject);
 begin

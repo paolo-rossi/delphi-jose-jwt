@@ -55,4 +55,22 @@ object frmMisc: TfrmMisc
     ScrollBars = ssVertical
     TabOrder = 2
   end
+  object btnArray: TButton
+    Left = 352
+    Top = 40
+    Width = 75
+    Height = 25
+    Caption = 'btnArray'
+    TabOrder = 3
+    OnClick = btnArrayClick
+  end
+  object btnSign: TButton
+    Left = 360
+    Top = 88
+    Width = 75
+    Height = 25
+    Caption = 'btnSign'
+    TabOrder = 4
+    OnClick = btnSignClick
+  end
 end

@@ -46,7 +46,8 @@ type
     class function Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
     class function Verify(AKey: TJWK; ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT;
 
-    class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
+    class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes; overload;
+    class function SerializeCompact(AKey: TJOSEBytes; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes; overload;
     class function DeserializeCompact(const ACompactToken: TJOSEBytes): TJWT;
 
     class function SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
@@ -125,6 +126,19 @@ begin
     Result := LSigner.Sign(AKey, AAlg);
   finally
     LSigner.Free;
+  end;
+end;
+
+class function TJOSE.SerializeCompact(AKey: TJOSEBytes; AAlg: TJOSEAlgorithmId;
+  AToken: TJWT): TJOSEBytes;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := SerializeCompact(LKey, AAlg, AToken);
+  finally
+    LKey.Free;
   end;
 end;
 
