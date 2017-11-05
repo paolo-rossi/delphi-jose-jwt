@@ -32,7 +32,7 @@ uses
   JOSE.Core.JWS,
   JOSE.Core.JWK,
   JOSE.Core.JWA,
-  JOSE.Types.JSON;
+  JOSE.Types.JSON, Vcl.ExtCtrls;
 
 type
   TfrmSimple = class(TForm)
@@ -44,11 +44,18 @@ type
     btnTestClaims: TButton;
     memoJSON: TMemo;
     memoCompact: TMemo;
+    Label6: TLabel;
+    cbbAlgorithm: TComboBox;
+    edtSecret: TLabeledEdit;
     procedure btnBuildClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
     procedure btnTJOSEBuildClick(Sender: TObject);
     procedure btnTJOSEVerifyClick(Sender: TObject);
+    procedure edtSecretChange(Sender: TObject);
   private
+    const SECRET_CAPTION = 'Secret (%dbit)';
+  private
+    FCompact: string;
     procedure BuildJWT;
     procedure VerifyJWT;
   public
@@ -69,6 +76,7 @@ var
   LToken: TJWT;
   LSigner: TJWS;
   LKey: TJWK;
+  LAlg: TJOSEAlgorithmId;
 begin
   LToken := TJWT.Create;
   try
@@ -76,10 +84,20 @@ begin
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
 
+    // Signing algorithm
+    case cbbAlgorithm.ItemIndex of
+      0: LAlg := TJOSEAlgorithmId.HS256;
+      1: LAlg := TJOSEAlgorithmId.HS384;
+      2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+    end;
+
     LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create('secret');
+    LKey := TJWK.Create(edtSecret.Text);
     try
-      LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
+      // With this option you can have keys < algorithm length
+      LSigner.SkipKeyValidation := True;
+      LSigner.Sign(LKey, LAlg);
 
       memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
       memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
@@ -124,6 +142,7 @@ end;
 procedure TfrmSimple.BuildJWT;
 var
   LToken: TJWT;
+  LAlg: TJOSEAlgorithmId;
 begin
   // Create a JWT Object
   LToken := TJWT.Create(TJWTClaims);
@@ -133,9 +152,18 @@ begin
     LToken.Claims.Expiration := Now + 1;
     LToken.Claims.Issuer := 'Delphi JOSE Library';
 
-    // Signing and Compact format creation.
-    // Please use a different secret key in production!!!!!
-    memoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
+    // Signing algorithm
+    case cbbAlgorithm.ItemIndex of
+      0: LAlg := TJOSEAlgorithmId.HS256;
+      1: LAlg := TJOSEAlgorithmId.HS384;
+      2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+    end;
+
+    // Signing and compact format creation.
+    FCompact :=TJOSE.SerializeCompact(edtSecret.Text, LAlg, LToken);
+
+    memoCompact.Lines.Add(FCompact);
 
     // Header and Claims JSON representation
     memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
@@ -145,15 +173,20 @@ begin
   end;
 end;
 
+procedure TfrmSimple.edtSecretChange(Sender: TObject);
+begin
+  edtSecret.EditLabel.Caption := Format(SECRET_CAPTION, [Length(edtSecret.Text) * 8]);
+end;
+
 procedure TfrmSimple.VerifyJWT;
 var
   LKey: TJWK;
   LToken: TJWT;
 begin
-  // 'secret' is the value of the secret key. Only suitable for a demo!!!
-  LKey := TJWK.Create('secret');
+  LKey := TJWK.Create(edtSecret.Text);
+
   // Unpack and verify the token
-  LToken := TJOSE.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
+  LToken := TJOSE.Verify(LKey, FCompact);
 
   if Assigned(LToken) then
   begin

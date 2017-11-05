@@ -2,8 +2,8 @@ object frmMisc: TfrmMisc
   Left = 0
   Top = 0
   Caption = 'frmMisc'
-  ClientHeight = 448
-  ClientWidth = 635
+  ClientHeight = 467
+  ClientWidth = 630
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,18 +13,17 @@ object frmMisc: TfrmMisc
   OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  DesignSize = (
-    635
-    448)
   PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
-    Top = 216
-    Width = 635
+    Top = 235
+    Width = 630
     Height = 232
     Align = alBottom
     TabOrder = 0
+    ExplicitTop = 216
+    ExplicitWidth = 635
   end
   object btnTestJSON: TButton
     Left = 8
@@ -40,7 +39,6 @@ object frmMisc: TfrmMisc
     Top = 88
     Width = 302
     Height = 107
-    Anchors = [akLeft, akTop, akRight]
     Font.Charset = ANSI_CHARSET
     Font.Color = clRed
     Font.Height = -16
@@ -56,8 +54,8 @@ object frmMisc: TfrmMisc
     TabOrder = 2
   end
   object btnArray: TButton
-    Left = 352
-    Top = 40
+    Left = 547
+    Top = 32
     Width = 75
     Height = 25
     Caption = 'btnArray'
@@ -65,8 +63,8 @@ object frmMisc: TfrmMisc
     OnClick = btnArrayClick
   end
   object btnSign: TButton
-    Left = 360
-    Top = 88
+    Left = 547
+    Top = 63
     Width = 75
     Height = 25
     Caption = 'btnSign'

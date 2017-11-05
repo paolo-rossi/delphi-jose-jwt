@@ -49,8 +49,7 @@ You can download the OpenSSL package at the [fulgan website](https://indy.fulgan
 ## Todo
 
 ##### Features
-- RSA algorithms implementation
-- Easy creation of `TJWTClaims` derived classes
+- RSA algorithms implementation (OpenSSL, TMS Cryptography Pack)
 
 ##### Code
 - Unit Tests
@@ -76,8 +75,10 @@ Simply add the source path "Source/Common" and Source/JOSE" to your Delphi proje
 ## Code Examples
 
 ### Creating a token
-To create a token simple create an instance of the `TJWT` class and set the properties (claims).
-The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`utility class.
+To create a token, simply create an instance of the `TJWT` class and set the properties (claims).
+
+#### Using TJOSE utility class
+The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`utility class:
 
 ```delphi
 var
@@ -91,7 +92,9 @@ begin
     LToken.Claims.Issuer := 'WiRL REST Library';
 
     // Signing and Compact format creation
-    mmoCompact.Lines.Add(TJOSE.SHA256CompactToken('secret', LToken));
+    mmoCompact.Lines.Add(
+      TJOSE.SHA256CompactToken('my_very_long_and_safe_secret_key', LToken)
+    );
 
     // Header and Claims JSON representation
     mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
@@ -101,19 +104,69 @@ begin
   end;
 ```
 
+#### Using TJWT, TJWS and TJWK classes
+Using the `TJWT`, `TJWS` and `TJWK` classes you can control more setting in the creation of the final compact token.
 
-### Unpack and Verify a token
+```delphi
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+  LKey: TJWK;
+  LAlg: TJOSEAlgorithmId;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Issuer := 'Delphi JOSE Library';
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 1;
 
-Unpacking and verifying tokens is simple.  You have to pass the key (secret) and the token compact format to the `TJOSE.Verify` class function
+    // Signing algorithm
+    case cbbAlgorithm.ItemIndex of
+      0: LAlg := TJOSEAlgorithmId.HS256;
+      1: LAlg := TJOSEAlgorithmId.HS384;
+      2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+    end;
+
+    LSigner := TJWS.Create(LToken);
+    LKey := TJWK.Create(edtSecret.Text);
+    try
+      // With this option you can have keys < algorithm length
+      LSigner.SkipKeyValidation := True;
+      LSigner.Sign(LKey, LAlg);
+
+      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+
+      memoCompact.Lines.Add('Header: ' + LSigner.Header);
+      memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
+      memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
+      memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+    finally
+      LKey.Free;
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+
+```
+## Unpack and verify a token's signature
+
+Unpacking and verifying tokens is simple.
+
+#### Using TJOSE utility class
+
+You have to pass the key and the token compact format to the `TJOSE.Verify` class function
 
 ```delphi
 var
   LKey: TJWK;
   LToken: TJWT;
 begin
-  LKey := TJWK.Create('secret');
+  LKey := TJWK.Create('my_very_long_and_safe_secret_key');
   // Unpack and verify the token
-  LToken := TJOSE.Verify(LKey, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJXaVJMIn0.w3BAZ_GwfQYY6dkS8xKUNZ_sOnkDUMELxBN0mKKNhJ4');
+  LToken := TJOSE.Verify(LKey, FCompactToken);
 
   if Assigned(LToken) then
   begin
@@ -129,5 +182,44 @@ begin
 
 end;
 ```
+
+### Unpacking and token validation
+
+Using the new class `TJOSEConsumer` it's very easy to validate the token's claims. The `TJOSEConsumer` object id built using the `TJOSEConsumerBuilder` utility class using the fluent interface.
+
+```delphi
+var
+  LConsumer: TJOSEConsumer;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetClaimsClass(TJWTClaims)
+    // JWS-related validation
+    .SetVerificationKey(edtConsumerSecret.Text)
+    .SetSkipVerificationKeyValidation
+    .SetDisableRequireSignature
+
+    // string-based claims validation
+    .SetExpectedSubject('paolo-rossi')
+    .SetExpectedAudience(True, ['Paolo'])
+
+    // Time-related claims validation
+    .SetRequireIssuedAt
+    .SetRequireExpirationTime
+    .SetEvaluationTime(IncSecond(FNow, 26))
+    .SetAllowedClockSkew(20, TJOSETimeUnit.Seconds)
+    .SetMaxFutureValidity(20, TJOSETimeUnit.Minutes)
+
+    // Build the consumer object
+    .Build();
+
+  try
+    LConsumer.Process(Compact);
+  except
+    on E: Exception do
+      memoLog.Lines.Add(E.Message);
+  end;
+  LConsumer.Free;
+```
+
 <hr />
 <div style="text-align:right">Paolo Rossi</div>

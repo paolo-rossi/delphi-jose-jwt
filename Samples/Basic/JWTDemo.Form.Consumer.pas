@@ -187,11 +187,7 @@ end;
 procedure TfrmConsumer.actBuildJWTCustomConsumerExecute(Sender: TObject);
 var
   LBuilder: IJOSEConsumerBuilder;
-  LAud: TArray<string>;
 begin
-  SetLength(LAud, 1);
-  LAud[0] := 'Paolo';
-
   LBuilder := TJOSEConsumerBuilder.NewConsumer;
   LBuilder.SetClaimsClass(TJWTClaims);
 
@@ -204,27 +200,31 @@ begin
 
   if chkConsumerSetDisableRequireSignature.Checked then
     LBuilder.SetDisableRequireSignature;
+  // End JWS-related validation
 
-  // string-based claims validation
+  // subject claim validation
   if chkConsumerSubject.Checked then
     LBuilder.SetExpectedSubject(edtSubject.Text);
 
+  // audience claim validation
   if chkConsumerAudience.Checked then
     LBuilder.SetExpectedAudience(True, string(edtConsumerAudience.Text).Split([',']))
   else
-    LBuilder.SetExpectedAudience(False, string(edtConsumerAudience.Text).Split([',']));
+    LBuilder.SetSkipDefaultAudienceValidation;
 
-  // string-based claims validation
+  // JWT Id claim validation
   if chkConsumerJWTId.Checked then
     LBuilder.SetRequireJwtId;
 
-  // Time-related claims validation
+  // Issued At claim validation
   if chkConsumerIssuedAt.Checked then
     LBuilder.SetRequireIssuedAt;
 
+  // Expires claim validation
   if chkConsumerExpires.Checked then
     LBuilder.SetRequireExpirationTime;
 
+  // Not Before claim validation
   if chkConsumerNotBefore.Checked then
     LBuilder.SetRequireNotBefore;
 
@@ -234,7 +234,9 @@ begin
   LBuilder.SetMaxFutureValidity(20, TJOSETimeUnit.Minutes);
 
   // Build the consumer object
+  memoLog.Lines.Clear;
   ProcessConsumer(LBuilder.Build());
+  memoLog.Lines.Add('JWT Validated!')
 end;
 
 procedure TfrmConsumer.actBuildJWTCustomConsumerUpdate(Sender: TObject);
@@ -334,6 +336,9 @@ begin
 
   edtNotBeforeDate.Date := IncMinute(FNow, -10);
   edtNotBeforeTime.Time := IncMinute(FNow, -10);
+
+  edtConsumerEvaluationDate.Date := FNow;
+  edtConsumerEvaluationDate.Time := FNow;
 end;
 
 

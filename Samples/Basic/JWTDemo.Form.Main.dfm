@@ -22,6 +22,5 @@ object frmMain: TfrmMain
     Align = alClient
     Style = tsFlatButtons
     TabOrder = 0
-    ExplicitHeight = 620
   end
 end

@@ -140,17 +140,19 @@ begin
     var
       LOk: Boolean;
       LSingleAudience: string;
+      LClaims: TJWTClaims;
     begin
       Result := '';
+      LClaims := AJOSEContext.GetClaims;
 
-      if not AJOSEContext.GetClaims.HasAudience then
+      if not LClaims.HasAudience then
         if ARequired then
           Exit('No Audience [aud] claim present')
         else
           Exit('');
 
       LOk := False;
-      for LSingleAudience in AJOSEContext.GetClaims.AudienceArray do
+      for LSingleAudience in LClaims.AudienceArray do
         if AAudience.Contains(LSingleAudience) then
           LOk := True;
 
@@ -165,10 +167,10 @@ begin
 
         Result := Result + ' Expected ';
 
-        if AAudience.Size = 1 then
-          Result := Result + AAudience.First
+        if Length(LClaims.AudienceArray) = 1 then
+          Result := Result + '[' + LClaims.Audience + ']'
         else
-          Result := Result + 'one of [' + AAudience.ToString + ']';
+          Result := Result + 'one of [' + LClaims.Audience + ']';
 
         Result := Result +  ' as aud value.';
       end;

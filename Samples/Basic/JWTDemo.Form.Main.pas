@@ -57,7 +57,7 @@ begin
   PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims');
   PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
   PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
-  pgcMain.ActivePageIndex := 2;
+  pgcMain.ActivePageIndex := 0;
 end;
 
 procedure TfrmMain.PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string);
