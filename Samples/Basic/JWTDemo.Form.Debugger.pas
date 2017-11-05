@@ -49,6 +49,9 @@ type
     chkKeyBase64: TCheckBox;
     shpStatus: TShape;
     lblStatus: TLabel;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
     procedure cbbDebuggerAlgoChange(Sender: TObject);
     procedure chkKeyBase64Click(Sender: TObject);
     procedure edtKeyChange(Sender: TObject);

@@ -61,9 +61,9 @@ object frmDebugger: TfrmDebugger
   end
   object Label10: TLabel
     Left = 463
-    Top = 385
+    Top = 374
     Width = 297
-    Height = 114
+    Height = 124
     Anchors = [akLeft, akBottom]
     Caption = 
       'HMACSHA256('#13#10'  base64UrlEncode(header) + "." +'#13#10'  base64UrlEncod' +
@@ -99,9 +99,49 @@ object frmDebugger: TfrmDebugger
     ParentFont = False
     ExplicitLeft = 263
   end
-  object memoHeader: TMemo
+  object Label1: TLabel
     Left = 463
     Top = 72
+    Width = 189
+    Height = 16
+    Caption = 'Header: Algorithm && Token Type'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clGray
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label2: TLabel
+    Left = 463
+    Top = 206
+    Width = 79
+    Height = 16
+    Caption = 'Payload: Data'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clGray
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+  end
+  object Label3: TLabel
+    Left = 462
+    Top = 352
+    Width = 97
+    Height = 16
+    Anchors = [akLeft, akBottom]
+    Caption = 'Verify Signature:'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clGray
+    Font.Height = -13
+    Font.Name = 'Tahoma'
+    Font.Style = []
+    ParentFont = False
+  end
+  object memoHeader: TMemo
+    Left = 463
+    Top = 91
     Width = 302
     Height = 107
     Anchors = [akLeft, akTop, akRight]
@@ -122,9 +162,9 @@ object frmDebugger: TfrmDebugger
   end
   object memoPayload: TMemo
     Left = 463
-    Top = 185
+    Top = 224
     Width = 302
-    Height = 194
+    Height = 123
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clFuchsia
@@ -179,7 +219,7 @@ object frmDebugger: TfrmDebugger
   end
   object edtKey: TEdit
     Left = 481
-    Top = 449
+    Top = 436
     Width = 279
     Height = 27
     Anchors = [akLeft, akBottom]
@@ -195,7 +235,7 @@ object frmDebugger: TfrmDebugger
   end
   object chkKeyBase64: TCheckBox
     Left = 481
-    Top = 482
+    Top = 471
     Width = 238
     Height = 17
     ParentCustomHint = False

@@ -30,37 +30,35 @@ You can download the OpenSSL package at the [fulgan website](https://indy.fulgan
 - Token serialization
 - Token deserialization
 - Claims validation
-    - `exp`, `iat`, `nbf` claims validatation - supported
-    - `aud`, `iss`, `sub` claims validatation - planned
+    - `exp`, `iat`, `nbf`, `aud`, `iss`, `sub` claims validatation - supported
 - Sign algorithms
     - `NONE`, `HS256`, `HS384`, `HS512` algorithms - supported
 - Encryption algorithms
     - `RS256`, `RS384`, `RS512` algorithms - planned
     - `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512` algorithms - not (yet) planned
-	- Not affected by the`None`algorithm vulnerability
 
-This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
+
+- This library is not affected by the`None`algorithm vulnerability
+- This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
 
 ## Projects using Delphi JOSE and JWT
 
-- [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
 - The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
+- [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
 
 ## Todo
 
 ##### Features
-- Token validation: `aud`, `iss`, `sub`
 - RSA algorithms implementation
 - Easy creation of `TJWTClaims` derived classes
 
 ##### Code
-- D2010+ porting
 - Unit Tests
 - More examples
 
 
 ## Prerequisite
-This library has been tested with **Delphi 10.1 Berlin**, **Delphi 10 Seattle** and **Delphi XE8** but with a minimum amount of work it should compile with **D2010 and higher**
+This library has been tested with **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, **Delphi 10 Seattle** and **Delphi XE6** but with a minimum amount of work it should compile with **D2010 and higher**
 
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.

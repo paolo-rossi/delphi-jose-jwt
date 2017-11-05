@@ -23,9 +23,6 @@
 program JWTDemo;
 
 uses
-  {$IFDEF FASTMM4}
-  FastMM4,
-  {$ENDIF }
   Vcl.Forms,
   JWTDemo.Form.Main in 'JWTDemo.Form.Main.pas' {frmMain},
   JWTDemo.Form.Debugger in 'JWTDemo.Form.Debugger.pas' {frmDebugger},
@@ -37,6 +34,9 @@ uses
 {$R *.res}
 
 begin
+  {$IFDEF DEBUG}
+  ReportMemoryLeaksOnShutdown := True;
+  {$ENDIF }
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.CreateForm(TfrmMain, frmMain);

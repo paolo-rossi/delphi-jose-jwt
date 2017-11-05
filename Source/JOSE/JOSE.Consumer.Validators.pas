@@ -170,7 +170,7 @@ begin
         else
           Result := Result + 'one of [' + AAudience.ToString + ']';
 
-        Result := Result +  'as an aud value.';
+        Result := Result +  ' as aud value.';
       end;
     end
 end;

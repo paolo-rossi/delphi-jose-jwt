@@ -38,7 +38,7 @@ uses
   JOSE.Core.Builder,
   JOSE.Hashing.HMAC,
   JOSE.Consumer,
-  JOSE.Encoding.Base64;
+  JOSE.Encoding.Base64, System.ImageList;
 
 type
   TMyClaims = class(TJWTClaims)
@@ -125,6 +125,8 @@ uses
 
 {$R *.dfm}
 
+{ TfrmClaims }
+
 procedure TfrmClaims.actBuildJWSExecute(Sender: TObject);
 var
   LToken: TJWT;
@@ -136,13 +138,15 @@ begin
     LToken.Claims.Issuer := 'Delphi JOSE Library';
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
-    //Custom Claims
+
+    // Custom Claims
     (LToken.Claims as TMyClaims).AppIssuer := 'WiRL REST Library';
     (LToken.Claims as TMyClaims).AppSite := 'https://github.com/delphi-blocks/WiRL';
     (LToken.Claims as TMyClaims).Email := 'my@mail.com';
+    // End Custom Claims
 
     LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create('secret');
+    LKey := TJWK.Create(edtSecret.Text);
     try
       LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
 

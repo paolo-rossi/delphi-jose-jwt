@@ -21,14 +21,14 @@ object frmConsumer: TfrmConsumer
     Width = 952
     Height = 96
     Align = alBottom
+    Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
     Font.Height = -12
     Font.Name = 'Courier New'
     Font.Style = []
-    Lines.Strings = (
-      'memoLog')
     ParentFont = False
+    ScrollBars = ssVertical
     TabOrder = 0
   end
   object grpClaims: TGroupBox
@@ -350,7 +350,7 @@ object frmConsumer: TfrmConsumer
     end
     object edtConsumerSecret: TLabeledEdit
       Left = 209
-      Top = 42
+      Top = 41
       Width = 186
       Height = 21
       EditLabel.Width = 31
@@ -359,7 +359,7 @@ object frmConsumer: TfrmConsumer
       TabOrder = 2
       Text = 'mysecretkey256bitwide(32characters)'
     end
-    object chkCosnumerSecret: TCheckBox
+    object chkConsumerSecret: TCheckBox
       Left = 401
       Top = 44
       Width = 73
@@ -547,6 +547,7 @@ object frmConsumer: TfrmConsumer
       Caption = 'Build Custom Consumer'
       ImageIndex = 14
       OnExecute = actBuildJWTCustomConsumerExecute
+      OnUpdate = actBuildJWTCustomConsumerUpdate
     end
   end
   object ImageList1: TImageList

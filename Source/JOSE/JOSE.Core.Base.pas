@@ -43,15 +43,6 @@ type
   EJOSEException = class(Exception);
 
   TJOSEStringArray = TJOSEArray<string>;
-  {$IF CompilerVersion > 28}
-  TJOSEStringArrayHelper = record helper for TJOSEStringArray
-    function IsEmpty: Boolean;
-    function Size: Integer;
-    function Contains(const AValue: string): Boolean;
-    function ToString: string;
-    function ToStringPluralForm(const APluralPrefix: string): string;
-  end;
-  {$ENDIF}
 
   TJOSETimeUnit = (Days, Hours, Minutes, Seconds, Milliseconds);
   TJOSETimeUnitHelper = record helper for TJOSETimeUnit
@@ -254,45 +245,6 @@ procedure TJOSENumericDate.SetAsSeconds(const AValue: Int64);
 begin
   FValue := UnixToDateTime(AValue);
 end;
-
-{$IF CompilerVersion > 28}
-
-{ TJOSEStringArrayHelper }
-
-function TJOSEStringArrayHelper.Contains(const AValue: string): Boolean;
-var
-  LIndexValue: string;
-begin
-  Exit(False);
-  for LIndexValue in Self do
-    if LIndexValue = AValue then
-      Exit(True);
-end;
-
-function TJOSEStringArrayHelper.IsEmpty: Boolean;
-begin
-  Result := Length(Self) = 0;
-end;
-
-function TJOSEStringArrayHelper.Size: Integer;
-begin
-  Result := Length(Self);
-end;
-
-function TJOSEStringArrayHelper.ToString: string;
-begin
-  Result := string.Join(',', Self);
-end;
-
-function TJOSEStringArrayHelper.ToStringPluralForm(const APluralPrefix: string): string;
-begin
-  if Self.Size > 1 then
-    Result := APluralPrefix + Self.ToString
-  else
-    Result := Self.ToString;
-end;
-
-{$ENDIF}
 
 { TJOSETimeUnitHelper }
 

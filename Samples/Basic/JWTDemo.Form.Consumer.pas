@@ -25,9 +25,10 @@ unit JWTDemo.Form.Consumer;
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   System.Rtti, System.Generics.Collections, Vcl.ImgList, System.Actions, Vcl.ActnList,
+  System.ImageList,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWE,
@@ -80,7 +81,7 @@ type
     actBuildJWTCustomConsumer: TAction;
     btnBuildJWTCustomConsumer: TButton;
     edtConsumerSecret: TLabeledEdit;
-    chkCosnumerSecret: TCheckBox;
+    chkConsumerSecret: TCheckBox;
     chkConsumerSkipVerificationKey: TCheckBox;
     chkConsumerSetDisableRequireSignature: TCheckBox;
     edtConsumerSubject: TLabeledEdit;
@@ -103,6 +104,7 @@ type
     procedure actBuildJWTConsumerExecute(Sender: TObject);
     procedure actBuildJWTConsumerUpdate(Sender: TObject);
     procedure actBuildJWTCustomConsumerExecute(Sender: TObject);
+    procedure actBuildJWTCustomConsumerUpdate(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
   private
@@ -136,6 +138,8 @@ uses
   JOSE.Consumer.Validators;
 
 {$R *.dfm}
+
+{ TfrmConsumer }
 
 procedure TfrmConsumer.actBuildJWSExecute(Sender: TObject);
 begin
@@ -192,7 +196,7 @@ begin
   LBuilder.SetClaimsClass(TJWTClaims);
 
   // JWS-related validation
-  if chkCosnumerSecret.Checked then
+  if chkConsumerSecret.Checked then
     LBuilder.SetVerificationKey(edtConsumerSecret.Text);
 
   if chkConsumerSkipVerificationKey.Checked then
@@ -206,7 +210,9 @@ begin
     LBuilder.SetExpectedSubject(edtSubject.Text);
 
   if chkConsumerAudience.Checked then
-    LBuilder.SetExpectedAudience(True, string(edtConsumerAudience.Text).Split([',']));
+    LBuilder.SetExpectedAudience(True, string(edtConsumerAudience.Text).Split([',']))
+  else
+    LBuilder.SetExpectedAudience(False, string(edtConsumerAudience.Text).Split([',']));
 
   // string-based claims validation
   if chkConsumerJWTId.Checked then
@@ -229,6 +235,11 @@ begin
 
   // Build the consumer object
   ProcessConsumer(LBuilder.Build());
+end;
+
+procedure TfrmConsumer.actBuildJWTCustomConsumerUpdate(Sender: TObject);
+begin
+  (Sender as TAction).Enabled := FCompact <> '';
 end;
 
 procedure TfrmConsumer.FormCreate(Sender: TObject);
@@ -270,7 +281,7 @@ begin
       0: LAlg := TJOSEAlgorithmId.HS256;
       1: LAlg := TJOSEAlgorithmId.HS384;
       2: LAlg := TJOSEAlgorithmId.HS512;
-      else LAlg := TJOSEAlgorithmId.HS256;
+    else LAlg := TJOSEAlgorithmId.HS256;
     end;
 
     Result := TJOSE.SerializeCompact(edtSecret.Text,  LAlg, LJWT);

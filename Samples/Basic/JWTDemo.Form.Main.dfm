@@ -2,7 +2,7 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'JWT Demo'
-  ClientHeight = 559
+  ClientHeight = 606
   ClientWidth = 893
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -18,9 +18,10 @@ object frmMain: TfrmMain
     Left = 0
     Top = 0
     Width = 893
-    Height = 559
+    Height = 606
     Align = alClient
     Style = tsFlatButtons
     TabOrder = 0
+    ExplicitHeight = 620
   end
 end
