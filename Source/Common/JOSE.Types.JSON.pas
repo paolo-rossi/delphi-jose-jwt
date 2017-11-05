@@ -233,7 +233,7 @@ begin
   LPair := AJSON.Get(AName);
   if Assigned(LPair) then
   begin
-    LPair.JsonValue.Free;
+    // Replace the JSON Value (the previous is freed by the TJSONPair object)
     LPair.JsonValue := LValue;
   end
   else
