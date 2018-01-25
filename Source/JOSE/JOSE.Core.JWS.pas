@@ -109,6 +109,9 @@ begin
 
   Result := TJOSEAlgorithmRegistryFactory.Instance
     .SigningAlgorithmRegistry.GetAlgorithm(LAlgId);
+  if Result = nil then
+    raise EJOSEException.CreateFmt('Signing algorithm (%s) is not supported.',
+      [LAlgId]);
 end;
 
 function TJWS.GetCompactToken: TJOSEBytes;

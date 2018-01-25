@@ -129,6 +129,9 @@ begin
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha256)
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha384)
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha512)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA256)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA384)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA512)
   ;
 
   FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('alg');
