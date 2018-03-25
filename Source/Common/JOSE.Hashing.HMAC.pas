@@ -100,7 +100,7 @@ procedure THMACAlgorithmHelper.FromString(const AValue: string);
 begin
   if AValue = 'SHA256' then
     Self := SHA256
-  else if AValue = 'SHA388' then
+  else if AValue = 'SHA384' then
     Self := SHA384
   else if AValue = 'SHA512' then
     Self := SHA512
