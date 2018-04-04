@@ -20,7 +20,7 @@
 {                                                                              }
 {******************************************************************************}
 
-unit JOSE.Cryptography.RSA;
+unit JOSE.Signing.RSA;
 
 interface
 

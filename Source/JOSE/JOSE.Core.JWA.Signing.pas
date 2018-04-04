@@ -34,7 +34,7 @@ uses
   System.SysUtils,
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
-  JOSE.Cryptography.RSA,
+  JOSE.Signing.RSA,
   JOSE.Core.Base,
   JOSE.Core.Parts,
   JOSE.Core.JWA,
