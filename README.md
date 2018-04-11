@@ -10,10 +10,21 @@
 
 ![Image of Delphi-JOSE Demo](http://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
 
-## Important!
-The HMAC algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
-The client doesn't have to generate or verify the token (using HMAC) so on the client-side there's no need for the OpenSSL DLLs.
-You can download the OpenSSL package at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always update to the latest version)
+## Important: OpenSSL requirements
+
+#### HMAC using SHA algorithm
+Prior to Delphi 10 Seattle the the HMAC-SHA algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
+
+In Delphi 10 Seattle or newer Delphi versions the HMAC algorithm is also is the System.Hash unit so OpenSSL is not needed.
+
+#### HMAC using RSA algorithm
+The HMAC-RSA algorithm uses necessarily OpenSSL so if you plan to use this algorithm to sign your token you have to download and deploy OpenSSL (on the server).
+
+#### Client-side considerations
+Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
+
+#### OpenSSL download
+If you need the OpenSSL library on the server, you can download the package at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always update to the latest version and to match you application's bitness)
 
 ## What is JOSE
 
@@ -27,18 +38,25 @@ You can download the OpenSSL package at the [fulgan website](https://indy.fulgan
 
 ## General Features
 
-- Token serialization
-- Token deserialization
-- Claims validation
-    - `exp`, `iat`, `nbf`, `aud`, `iss`, `sub` claims validatation - supported
-- Sign algorithms
-    - `NONE`, `HS256`, `HS384`, `HS512` algorithms - supported
-- Encryption algorithms
-    - `RS256`, `RS384`, `RS512` algorithms - planned
-    - `ES256`, `ES384`, `ES512`, `PS256`, `PS384`, `PS512` algorithms - not (yet) planned
+#### Token serialization
+- One method call to serialize a token
 
+#### Token deserialization
+- One method call to validate and deserialize a compact token
 
-- This library is not affected by the`None`algorithm vulnerability
+#### Claims validation
+- `exp`, `iat`, `nbf`, `aud`, `iss`, `sub` claims validatation: supported
+- Easy to use `TJOSEConsumer` and `TJOSEConsumerBuilder` classes to validate token with a fine granularity
+- Easy to write custom validators!
+
+#### Signing algorithms
+- `NONE algorithm`: supported (but discouraged)
+- `HS256`, `HS384`, `HS512 algorithms`: supported
+- `RS256`, `RS384`, `RS512 algorithms`: supported (thanks to [SirAlex](https://github.com/SirAlex))
+- `ES256`, `ES384`, `ES512` algorithms - not (yet) supported
+
+#### Security notes
+- This library is not affected by the `None` algorithm vulnerability
 - This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
 
 ## Projects using Delphi JOSE and JWT
@@ -49,7 +67,8 @@ You can download the OpenSSL package at the [fulgan website](https://indy.fulgan
 ## Todo
 
 ##### Features
-- RSA algorithms implementation (OpenSSL, TMS Cryptography Pack)
+- JWE support
+- Support of other crypto libraries (TMS Cryptography Pack, etc...)
 
 ##### Code
 - Unit Tests
@@ -57,7 +76,7 @@ You can download the OpenSSL package at the [fulgan website](https://indy.fulgan
 
 
 ## Prerequisite
-This library has been tested with **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, **Delphi 10 Seattle** and **Delphi XE6** but with a minimum amount of work it should compile with **D2010 and higher**
+This library has been tested with **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin** and **Delphi XE6** but with a minimum amount of work it should compile with **D2010 and higher**
 
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
@@ -67,7 +86,10 @@ Delphi units used:
 - System.Rtti (D2010+)
 - System.Generics.Collections (D2009+)
 - System.NetEncoding (DXE7+)
-- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash (please use latest version from svn)
+- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash
+
+#### Indy notes
+- Please use always the latest version [from svn](http://www.indyproject.org/Sockets/Download/svn.EN.aspx)
 
 ## Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!

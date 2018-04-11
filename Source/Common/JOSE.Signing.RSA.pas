@@ -31,9 +31,6 @@ uses
   IdSSLOpenSSLHeaders,
   JOSE.Encoding.Base64;
 
-const
-  PKCS1_SIGNATURE_PUBKEY:RawByteString = '-----BEGIN RSA PUBLIC KEY-----';
-
 type
   TRSAAlgorithm = (RS256, RS384, RS512);
   TRSAAlgorithmHelper = record helper for TRSAAlgorithm
@@ -43,6 +40,7 @@ type
 
   TRSA = class
   private
+    const PKCS1_SIGNATURE_PUBKEY: RawByteString = '-----BEGIN RSA PUBLIC KEY-----';
     class var FOpenSSLHandle: HMODULE;
     class var _PEM_read_bio_RSA_PUBKEY: function(bp : PBIO; x : PPRSA; cb : ppem_password_cb; u: Pointer) : PRSA cdecl;
     class var _EVP_MD_CTX_create: function: PEVP_MD_CTX cdecl;
@@ -97,172 +95,173 @@ end;
 class function TRSA.Sign(const AInput, AKey: TBytes;
   AAlg: TRSAAlgorithm): TBytes;
 var
-  PrivKeyBIO: pBIO;
-  PrivKey: pEVP_PKEY;
-  rsa: pRSA;
+  LPrivKeyBIO: pBIO;
+  LPrivKey: pEVP_PKEY;
+  LRsa: pRSA;
 
-  locCtx: PEVP_MD_CTX;
-  locSHA: PEVP_MD;
+  LCtx: PEVP_MD_CTX;
+  LSha: PEVP_MD;
 
-  slen: Integer;
-  sig: Pointer;
+  LLen: Integer;
+  LSig: Pointer;
 begin
   LoadOpenSSL;
 
   // Load Private RSA Key into RSA object
-  PrivKeyBIO := BIO_new(BIO_s_mem);
+  LPrivKeyBIO := BIO_new(BIO_s_mem);
   try
-    BIO_write(PrivKeyBIO, @AKey[0], Length(AKey));
-    rsa := PEM_read_bio_RSAPrivateKey(PrivKeyBIO, nil, nil, nil);
-    if rsa = nil then
+    BIO_write(LPrivKeyBIO, @AKey[0], Length(AKey));
+    LRsa := PEM_read_bio_RSAPrivateKey(LPrivKeyBIO, nil, nil, nil);
+    if LRsa = nil then
       raise Exception.Create('[RSA] Unable to load private key: '+ERR_GetErrorMessage_OpenSSL);
   finally
-    BIO_free(PrivKeyBIO);
+    BIO_free(LPrivKeyBIO);
   end;
 
   try
     // Extract Private key from RSA object
-    PrivKey := EVP_PKEY_new();
-    if EVP_PKEY_set1_RSA(PrivKey, rsa) <> 1 then
+    LPrivKey := EVP_PKEY_new();
+    if EVP_PKEY_set1_RSA(LPrivKey, LRsa) <> 1 then
       raise Exception.Create('[RSA] Unable to extract private key: '+ERR_GetErrorMessage_OpenSSL);
     try
       case AAlg of
-        RS256: locSHA := EVP_sha256();
-        RS384: locSHA := EVP_sha384();
-        RS512: locSHA := EVP_sha512();
+        RS256: LSha := EVP_sha256();
+        RS384: LSha := EVP_sha384();
+        RS512: LSha := EVP_sha512();
         else
           raise Exception.Create('[RSA] Unsupported signing algorithm!');
       end;
 
-      locCtx := _EVP_MD_CTX_create;
+      LCtx := _EVP_MD_CTX_create;
       try
-        if EVP_DigestSignInit( locCtx, NIL, locSHA, NIL, PrivKey ) <> 1 then
+        if EVP_DigestSignInit( LCtx, NIL, LSha, NIL, LPrivKey ) <> 1 then
           raise Exception.Create('[RSA] Unable to init context: '+ERR_GetErrorMessage_OpenSSL);
-        if EVP_DigestSignUpdate( locCtx, @AInput[0], Length(AInput) ) <> 1 then
+        if EVP_DigestSignUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
           raise Exception.Create('[RSA] Unable to update context with payload: '+ERR_GetErrorMessage_OpenSSL);
 
         // Get signature, first read signature len
-        EVP_DigestSignFinal( locCtx, nil, @slen );
-        sig := OPENSSL_malloc(slen);
+        EVP_DigestSignFinal( LCtx, nil, @LLen );
+        LSig := OPENSSL_malloc(LLen);
         try
-          EVP_DigestSignFinal( locCtx, sig, @slen );
-          setLength(Result, slen);
-          move(sig^, Result[0], slen);
+          EVP_DigestSignFinal( LCtx, LSig, @LLen );
+          setLength(Result, LLen);
+          move(LSig^, Result[0], LLen);
         finally
-          CRYPTO_free(sig);
+          CRYPTO_free(LSig);
         end;
       finally
-        _EVP_MD_CTX_destroy(locCtx);
+        _EVP_MD_CTX_destroy(LCtx);
       end;
     finally
-      EVP_PKEY_free(PrivKey);
+      EVP_PKEY_free(LPrivKey);
     end;
   finally
-    RSA_Free(rsa);
+    RSA_Free(LRsa);
   end;
 end;
 
 class function TRSA.Verify(const AInput, ASignature, AKey: TBytes;
   AAlg: TRSAAlgorithm): Boolean;
 var
-  PubKeyBIO: pBIO;
-  PubKey: pEVP_PKEY;
-  rsa: pRSA;
+  LPubKeyBIO: pBIO;
+  LPubKey: pEVP_PKEY;
+  LRsa: pRSA;
 
-  locCtx: PEVP_MD_CTX;
-  locSHA: PEVP_MD;
+  LCtx: PEVP_MD_CTX;
+  LSha: PEVP_MD;
 begin
   LoadOpenSSL;
 
   Result := False;
 
   // Load Public RSA Key into RSA object
-  PubKeyBIO := BIO_new(BIO_s_mem);
+  LPubKeyBIO := BIO_new(BIO_s_mem);
   try
-    BIO_write(PubKeyBIO, @AKey[0], Length(AKey));
+    BIO_write(LPubKeyBIO, @AKey[0], Length(AKey));
     if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKey[0], length(PKCS1_SIGNATURE_PUBKEY)) then
-      rsa := PEM_read_bio_RSAPublicKey(PubKeyBIO, nil, nil, nil)
+      LRsa := PEM_read_bio_RSAPublicKey(LPubKeyBIO, nil, nil, nil)
     else
-      rsa := _PEM_read_bio_RSA_PUBKEY(PubKeyBIO, nil, nil, nil);
-    if rsa = nil then
-      raise Exception.Create('[RSA] Unable to load public key: '+ERR_GetErrorMessage_OpenSSL);
+      LRsa := _PEM_read_bio_RSA_PUBKEY(LPubKeyBIO, nil, nil, nil);
+    if LRsa = nil then
+      raise Exception.Create('[RSA] Unable to load public key: ' + ERR_GetErrorMessage_OpenSSL);
   finally
-    BIO_free(PubKeyBIO);
+    BIO_free(LPubKeyBIO);
   end;
 
   try
     // Extract Public key from RSA object
-    PubKey := EVP_PKEY_new();
+    LPubKey := EVP_PKEY_new();
     try
-      if EVP_PKEY_set1_RSA(PubKey,rsa) <> 1 then
-        raise Exception.Create('[RSA] Unable to extract public key: '+ERR_GetErrorMessage_OpenSSL);
+      if EVP_PKEY_set1_RSA(LPubKey,LRsa) <> 1 then
+        raise Exception.Create('[RSA] Unable to extract public key: ' + ERR_GetErrorMessage_OpenSSL);
 
       case AAlg of
-        RS256: locSHA := EVP_sha256();
-        RS384: locSHA := EVP_sha384();
-        RS512: locSHA := EVP_sha512();
+        RS256: LSha := EVP_sha256();
+        RS384: LSha := EVP_sha384();
+        RS512: LSha := EVP_sha512();
         else
           raise Exception.Create('[RSA] Unsupported signing algorithm!');
       end;
 
-      locCtx := _EVP_MD_CTX_create;
+      LCtx := _EVP_MD_CTX_create;
       try
-        if EVP_DigestVerifyInit( locCtx, NIL, locSHA, NIL, PubKey ) <> 1 then
-          raise Exception.Create('[RSA] Unable to init context: '+ERR_GetErrorMessage_OpenSSL);
-        if EVP_DigestVerifyUpdate( locCtx, @AInput[0], Length(AInput) ) <> 1 then
-          raise Exception.Create('[RSA] Unable to update context with payload: '+ERR_GetErrorMessage_OpenSSL);
-        result := ( EVP_DigestVerifyFinal( locCtx, PAnsiChar(@ASignature[0]), length(ASignature) ) = 1 );
+        if EVP_DigestVerifyInit( LCtx, NIL, LSha, NIL, LPubKey ) <> 1 then
+          raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
+        if EVP_DigestVerifyUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
+          raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
+
+        Result := EVP_DigestVerifyFinal( LCtx, PAnsiChar(@ASignature[0]), length(ASignature) ) = 1;
       finally
-        _EVP_MD_CTX_destroy(locCtx);
+        _EVP_MD_CTX_destroy(LCtx);
       end;
     finally
-      EVP_PKEY_free(PubKey);
+      EVP_PKEY_free(LPubKey);
     end;
   finally
-    RSA_Free(rsa);
+    RSA_Free(LRsa);
   end;
 end;
 
 class function TRSA.VerifyPrivateKey(const AKey: TBytes): Boolean;
 var
-  PubKeyBIO: pBIO;
-  rsa: pRSA;
+  LPubKeyBIO: pBIO;
+  LRsa: pRSA;
 begin
   LoadOpenSSL;
 
   // Load Public RSA Key
-  PubKeyBIO := BIO_new(BIO_s_mem);
+  LPubKeyBIO := BIO_new(BIO_s_mem);
   try
-    BIO_write(PubKeyBIO, @AKey[0], Length(AKey));
-    rsa := PEM_read_bio_RSAPrivateKey(PubKeyBIO, nil, nil, nil);
-    Result := (rsa <> nil);
+    BIO_write(LPubKeyBIO, @AKey[0], Length(AKey));
+    LRsa := PEM_read_bio_RSAPrivateKey(LPubKeyBIO, nil, nil, nil);
+    Result := (LRsa <> nil);
     if Result then
-      RSA_Free(rsa);
+      RSA_Free(LRsa);
   finally
-    BIO_free(PubKeyBIO);
+    BIO_free(LPubKeyBIO);
   end;
 end;
 
 class function TRSA.VerifyPublicKey(const AKey: TBytes): Boolean;
 var
-  PubKeyBIO: pBIO;
-  rsa: pRSA;
+  LPubKeyBIO: pBIO;
+  LRsa: pRSA;
 begin
   LoadOpenSSL;
 
   // Load Public RSA Key
-  PubKeyBIO := BIO_new(BIO_s_mem);
+  LPubKeyBIO := BIO_new(BIO_s_mem);
   try
-    BIO_write(PubKeyBIO, @AKey[0], Length(AKey));
+    BIO_write(LPubKeyBIO, @AKey[0], Length(AKey));
     if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKey[0], length(PKCS1_SIGNATURE_PUBKEY)) then
-      rsa := PEM_read_bio_RSAPublicKey(PubKeyBIO, nil, nil, nil)
+      LRsa := PEM_read_bio_RSAPublicKey(LPubKeyBIO, nil, nil, nil)
     else
-      rsa := _PEM_read_bio_RSA_PUBKEY(PubKeyBIO, nil, nil, nil);
-    Result := (rsa <> nil);
+      LRsa := _PEM_read_bio_RSA_PUBKEY(LPubKeyBIO, nil, nil, nil);
+    Result := (LRsa <> nil);
     if Result then
-      RSA_Free(rsa);
+      RSA_Free(LRsa);
   finally
-    BIO_free(PubKeyBIO);
+    BIO_free(LPubKeyBIO);
   end;
 end;
 
@@ -295,9 +294,9 @@ begin
 end;
 
 initialization
-    TRSA.FOpenSSLHandle := 0;
-    TRSA._PEM_read_bio_RSA_PUBKEY := nil;
-    TRSA._EVP_MD_CTX_create := nil;
-    TRSA._EVP_MD_CTX_destroy := nil;
+  TRSA.FOpenSSLHandle := 0;
+  TRSA._PEM_read_bio_RSA_PUBKEY := nil;
+  TRSA._EVP_MD_CTX_create := nil;
+  TRSA._EVP_MD_CTX_destroy := nil;
 
 end.

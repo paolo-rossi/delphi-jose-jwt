@@ -63,7 +63,7 @@ object frmDebugger: TfrmDebugger
     Left = 463
     Top = 374
     Width = 297
-    Height = 124
+    Height = 114
     Anchors = [akLeft, akBottom]
     Caption = 
       'HMACSHA256('#13#10'  base64UrlEncode(header) + "." +'#13#10'  base64UrlEncod' +
