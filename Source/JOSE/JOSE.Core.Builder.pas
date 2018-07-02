@@ -19,10 +19,6 @@
 {  limitations under the License.                                              }
 {                                                                              }
 {******************************************************************************}
-
-/// <summary>
-///   Utility class to encode and decode a JWT
-/// </summary>
 unit JOSE.Core.Builder;
 
 interface
@@ -39,6 +35,9 @@ uses
   JOSE.Core.JWE;
 
 type
+  /// <summary>
+  ///   Utility class to encode and decode a JWT
+  /// </summary>
   TJOSE = class
   private
     class function DeserializeVerify(AKey: TJWK; ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;

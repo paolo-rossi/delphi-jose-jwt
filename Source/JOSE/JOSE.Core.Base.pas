@@ -131,7 +131,7 @@ begin
   LLen := Value.ToBytes(LBytes, 0);
   Result := TEncoding.UTF8.GetString(LBytes, 0, LLen);
 end;
-{$ENDIF}
+{$IFEND}
 
 function JSONDate(ADate: TDateTime): Int64;
 begin

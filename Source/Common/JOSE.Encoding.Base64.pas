@@ -31,7 +31,7 @@ uses
   System.SysUtils,
   {$IF CompilerVersion >= 28}
   System.NetEncoding,
-  {$ENDIF}
+  {$IFEND}
   JOSE.Types.Bytes;
 
 type
@@ -157,7 +157,7 @@ begin
       EncodePacket(LPacket, Length(AInput) mod 3, PChar(@Result[J]));
   end;
 end;
-{$ENDIF}
+{$IFEND}
 
 { TBase64 }
 
@@ -167,7 +167,7 @@ begin
   Result := TNetEncoding.Base64.Decode(ASource.AsBytes);
   {$ELSE}
   Result := DecodeBase64(ASource.AsString);
-  {$ENDIF}
+  {$IFEND}
 end;
 
 class function TBase64.Encode(const ASource: TJOSEBytes): TJOSEBytes;
@@ -176,7 +176,7 @@ begin
   Result := TNetEncoding.Base64.Encode(ASource.AsBytes);
   {$ELSE}
   Result := EncodeBase64(ASource.AsBytes);
-  {$ENDIF}
+  {$IFEND}
 end;
 
 class function TBase64.URLDecode(const ASource: TJOSEBytes): TJOSEBytes;
