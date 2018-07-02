@@ -172,8 +172,6 @@ var
 begin
   LoadOpenSSL;
 
-  Result := False;
-
   // Load Public RSA Key into RSA object
   LPubKeyBIO := BIO_new(BIO_s_mem);
   try

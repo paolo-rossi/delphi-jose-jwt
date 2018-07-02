@@ -107,9 +107,10 @@ type
     FCompactPayload: string;
     FCompactSignature: string;
 
-    function BuildJWT: TJOSEBytes;
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
+  protected
+    function BuildJWT: TJOSEBytes;
   public
     property Compact: TJOSEBytes read FCompact write SetCompact;
   end;
