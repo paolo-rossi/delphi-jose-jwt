@@ -55,16 +55,22 @@ type
 
 implementation
 
-uses
-  WinApi.Windows,
-  System.AnsiStrings;
+function ArrayToString(const ASource: array of char): string;
+var
+  LSourcePointer: PChar;
+  LTarget: string;
+begin
+  LSourcePointer := Addr(ASource);
+  SetString(LTarget, LSourcePointer, Length(ASource));
+  Result := LTarget;
+end;
 
 // Get OpenSSL error and message text
 function ERR_GetErrorMessage_OpenSSL : String;
 var locErrMsg: array [0..160] of Char;
 begin
   ERR_error_string( ERR_get_error, @locErrMsg );
-  result := String( System.AnsiStrings.StrPas( PAnsiChar(@locErrMsg) ) );
+  result := ArrayToString(locErrMsg);
 end;
 
 { TRSAAlgorithmHelper }
@@ -166,7 +172,7 @@ var
   LPubKeyBIO: pBIO;
   LPubKey: pEVP_PKEY;
   LRsa: pRSA;
-
+  LByte: string;
   LCtx: PEVP_MD_CTX;
   LSha: PEVP_MD;
 begin
@@ -208,7 +214,8 @@ begin
         if EVP_DigestVerifyUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
           raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
 
-        Result := EVP_DigestVerifyFinal( LCtx, PAnsiChar(@ASignature[0]), length(ASignature) ) = 1;
+        LByte := IntToStr(ASignature[0]);
+        Result := EVP_DigestVerifyFinal( LCtx, @LByte, length(ASignature) ) = 1;
       finally
         _EVP_MD_CTX_destroy(LCtx);
       end;
