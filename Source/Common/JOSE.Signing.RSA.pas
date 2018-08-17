@@ -280,6 +280,7 @@ begin
     if @EVP_DigestVerifyInit = nil then
       raise Exception.Create('[RSA] Please, use OpenSSL 1.0.0. or newer!');
 
+    {$IFDEF Linux64}
     FOpenSSLHandle := LoadLibrary('libeay32.dll');
     if FOpenSSLHandle = 0 then
       raise Exception.Create('[RSA] Unable to load libeay32.dll!');
@@ -295,6 +296,7 @@ begin
     _EVP_MD_CTX_destroy := GetProcAddress(FOpenSSLHandle, 'EVP_MD_CTX_destroy');
     if @_EVP_MD_CTX_create = nil then
       raise Exception.Create('[RSA] Unable to get proc address for ''EVP_MD_CTX_destroy''');
+    {$ENDIF Linux64}
   end;
 end;
 
