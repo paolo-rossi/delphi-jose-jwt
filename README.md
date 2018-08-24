@@ -2,13 +2,13 @@
 
 <br />
 
-<a href="http://jwt.io/">![Browse on jwt.io](http://paolo-rossi.github.io/delphi-jose-jwt/images/jwt-badge.svg "Browse on jwt.io")</a>
+<a href="http://jwt.io/">![Browse on jwt.io](https://paolo-rossi.github.io/delphi-jose-jwt/images/jwt-badge.svg "Browse on jwt.io")</a>
 
 <hr />
 
-[Delphi](http://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE is support planned) compact serializations with several JOSE algorithms.
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.
 
-![Image of Delphi-JOSE Demo](http://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
+![Image of Delphi-JOSE Demo](https://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
 
 ## Important: OpenSSL requirements
 
@@ -105,29 +105,25 @@ The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`u
 ```delphi
 var
   LToken: TJWT;
+  LCompactToken: string;
 begin
   LToken := TJWT.Create;
   try
     // Token claims
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 1;
     LToken.Claims.Issuer := 'WiRL REST Library';
+    LToken.Claims.Subject := 'Paolo Rossi';
+    LToken.Claims.Expiration := Now + 1;
 
     // Signing and Compact format creation
-    mmoCompact.Lines.Add(
-      TJOSE.SHA256CompactToken('my_very_long_and_safe_secret_key', LToken)
-    );
-
-    // Header and Claims JSON representation
-    mmoJSON.Lines.Add(LToken.Header.JSON.ToJSON);
-    mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+    LCompactToken := TJOSE.SHA256CompactToken('my_very_long_and_safe_secret_key', LToken);
+    mmoCompact.Lines.Add(LCompactToken);
   finally
     LToken.Free;
   end;
 ```
 
 #### Using TJWT, TJWS and TJWK classes
-Using the `TJWT`, `TJWS` and `TJWK` classes you can control more setting in the creation of the final compact token.
+Using the `TJWT`, `TJWS` and `TJWK` classes you have more control over the creation of the final compact token.
 
 ```delphi
 var
@@ -138,6 +134,7 @@ var
 begin
   LToken := TJWT.Create;
   try
+    LToken.Claims.Subject := 'Paolo Rossi';
     LToken.Claims.Issuer := 'Delphi JOSE Library';
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
@@ -156,9 +153,6 @@ begin
       // With this option you can have keys < algorithm length
       LSigner.SkipKeyValidation := True;
       LSigner.Sign(LKey, LAlg);
-
-      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
 
       memoCompact.Lines.Add('Header: ' + LSigner.Header);
       memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
@@ -207,7 +201,7 @@ end;
 
 ### Unpacking and token validation
 
-Using the new class `TJOSEConsumer` it's very easy to validate the token's claims. The `TJOSEConsumer` object id built using the `TJOSEConsumerBuilder` utility class using the fluent interface.
+Using the new class `TJOSEConsumer` it's very easy to validate the token's claims. The `TJOSEConsumer` object is built with the `TJOSEConsumerBuilder` utility class using the fluent interface.
 
 ```delphi
 var
