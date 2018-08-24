@@ -37,10 +37,10 @@ uses
 
 type
   TfrmDebugger = class(TForm)
-    Label7: TLabel;
-    Label8: TLabel;
-    Label9: TLabel;
-    Label10: TLabel;
+    lblEncoded: TLabel;
+    lblAlgorithm: TLabel;
+    lblDecoded: TLabel;
+    lblHMAC: TLabel;
     memoHeader: TMemo;
     memoPayload: TMemo;
     richEncoded: TRichEdit;
@@ -49,9 +49,9 @@ type
     chkKeyBase64: TCheckBox;
     shpStatus: TShape;
     lblStatus: TLabel;
-    Label1: TLabel;
-    Label2: TLabel;
-    Label3: TLabel;
+    lblHeader: TLabel;
+    lblPayload: TLabel;
+    lblSignature: TLabel;
     procedure cbbDebuggerAlgoChange(Sender: TObject);
     procedure chkKeyBase64Click(Sender: TObject);
     procedure edtKeyChange(Sender: TObject);

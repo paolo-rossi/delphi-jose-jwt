@@ -238,7 +238,7 @@ object frmClaims: TfrmClaims
       Width = 245
       Height = 28
       Action = actBuildJWS
-      Images = ImageList1
+      Images = imgListMain
       TabOrder = 16
     end
     object edtJWTId: TLabeledEdit
@@ -338,7 +338,7 @@ object frmClaims: TfrmClaims
     TabOrder = 2
   end
   object actListMain: TActionList
-    Images = ImageList1
+    Images = imgListMain
     Left = 336
     Top = 352
     object actBuildJWS: TAction
@@ -354,7 +354,7 @@ object frmClaims: TfrmClaims
       ImageIndex = 14
     end
   end
-  object ImageList1: TImageList
+  object imgListMain: TImageList
     ColorDepth = cd32Bit
     DrawingStyle = dsTransparent
     Height = 24

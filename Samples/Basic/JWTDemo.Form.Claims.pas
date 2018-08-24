@@ -80,7 +80,7 @@ type
     chkAudience: TCheckBox;
     actListMain: TActionList;
     actBuildJWS: TAction;
-    ImageList1: TImageList;
+    imgListMain: TImageList;
     actBuildJWTConsumer: TAction;
     btnCustomJWS: TButton;
     edtJWTId: TLabeledEdit;

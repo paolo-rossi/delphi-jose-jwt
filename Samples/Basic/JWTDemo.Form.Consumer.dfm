@@ -38,28 +38,28 @@ object frmConsumer: TfrmConsumer
     Height = 377
     Caption = 'JWS Builder '
     TabOrder = 1
-    object Label3: TLabel
+    object lblIssuedAt: TLabel
       Left = 214
       Top = 68
       Width = 46
       Height = 13
       Caption = 'Issued At'
     end
-    object Label4: TLabel
+    object lblExpirationTime: TLabel
       Left = 214
       Top = 114
       Width = 73
       Height = 13
       Caption = 'Expiration Time'
     end
-    object Label5: TLabel
+    object lblNotBefore: TLabel
       Left = 214
       Top = 156
       Width = 52
       Height = 13
       Caption = 'Not Before'
     end
-    object Label6: TLabel
+    object lblHashAlgorithm: TLabel
       Left = 215
       Top = 26
       Width = 72
@@ -234,7 +234,7 @@ object frmConsumer: TfrmConsumer
       Width = 245
       Height = 28
       Action = actBuildJWS
-      Images = ImageList1
+      Images = imgListMain
       TabOrder = 16
     end
     object edtJWTId: TLabeledEdit
@@ -318,14 +318,14 @@ object frmConsumer: TfrmConsumer
       TabOrder = 22
     end
   end
-  object GroupBox1: TGroupBox
+  object grpConsumer: TGroupBox
     Left = 479
     Top = 8
     Width = 465
     Height = 377
     Caption = 'JWS Consumer '
     TabOrder = 2
-    object Label1: TLabel
+    object lblEvaluationTime: TLabel
       Left = 209
       Top = 68
       Width = 98
@@ -530,7 +530,7 @@ object frmConsumer: TfrmConsumer
     end
   end
   object actListMain: TActionList
-    Images = ImageList1
+    Images = imgListMain
     Left = 336
     Top = 352
     object actBuildJWS: TAction
@@ -550,7 +550,7 @@ object frmConsumer: TfrmConsumer
       OnUpdate = actBuildJWTCustomConsumerUpdate
     end
   end
-  object ImageList1: TImageList
+  object imgListMain: TImageList
     ColorDepth = cd32Bit
     DrawingStyle = dsTransparent
     Height = 24

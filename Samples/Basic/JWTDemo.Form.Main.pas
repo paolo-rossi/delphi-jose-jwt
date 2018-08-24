@@ -53,10 +53,10 @@ implementation
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
   PasteForm(TfrmDebugger, 'tsDebugger', 'JWT Debugger (http://jwt.io)');
+  PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
   PasteForm(TfrmConsumer, 'tsConsumer', 'JWT Consumer (Claim Validation)');
   PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims');
-  PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
-  PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
+  //PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
   pgcMain.ActivePageIndex := 0;
 end;
 

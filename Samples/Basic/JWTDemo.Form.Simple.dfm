@@ -16,57 +16,57 @@ object frmSimple: TfrmSimple
     488)
   PixelsPerInch = 96
   TextHeight = 13
-  object lbl1: TLabel
+  object lblJSON: TLabel
     Left = 157
     Top = 55
     Width = 91
     Height = 13
     Caption = 'JSON Visualization:'
   end
-  object lbl2: TLabel
+  object lblCompact: TLabel
     Left = 8
     Top = 293
     Width = 107
     Height = 13
     Caption = 'Compact Visualization:'
   end
-  object Label6: TLabel
+  object lblAlgorithm: TLabel
     Left = 8
     Top = 8
     Width = 72
     Height = 13
     Caption = 'Hash Algorithm'
   end
-  object btnBuild: TButton
+  object btnBuildClasses: TButton
     Left = 8
-    Top = 135
+    Top = 104
     Width = 135
     Height = 25
-    Caption = 'Build JWS (JWT && JWK)'
+    Caption = 'Build (TJWS, TJWT, TJWK)'
     TabOrder = 0
-    OnClick = btnBuildClick
+    OnClick = btnBuildClassesClick
   end
-  object btnTJOSEBuild: TButton
+  object btnBuildTJOSE: TButton
     Left = 8
     Top = 73
     Width = 135
     Height = 25
     Caption = 'Build JWS using TJOSE'
     TabOrder = 1
-    OnClick = btnTJOSEBuildClick
+    OnClick = btnBuildTJOSEClick
   end
-  object btnTJOSEVerify: TButton
+  object btnVerifyTJOSE: TButton
     Left = 8
-    Top = 104
+    Top = 152
     Width = 135
     Height = 25
     Caption = 'Verify JWS using TJOSE'
     TabOrder = 2
-    OnClick = btnTJOSEVerifyClick
+    OnClick = btnVerifyTJOSEClick
   end
   object btnTestClaims: TButton
     Left = 8
-    Top = 182
+    Top = 230
     Width = 135
     Height = 25
     Caption = 'Test Date Claims'
@@ -86,7 +86,6 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 4
-    ExplicitWidth = 662
   end
   object memoCompact: TMemo
     Left = 8
@@ -101,8 +100,6 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 5
-    ExplicitWidth = 810
-    ExplicitHeight = 213
   end
   object cbbAlgorithm: TComboBox
     Left = 8
@@ -130,6 +127,14 @@ object frmSimple: TfrmSimple
     TabOrder = 7
     Text = 'mysecretkey256bitwide(32characters)'
     OnChange = edtSecretChange
-    ExplicitWidth = 661
+  end
+  object btnDeserializeTJOSE: TButton
+    Left = 8
+    Top = 183
+    Width = 135
+    Height = 25
+    Caption = 'Deserialize using TJOSE'
+    TabOrder = 8
+    OnClick = btnDeserializeTJOSEClick
   end
 end

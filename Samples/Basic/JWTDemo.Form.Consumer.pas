@@ -45,10 +45,10 @@ type
   TfrmConsumer = class(TForm)
     memoLog: TMemo;
     grpClaims: TGroupBox;
-    Label3: TLabel;
-    Label4: TLabel;
-    Label5: TLabel;
-    Label6: TLabel;
+    lblIssuedAt: TLabel;
+    lblExpirationTime: TLabel;
+    lblNotBefore: TLabel;
+    lblHashAlgorithm: TLabel;
     edtIssuer: TLabeledEdit;
     edtIssuedAtTime: TDateTimePicker;
     edtNotBeforeDate: TDateTimePicker;
@@ -67,7 +67,7 @@ type
     chkAudience: TCheckBox;
     actListMain: TActionList;
     actBuildJWS: TAction;
-    ImageList1: TImageList;
+    imgListMain: TImageList;
     actBuildJWTConsumer: TAction;
     btnCustomJWS: TButton;
     edtJWTId: TLabeledEdit;
@@ -76,7 +76,7 @@ type
     edtHeader: TLabeledEdit;
     edtPayload: TLabeledEdit;
     edtSignature: TLabeledEdit;
-    GroupBox1: TGroupBox;
+    grpConsumer: TGroupBox;
     btnConsumerBuild: TButton;
     actBuildJWTCustomConsumer: TAction;
     btnBuildJWTCustomConsumer: TButton;
@@ -92,7 +92,7 @@ type
     chkConsumerIssuer: TCheckBox;
     edtConsumerJWTId: TLabeledEdit;
     chkConsumerJWTId: TCheckBox;
-    Label1: TLabel;
+    lblEvaluationTime: TLabel;
     edtConsumerEvaluationDate: TDateTimePicker;
     edtConsumerEvaluationTime: TDateTimePicker;
     chkConsumerIssuedAt: TCheckBox;

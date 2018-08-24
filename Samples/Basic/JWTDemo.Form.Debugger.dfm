@@ -18,7 +18,7 @@ object frmDebugger: TfrmDebugger
     578)
   PixelsPerInch = 96
   TextHeight = 13
-  object Label7: TLabel
+  object lblEncoded: TLabel
     Left = 8
     Top = 47
     Width = 68
@@ -31,7 +31,7 @@ object frmDebugger: TfrmDebugger
     Font.Style = [fsBold]
     ParentFont = False
   end
-  object Label8: TLabel
+  object lblAlgorithm: TLabel
     Left = 272
     Top = 9
     Width = 63
@@ -46,7 +46,7 @@ object frmDebugger: TfrmDebugger
     Font.Style = [fsBold]
     ParentFont = False
   end
-  object Label9: TLabel
+  object lblDecoded: TLabel
     Left = 463
     Top = 47
     Width = 70
@@ -59,7 +59,7 @@ object frmDebugger: TfrmDebugger
     Font.Style = [fsBold]
     ParentFont = False
   end
-  object Label10: TLabel
+  object lblHMAC: TLabel
     Left = 463
     Top = 374
     Width = 297
@@ -99,7 +99,7 @@ object frmDebugger: TfrmDebugger
     ParentFont = False
     ExplicitLeft = 263
   end
-  object Label1: TLabel
+  object lblHeader: TLabel
     Left = 463
     Top = 72
     Width = 189
@@ -112,7 +112,7 @@ object frmDebugger: TfrmDebugger
     Font.Style = []
     ParentFont = False
   end
-  object Label2: TLabel
+  object lblPayload: TLabel
     Left = 463
     Top = 206
     Width = 79
@@ -125,7 +125,7 @@ object frmDebugger: TfrmDebugger
     Font.Style = []
     ParentFont = False
   end
-  object Label3: TLabel
+  object lblSignature: TLabel
     Left = 462
     Top = 352
     Width = 97

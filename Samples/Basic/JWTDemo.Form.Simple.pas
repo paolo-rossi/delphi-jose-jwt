@@ -36,28 +36,32 @@ uses
 
 type
   TfrmSimple = class(TForm)
-    lbl1: TLabel;
-    lbl2: TLabel;
-    btnBuild: TButton;
-    btnTJOSEBuild: TButton;
-    btnTJOSEVerify: TButton;
+    lblJSON: TLabel;
+    lblCompact: TLabel;
+    btnBuildClasses: TButton;
+    btnBuildTJOSE: TButton;
+    btnVerifyTJOSE: TButton;
     btnTestClaims: TButton;
     memoJSON: TMemo;
     memoCompact: TMemo;
-    Label6: TLabel;
+    lblAlgorithm: TLabel;
     cbbAlgorithm: TComboBox;
     edtSecret: TLabeledEdit;
-    procedure btnBuildClick(Sender: TObject);
+    btnDeserializeTJOSE: TButton;
+    procedure btnBuildClassesClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
-    procedure btnTJOSEBuildClick(Sender: TObject);
-    procedure btnTJOSEVerifyClick(Sender: TObject);
+    procedure btnBuildTJOSEClick(Sender: TObject);
+    procedure btnVerifyTJOSEClick(Sender: TObject);
+    procedure btnDeserializeTJOSEClick(Sender: TObject);
     procedure edtSecretChange(Sender: TObject);
   private
     const SECRET_CAPTION = 'Secret (%dbit)';
   private
     FCompact: string;
-    procedure BuildJWT;
-    procedure VerifyJWT;
+    procedure BuildToken;
+    procedure BuildTokenComplex;
+    procedure VerifyToken;
+    procedure DeserializeToken;
   public
     { Public declarations }
   end;
@@ -71,7 +75,78 @@ uses
 
 {$R *.dfm}
 
-procedure TfrmSimple.btnBuildClick(Sender: TObject);
+procedure TfrmSimple.btnBuildClassesClick(Sender: TObject);
+begin
+  BuildTokenComplex;
+end;
+
+procedure TfrmSimple.btnTestClaimsClick(Sender: TObject);
+var
+  LToken: TJWT;
+begin
+  // Create a JWT Object
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.IssuedAt := Now;
+    memoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TfrmSimple.btnBuildTJOSEClick(Sender: TObject);
+begin
+  BuildToken;
+end;
+
+procedure TfrmSimple.btnVerifyTJOSEClick(Sender: TObject);
+begin
+  VerifyToken;
+end;
+
+procedure TfrmSimple.BuildToken;
+var
+  LToken: TJWT;
+  LAlg: TJOSEAlgorithmId;
+begin
+  // Create a JWT Object
+  LToken := TJWT.Create;
+  try
+    // Token claims
+
+    LToken.Claims.Subject := 'Paolo Rossi';
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 1;
+    LToken.Claims.Issuer := 'Delphi JOSE Library';
+
+    // Signing algorithm
+    case cbbAlgorithm.ItemIndex of
+      0: LAlg := TJOSEAlgorithmId.HS256;
+      1: LAlg := TJOSEAlgorithmId.HS384;
+      2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+    end;
+
+    // Signing and compact format creation.
+    FCompact := TJOSE.SerializeCompact(edtSecret.Text, LAlg, LToken);
+
+    // Token in compact representation
+    memoCompact.Lines.Add(FCompact);
+
+    // Header and Claims JSON representation
+    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
+    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TfrmSimple.btnDeserializeTJOSEClick(Sender: TObject);
+begin
+  DeserializeToken;
+end;
+
+procedure TfrmSimple.BuildTokenComplex;
 var
   LToken: TJWT;
   LSigner: TJWS;
@@ -93,21 +168,25 @@ begin
     end;
 
     LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create(edtSecret.Text);
     try
-      // With this option you can have keys < algorithm length
-      LSigner.SkipKeyValidation := True;
-      LSigner.Sign(LKey, LAlg);
+      LKey := TJWK.Create(edtSecret.Text);
+      try
+        // With this option you can have keys < algorithm length
+        LSigner.SkipKeyValidation := True;
 
-      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+        LSigner.Sign(LKey, LAlg);
 
-      memoCompact.Lines.Add('Header: ' + LSigner.Header);
-      memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
-      memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
-      memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+        memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+        memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+
+        memoCompact.Lines.Add('Header: ' + LSigner.Header);
+        memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
+        memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
+        memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+      finally
+        LKey.Free;
+      end;
     finally
-      LKey.Free;
       LSigner.Free;
     end;
   finally
@@ -115,59 +194,15 @@ begin
   end;
 end;
 
-procedure TfrmSimple.btnTestClaimsClick(Sender: TObject);
+procedure TfrmSimple.DeserializeToken;
 var
   LToken: TJWT;
 begin
-  // Create a JWT Object
-  LToken := TJWT.Create;
+  // Unpack and verify the token
+  LToken := TJOSE.DeserializeCompact(edtSecret.Text, FCompact);
   try
-    LToken.Claims.IssuedAt := Now;
-    memoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));
-  finally
-    LToken.Free;
-  end;
-end;
-
-procedure TfrmSimple.btnTJOSEBuildClick(Sender: TObject);
-begin
-  BuildJWT;
-end;
-
-procedure TfrmSimple.btnTJOSEVerifyClick(Sender: TObject);
-begin
-  VerifyJWT;
-end;
-
-procedure TfrmSimple.BuildJWT;
-var
-  LToken: TJWT;
-  LAlg: TJOSEAlgorithmId;
-begin
-  // Create a JWT Object
-  LToken := TJWT.Create(TJWTClaims);
-  try
-    // Token claims
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 1;
-    LToken.Claims.Issuer := 'Delphi JOSE Library';
-
-    // Signing algorithm
-    case cbbAlgorithm.ItemIndex of
-      0: LAlg := TJOSEAlgorithmId.HS256;
-      1: LAlg := TJOSEAlgorithmId.HS384;
-      2: LAlg := TJOSEAlgorithmId.HS512;
-    else LAlg := TJOSEAlgorithmId.HS256;
-    end;
-
-    // Signing and compact format creation.
-    FCompact :=TJOSE.SerializeCompact(edtSecret.Text, LAlg, LToken);
-
-    memoCompact.Lines.Add(FCompact);
-
-    // Header and Claims JSON representation
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
+    if Assigned(LToken) then
+      memoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
   finally
     LToken.Free;
   end;
@@ -178,7 +213,7 @@ begin
   edtSecret.EditLabel.Caption := Format(SECRET_CAPTION, [Length(edtSecret.Text) * 8]);
 end;
 
-procedure TfrmSimple.VerifyJWT;
+procedure TfrmSimple.VerifyToken;
 var
   LKey: TJWK;
   LToken: TJWT;
