@@ -48,19 +48,22 @@ type
     cbbAlgorithm: TComboBox;
     edtSecret: TLabeledEdit;
     btnDeserializeTJOSE: TButton;
+    btnVerifyClasses: TButton;
     procedure btnBuildClassesClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
     procedure btnBuildTJOSEClick(Sender: TObject);
     procedure btnVerifyTJOSEClick(Sender: TObject);
     procedure btnDeserializeTJOSEClick(Sender: TObject);
+    procedure btnVerifyClassesClick(Sender: TObject);
     procedure edtSecretChange(Sender: TObject);
   private
     const SECRET_CAPTION = 'Secret (%dbit)';
   private
     FCompact: string;
     procedure BuildToken;
-    procedure BuildTokenComplex;
-    procedure VerifyToken;
+    procedure BuildTokenComplete;
+    function VerifyToken: Boolean;
+    function VerifyTokenComplete: Boolean;
     procedure DeserializeToken;
   public
     { Public declarations }
@@ -77,20 +80,33 @@ uses
 
 procedure TfrmSimple.btnBuildClassesClick(Sender: TObject);
 begin
-  BuildTokenComplex;
+  BuildTokenComplete;
 end;
 
 procedure TfrmSimple.btnTestClaimsClick(Sender: TObject);
 var
   LToken: TJWT;
 begin
-  // Create a JWT Object
-  LToken := TJWT.Create;
-  try
-    LToken.Claims.IssuedAt := Now;
-    memoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));
-  finally
-    LToken.Free;
+  // Unpack and verify the token
+  LToken := TJOSE.Verify(edtSecret.Text, FCompact);
+
+  if Assigned(LToken) then
+  begin
+    try
+      if LToken.Verified then
+      begin
+        // Claims validation (for more see the JOSE.Consumer unit)
+
+        if LToken.Claims.Subject <> 'Paolo Rossi' then
+          memoJSON.Lines.Add('Subject [sub] claim value doesn''t match expected value');
+
+        if LToken.Claims.Expiration > Now then
+          memoJSON.Lines.Add('Expiration time passed: ' + DateTimeToStr(LToken.Claims.Expiration));
+
+      end;
+    finally
+      LToken.Free;
+    end;
   end;
 end;
 
@@ -101,7 +117,10 @@ end;
 
 procedure TfrmSimple.btnVerifyTJOSEClick(Sender: TObject);
 begin
-  VerifyToken;
+  if VerifyToken then
+    memoJSON.Lines.Add('Token signature is verified')
+  else
+    memoJSON.Lines.Add('Token signature is not verified')
 end;
 
 procedure TfrmSimple.BuildToken;
@@ -146,7 +165,15 @@ begin
   DeserializeToken;
 end;
 
-procedure TfrmSimple.BuildTokenComplex;
+procedure TfrmSimple.btnVerifyClassesClick(Sender: TObject);
+begin
+  if VerifyTokenComplete then
+    memoJSON.Lines.Add('Token signature is verified')
+  else
+    memoJSON.Lines.Add('Token signature is not verified')
+end;
+
+procedure TfrmSimple.BuildTokenComplete;
 var
   LToken: TJWT;
   LSigner: TJWS;
@@ -175,6 +202,7 @@ begin
         LSigner.SkipKeyValidation := True;
 
         LSigner.Sign(LKey, LAlg);
+        FCompact := LSigner.CompactToken;
 
         memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
         memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
@@ -213,26 +241,48 @@ begin
   edtSecret.EditLabel.Caption := Format(SECRET_CAPTION, [Length(edtSecret.Text) * 8]);
 end;
 
-procedure TfrmSimple.VerifyToken;
+function TfrmSimple.VerifyToken: Boolean;
 var
-  LKey: TJWK;
   LToken: TJWT;
 begin
-  LKey := TJWK.Create(edtSecret.Text);
+  Result := False;
 
   // Unpack and verify the token
-  LToken := TJOSE.Verify(LKey, FCompact);
+  LToken := TJOSE.Verify(edtSecret.Text, FCompact);
 
   if Assigned(LToken) then
   begin
     try
-      if LToken.Verified then
-        memoJSON.Lines.Add('Token signature is verified')
-      else
-        memoJSON.Lines.Add('Token signature is not verified')
+      Result := LToken.Verified;
     finally
       LToken.Free;
     end;
+  end;
+end;
+
+function TfrmSimple.VerifyTokenComplete: Boolean;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LSigner: TJWS;
+begin
+  LKey := TJWK.Create(edtSecret.Text);
+  try
+    LToken := TJWT.Create;
+    try
+      LSigner := TJWS.Create(LToken);
+      try
+        LSigner.SetKey(LKey);
+        LSigner.CompactToken := FCompact;
+        Result := LSigner.VerifySignature;
+      finally
+        LSigner.Free;
+      end;
+    finally
+      LToken.Free;
+    end;
+  finally
+    LKey.Free;
   end;
 end;
 

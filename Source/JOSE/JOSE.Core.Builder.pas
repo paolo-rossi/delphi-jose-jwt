@@ -43,7 +43,8 @@ type
     class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
     class function Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
-    class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT;
+    class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    class function Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
 
     class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT; ASkipValidation: Boolean): TJOSEBytes; overload;
     class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes; overload;
@@ -185,6 +186,19 @@ begin
     AClaimsClass := TJWTClaims;
 
   Result := DeserializeVerify(AKey, ACompactToken, True, AClaimsClass);
+end;
+
+class function TJOSE.Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := Verify(LKey, ACompactToken, AClaimsClass);
+  finally
+    LKey.Free;
+  end;
 end;
 
 end.

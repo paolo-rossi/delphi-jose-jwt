@@ -2,7 +2,7 @@ object frmSimple: TfrmSimple
   Left = 0
   Top = 0
   Caption = 'frmSimple'
-  ClientHeight = 488
+  ClientHeight = 518
   ClientWidth = 923
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -13,7 +13,7 @@ object frmSimple: TfrmSimple
   OldCreateOrder = False
   DesignSize = (
     923
-    488)
+    518)
   PixelsPerInch = 96
   TextHeight = 13
   object lblJSON: TLabel
@@ -25,7 +25,7 @@ object frmSimple: TfrmSimple
   end
   object lblCompact: TLabel
     Left = 8
-    Top = 293
+    Top = 301
     Width = 107
     Height = 13
     Caption = 'Compact Visualization:'
@@ -42,7 +42,7 @@ object frmSimple: TfrmSimple
     Top = 104
     Width = 135
     Height = 25
-    Caption = 'Build (TJWS, TJWT, TJWK)'
+    Caption = 'Build JWS using classes'
     TabOrder = 0
     OnClick = btnBuildClassesClick
   end
@@ -66,7 +66,7 @@ object frmSimple: TfrmSimple
   end
   object btnTestClaims: TButton
     Left = 8
-    Top = 230
+    Top = 264
     Width = 135
     Height = 25
     Caption = 'Test Date Claims'
@@ -77,7 +77,7 @@ object frmSimple: TfrmSimple
     Left = 157
     Top = 74
     Width = 758
-    Height = 207
+    Height = 215
     Anchors = [akLeft, akTop, akRight]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -89,9 +89,9 @@ object frmSimple: TfrmSimple
   end
   object memoCompact: TMemo
     Left = 8
-    Top = 312
+    Top = 320
     Width = 907
-    Height = 168
+    Height = 190
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -130,11 +130,20 @@ object frmSimple: TfrmSimple
   end
   object btnDeserializeTJOSE: TButton
     Left = 8
-    Top = 183
+    Top = 215
     Width = 135
     Height = 25
     Caption = 'Deserialize using TJOSE'
     TabOrder = 8
     OnClick = btnDeserializeTJOSEClick
+  end
+  object btnVerifyClasses: TButton
+    Left = 8
+    Top = 183
+    Width = 135
+    Height = 25
+    Caption = 'Verify JWS using classes'
+    TabOrder = 9
+    OnClick = btnVerifyClassesClick
   end
 end
