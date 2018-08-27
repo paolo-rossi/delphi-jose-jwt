@@ -134,7 +134,8 @@ type
     constructor Create(AClaimsClass: TJWTClaimsClass); overload;
     destructor Destroy; override;
 
-    function GetClaimsAs<T: TJWTClaims>: T;
+    function GetClaimsAs<T: TJWTClaims>: T; deprecated;
+    function ClaimsAs<T: TJWTClaims>: T;
 
     property Header: TJWTHeader read FHeader;
     property Claims: TJWTClaims read FClaims;
@@ -147,6 +148,11 @@ uses
   JOSE.Encoding.Base64;
 
 function TJWT.GetClaimsAs<T>: T;
+begin
+  Result := FClaims as T;
+end;
+
+function TJWT.ClaimsAs<T>: T;
 begin
   Result := FClaims as T;
 end;
