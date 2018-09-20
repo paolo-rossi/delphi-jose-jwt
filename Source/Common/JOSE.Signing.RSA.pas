@@ -26,6 +26,7 @@ interface
 
 uses
   System.SysUtils,
+  WinApi.Windows,
   IdGlobal,
   IdCTypes,
   IdSSLOpenSSLHeaders,
@@ -172,7 +173,6 @@ var
   LPubKeyBIO: pBIO;
   LPubKey: pEVP_PKEY;
   LRsa: pRSA;
-  LByte: string;
   LCtx: PEVP_MD_CTX;
   LSha: PEVP_MD;
 begin
@@ -214,8 +214,7 @@ begin
         if EVP_DigestVerifyUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
           raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
 
-        LByte := IntToStr(ASignature[0]);
-        Result := EVP_DigestVerifyFinal( LCtx, @LByte, length(ASignature) ) = 1;
+        Result := EVP_DigestVerifyFinal( LCtx, @ASignature[0], length(ASignature) ) = 1;
       finally
         _EVP_MD_CTX_destroy(LCtx);
       end;
@@ -280,7 +279,6 @@ begin
     if @EVP_DigestVerifyInit = nil then
       raise Exception.Create('[RSA] Please, use OpenSSL 1.0.0. or newer!');
 
-    {$IFDEF Linux64}
     FOpenSSLHandle := LoadLibrary('libeay32.dll');
     if FOpenSSLHandle = 0 then
       raise Exception.Create('[RSA] Unable to load libeay32.dll!');
@@ -296,7 +294,6 @@ begin
     _EVP_MD_CTX_destroy := GetProcAddress(FOpenSSLHandle, 'EVP_MD_CTX_destroy');
     if @_EVP_MD_CTX_create = nil then
       raise Exception.Create('[RSA] Unable to get proc address for ''EVP_MD_CTX_destroy''');
-    {$ENDIF Linux64}
   end;
 end;
 
