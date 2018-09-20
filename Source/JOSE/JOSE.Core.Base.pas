@@ -83,6 +83,7 @@ type
   public const
     HEADER_TYPE = 'typ';
     ALGORITHM = 'alg';
+    KEY_ID = 'kid';
   end;
 
   TJOSEBase = class

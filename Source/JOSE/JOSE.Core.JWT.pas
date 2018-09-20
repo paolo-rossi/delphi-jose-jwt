@@ -50,9 +50,12 @@ type
     function GetHeaderType: string;
     procedure SetAlgorithm(const Value: string);
     procedure SetHeaderType(Value: string);
+    function GetKeyID: string;
+    procedure SetKeyID(const Value: string);
   public
     property Algorithm: string read GetAlgorithm write SetAlgorithm;
     property HeaderType: string read GetHeaderType write SetHeaderType;
+    property KeyID: string read GetKeyID write SetKeyID;
   end;
 
   TReservedClaimNames = class
@@ -384,6 +387,11 @@ begin
   Result := TJSONUtils.GetJSONValue(THeaderNames.HEADER_TYPE, FJSON).AsString;
 end;
 
+function TJWTHeader.GetKeyID: string;
+begin
+  Result := TJSONUtils.GetJSONValue(THeaderNames.KEY_ID, FJSON).AsString;
+end;
+
 procedure TJWTHeader.SetAlgorithm(const Value: string);
 begin
   TJSONUtils.SetJSONValueFrom<string>(THeaderNames.ALGORITHM, Value, FJSON);
@@ -392,6 +400,11 @@ end;
 procedure TJWTHeader.SetHeaderType(Value: string);
 begin
   TJSONUtils.SetJSONValueFrom<string>(THeaderNames.HEADER_TYPE, Value, FJSON);
+end;
+
+procedure TJWTHeader.SetKeyID(const Value: string);
+begin
+  TJSONUtils.SetJSONValueFrom<string>(THeaderNames.KEY_ID, Value, FJSON);
 end;
 
 end.

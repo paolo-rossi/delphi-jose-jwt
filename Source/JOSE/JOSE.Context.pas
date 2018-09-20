@@ -53,6 +53,8 @@ type
     function GetJOSEObject: TJOSEParts; overload;
     function GetJOSEObject<T: TJOSEParts>: T; overload;
 
+    function GetHeader: TJWTHeader;
+
     function GetClaims: TJWTClaims; overload;
     function GetClaims<T: TJWTClaims>: T; overload;
   end;
@@ -117,6 +119,11 @@ end;
 function TJOSEContext.GetClaims<T>: T;
 begin
   Result := FJWT.Claims as T;
+end;
+
+function TJOSEContext.GetHeader: TJWTHeader;
+begin
+  Result := FJWT.Header;
 end;
 
 function TJOSEContext.GetJOSEObject: TJOSEParts;
