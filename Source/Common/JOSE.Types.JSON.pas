@@ -222,8 +222,11 @@ begin
       else
         if AValue.Kind = tkFloat then
           LValue := TJSONNumber.Create(AValue.AsType<Double>)
-        else
-          LValue := TJSONNumber.Create(AValue.AsType<Integer>)
+      else
+	    if AValue.Kind = tkInt64 then
+          LValue := TJSONNumber.Create(AValue.AsType<Int64>)
+      else
+        LValue := TJSONNumber.Create(AValue.AsType<Integer>)
     end;
   end;
 
