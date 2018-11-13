@@ -27,6 +27,8 @@ unit JOSE.Encoding.Base64;
 
 interface
 
+{$LEGACYIFEND ON}
+
 uses
   System.SysUtils,
   {$IF CompilerVersion >= 28}
