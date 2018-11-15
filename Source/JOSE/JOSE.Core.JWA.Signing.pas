@@ -111,8 +111,7 @@ uses
   System.StrUtils,
   JOSE.Encoding.Base64;
 
-constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId;
-    AKeyMinLength: Integer);
+constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
 begin
   FAlgorithmIdentifier := AAlgorithmId;
 
@@ -232,8 +231,7 @@ begin
   ValidateKey(AKey);
 end;
 
-function TUnsecureNoneAlgorithm.VerifySignature(const AKey, AInput,
-  ASignature: TJOSEBytes): Boolean;
+function TUnsecureNoneAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
 begin
   ValidateKey(AKey);
   Result := ASignature.IsEmpty;
@@ -241,8 +239,7 @@ end;
 
 { TRSAAlgorithm }
 
-constructor TRSAUsingSHAAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId;
-  AKeyMinLength: Integer);
+constructor TRSAUsingSHAAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
 begin
   FAlgorithmIdentifier := AAlgorithmId;
 
@@ -297,8 +294,7 @@ begin
     raise EJOSEException.Create('Key is not RSA key in PEM format');
 end;
 
-function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput,
-  ASignature: TJOSEBytes): Boolean;
+function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
 var
   LDecodedSignature: TJOSEBytes;
 begin

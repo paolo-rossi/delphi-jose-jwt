@@ -26,9 +26,7 @@ interface
 
 uses
   System.SysUtils,
-  IdGlobal,
-  IdCTypes,
-  IdSSLOpenSSLHeaders,
+  IdGlobal, IdCTypes, IdSSLOpenSSLHeaders,
   JOSE.Encoding.Base64;
 
 type
@@ -43,8 +41,7 @@ type
     const PKCS1_SIGNATURE_PUBKEY: RawByteString = '-----BEGIN RSA PUBLIC KEY-----';
     const PKCS1_X509_CERTIFICATE: RawByteString = '-----BEGIN CERTIFICATE-----';
   private
-    class var FOpenSSLHandle: HMODULE;
-    class var _PEM_read_bio_RSA_PUBKEY: function(bp : PBIO; x : PPRSA; cb : ppem_password_cb; u: Pointer) : PRSA cdecl;
+    class var _PEM_read_bio_RSA_PUBKEY: function(bp: PBIO; x: PPRSA; cb: ppem_password_cb; u: Pointer): PRSA cdecl;
     class var _EVP_MD_CTX_create: function: PEVP_MD_CTX cdecl;
     class var _EVP_MD_CTX_destroy: procedure(ctx: PEVP_MD_CTX); cdecl;
   private
@@ -80,7 +77,7 @@ function ERR_GetErrorMessage_OpenSSL: string;
 var
   LErrMsg: array[0..160] of Char;
 begin
-  ERR_error_string( ERR_get_error, @LErrMsg );
+  ERR_error_string(ERR_get_error, @LErrMsg);
   Result := ArrayToString(LErrMsg);
 end;
 
@@ -109,8 +106,7 @@ end;
 
 { TRSA }
 
-class function TRSA.Sign(const AInput, AKey: TBytes;
-  AAlg: TRSAAlgorithm): TBytes;
+class function TRSA.Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
 var
   LPrivKeyBIO: pBIO;
   LPrivKey: pEVP_PKEY;
@@ -130,7 +126,7 @@ begin
     BIO_write(LPrivKeyBIO, @AKey[0], Length(AKey));
     LRsa := PEM_read_bio_RSAPrivateKey(LPrivKeyBIO, nil, nil, nil);
     if LRsa = nil then
-      raise Exception.Create('[RSA] Unable to load private key: '+ERR_GetErrorMessage_OpenSSL);
+      raise Exception.Create('[RSA] Unable to load private key: ' + ERR_GetErrorMessage_OpenSSL);
   finally
     BIO_free(LPrivKeyBIO);
   end;
@@ -145,24 +141,24 @@ begin
         RS256: LSha := EVP_sha256();
         RS384: LSha := EVP_sha384();
         RS512: LSha := EVP_sha512();
-        else
-          raise Exception.Create('[RSA] Unsupported signing algorithm!');
+      else
+        raise Exception.Create('[RSA] Unsupported signing algorithm!');
       end;
 
       LCtx := _EVP_MD_CTX_create;
       try
-        if EVP_DigestSignInit( LCtx, NIL, LSha, NIL, LPrivKey ) <> 1 then
+        if EVP_DigestSignInit(LCtx, NIL, LSha, NIL, LPrivKey ) <> 1 then
           raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
-        if EVP_DigestSignUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
+        if EVP_DigestSignUpdate(LCtx, @AInput[0], Length(AInput) ) <> 1 then
           raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
 
         // Get signature, first read signature len
-        EVP_DigestSignFinal( LCtx, nil, @LLen );
+        EVP_DigestSignFinal(LCtx, nil, @LLen);
         LSig := OPENSSL_malloc(LLen);
         try
-          EVP_DigestSignFinal( LCtx, LSig, @LLen );
-          setLength(Result, LLen);
-          move(LSig^, Result[0], LLen);
+          EVP_DigestSignFinal(LCtx, LSig, @LLen);
+          SetLength(Result, LLen);
+          Move(LSig^, Result[0], LLen);
         finally
           CRYPTO_free(LSig);
         end;
@@ -177,13 +173,11 @@ begin
   end;
 end;
 
-class function TRSA.Verify(const AInput, ASignature, AKeyOrCertificate: TBytes;
-  AAlg: TRSAAlgorithm): Boolean;
+class function TRSA.Verify(const AInput, ASignature, AKeyOrCertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
 var
   LPubKeyBIO: pBIO;
   LPubKey: pEVP_PKEY;
   LRsa: pRSA;
-  LByte: string;
   LCtx: PEVP_MD_CTX;
   LSha: PEVP_MD;
 begin
@@ -197,7 +191,7 @@ begin
     LPubKeyBIO := BIO_new(BIO_s_mem);
     try
       BIO_write(LPubKeyBIO, @AKeyOrCertificate[0], Length(AKeyOrCertificate));
-      if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKeyOrCertificate[0], length(PKCS1_SIGNATURE_PUBKEY)) then
+      if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKeyOrCertificate[0], Length(PKCS1_SIGNATURE_PUBKEY)) then
         LRsa := PEM_read_bio_RSAPublicKey(LPubKeyBIO, nil, nil, nil)
       else
         LRsa := _PEM_read_bio_RSA_PUBKEY(LPubKeyBIO, nil, nil, nil);
@@ -211,26 +205,25 @@ begin
       // Extract Public key from RSA object
       LPubKey := EVP_PKEY_new();
       try
-        if EVP_PKEY_set1_RSA(LPubKey,LRsa) <> 1 then
+        if EVP_PKEY_set1_RSA(LPubKey, LRsa) <> 1 then
           raise Exception.Create('[RSA] Unable to extract public key: ' + ERR_GetErrorMessage_OpenSSL);
 
         case AAlg of
           RS256: LSha := EVP_sha256();
           RS384: LSha := EVP_sha384();
           RS512: LSha := EVP_sha512();
-          else
-            raise Exception.Create('[RSA] Unsupported signing algorithm!');
+        else
+          raise Exception.Create('[RSA] Unsupported signing algorithm!');
         end;
 
         LCtx := _EVP_MD_CTX_create;
         try
-          if EVP_DigestVerifyInit( LCtx, NIL, LSha, NIL, LPubKey ) <> 1 then
+          if EVP_DigestVerifyInit(LCtx, NIL, LSha, NIL, LPubKey) <> 1 then
             raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
-          if EVP_DigestVerifyUpdate( LCtx, @AInput[0], Length(AInput) ) <> 1 then
+          if EVP_DigestVerifyUpdate(LCtx, @AInput[0], Length(AInput)) <> 1 then
             raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
 
-          LByte := IntToStr(ASignature[0]);
-          Result := EVP_DigestVerifyFinal( LCtx, @LByte, Length(ASignature) ) = 1;
+          Result := EVP_DigestVerifyFinal(LCtx, @ASignature[0], Length(ASignature)) = 1;
         finally
           _EVP_MD_CTX_destroy(LCtx);
         end;
@@ -291,8 +284,7 @@ begin
   end;
 end;
 
-class function TRSA.VerifyWithCertificate(const AInput, ASignature,
-  ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
+class function TRSA.VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
 var
   LCertificateBIO: pBIO;
   LX509: pX509;
@@ -335,7 +327,7 @@ begin
       if EVP_DigestVerifyUpdate(LCtx, @AInput[0], Length(AInput)) <> 1 then
         raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
 
-      Result := EVP_DigestVerifyFinal(LCtx, PIdAnsiChar(@ASignature[0]), length(ASignature)) = 1;
+      Result := EVP_DigestVerifyFinal(LCtx, @ASignature[0], Length(ASignature)) = 1;
     finally
       _EVP_MD_CTX_destroy(LCtx);
     end;
@@ -369,34 +361,29 @@ end;
 
 class procedure TRSA.LoadOpenSSL;
 begin
-  if FOpenSSLHandle = 0 then
+  if not IdSSLOpenSSLHeaders.Load then
+    raise Exception.Create('[RSA] Unable to load OpenSSL libraries');
+
+  if @EVP_DigestVerifyInit = nil then
+    raise Exception.Create('[RSA] Please, use OpenSSL 1.0.0. or newer!');
+
+  if GetCryptLibHandle <> 0 then
   begin
-    if not IdSSLOpenSSLHeaders.Load then
-      raise Exception.Create('[RSA] Unable to load OpenSSL DLLs');
-
-    if @EVP_DigestVerifyInit = nil then
-      raise Exception.Create('[RSA] Please, use OpenSSL 1.0.0. or newer!');
-
-    FOpenSSLHandle := LoadLibrary('libeay32.dll');
-    if FOpenSSLHandle = 0 then
-      raise Exception.Create('[RSA] Unable to load libeay32.dll!');
-
-    _PEM_read_bio_RSA_PUBKEY := GetProcAddress(FOpenSSLHandle, 'PEM_read_bio_RSA_PUBKEY');
+    _PEM_read_bio_RSA_PUBKEY := GetProcAddress(GetCryptLibHandle, 'PEM_read_bio_RSA_PUBKEY');
     if @_PEM_read_bio_RSA_PUBKEY = nil then
       raise Exception.Create('[RSA] Unable to get proc address for "PEM_read_bio_RSA_PUBKEY"');
 
-    _EVP_MD_CTX_create := GetProcAddress(FOpenSSLHandle, 'EVP_MD_CTX_create');
+    _EVP_MD_CTX_create := GetProcAddress(GetCryptLibHandle, 'EVP_MD_CTX_create');
     if @_EVP_MD_CTX_create = nil then
       raise Exception.Create('[RSA] Unable to get proc address for "EVP_MD_CTX_create"');
 
-    _EVP_MD_CTX_destroy := GetProcAddress(FOpenSSLHandle, 'EVP_MD_CTX_destroy');
+    _EVP_MD_CTX_destroy := GetProcAddress(GetCryptLibHandle, 'EVP_MD_CTX_destroy');
     if @_EVP_MD_CTX_create = nil then
       raise Exception.Create('[RSA] Unable to get proc address for "EVP_MD_CTX_destroy"');
   end;
 end;
 
 initialization
-  TRSA.FOpenSSLHandle := 0;
   TRSA._PEM_read_bio_RSA_PUBKEY := nil;
   TRSA._EVP_MD_CTX_create := nil;
   TRSA._EVP_MD_CTX_destroy := nil;
