@@ -2,15 +2,25 @@
 
 <br />
 
-<a href="http://jwt.io/">![Browse on jwt.io](https://paolo-rossi.github.io/delphi-jose-jwt/images/jwt-badge.svg "Browse on jwt.io")</a>
-
-<hr />
+<p align="center">
+  <a href="http://jwt.io/">
+    <img src="https://user-images.githubusercontent.com/4686497/59972946-554a2180-9598-11e9-9842-8ab83cf3a97d.png" alt="Delphi JWT Library" width="250" />
+  </a>
+</p>
 
 [Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.
 
 ![Image of Delphi-JOSE Demo](https://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
 
-## Important: OpenSSL requirements
+
+## :books: Articles about using Delphi-JOSE
+
+- [JWT authentication with Delphi. Part 1](http://blog.paolorossi.net/2017/04/27/jwt-authentication-with-delphi) - JWT and authentication technologies introduction (using Delphi)
+- [JWT authentication with Delphi. Part 2](http://blog.paolorossi.net/2017/05/17/jwt-authentication-with-delphi-part-2) - Understanding the JSON Web Token
+- [JWT authentication with Delphi. Part 3](http://blog.paolorossi.net/2018/08/27/jwt-authentication-with-delphi-part-3) - Using Delphi-JOSE-JWT to generate and verify JWT tokens
+- JWT authentication with Delphi. Part 4 - Using JWT consumer to validate JWT's claims
+
+## :warning: Important: OpenSSL requirements
 
 #### HMAC using SHA algorithm
 Prior to Delphi 10 Seattle the the HMAC-SHA algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
@@ -26,7 +36,7 @@ Please keep in mind that the client doesn't have to generate or verify the token
 #### OpenSSL download
 If you need the OpenSSL library on the server, you can download the package at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always update to the latest version and to match you application's bitness)
 
-## What is JOSE
+## :question: What is JOSE
 
 [JOSE](https://tools.ietf.org/html/rfc7520) is a standard that provides a general approach to signing and encryption of any content. JOSE consists of several RFC:
 
@@ -36,7 +46,7 @@ If you need the OpenSSL library on the server, you can download the package at t
 - [JWA (JSON Web Algorithms)](https://tools.ietf.org/html/rfc7518) - describes cryptographic algorithms used in JOSE
 - [JWK (JSON Web Key)](https://tools.ietf.org/html/rfc7517) - describes format and handling of cryptographic keys in JOSE
 
-## General Features
+## :zap: General Features
 
 #### Token serialization
 - One method call to serialize a token
@@ -64,7 +74,7 @@ If you need the OpenSSL library on the server, you can download the package at t
 - The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
 - [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
 
-## Todo
+## :wrench: Todo
 
 ##### Features
 - JWE support
@@ -75,7 +85,7 @@ If you need the OpenSSL library on the server, you can download the package at t
 - More examples
 
 
-## Prerequisite
+## :cookie: Prerequisite
 This library has been tested with **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin** and **Delphi XE6** but with a minimum amount of work it should compile with **D2010 and higher**
 
 #### Libraries/Units dependencies
@@ -91,10 +101,10 @@ Delphi units used:
 #### Indy notes
 - Please use always the latest version [from svn](http://www.indyproject.org/Sockets/Download/svn.EN.aspx)
 
-## Installation
+## :floppy_disk: Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!
 
-## Code Examples
+## :scroll: Code Examples
 
 ### Creating a token
 To create a token, simply create an instance of the `TJWT` class and set the properties (claims).
