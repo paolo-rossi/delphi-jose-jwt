@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015-2019 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
