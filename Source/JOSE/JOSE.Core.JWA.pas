@@ -40,6 +40,9 @@ type
   {$SCOPEDENUMS ON}
   TJOSEKeyCategory = (None, Symmetric, Asymmetric);
 
+  /// <summary>
+  ///   Enumeration for the JOSE algorithms
+  /// </summary>
   TJOSEAlgorithmId = (
     Unknown, None,
     HS256, HS384, HS512,
@@ -50,10 +53,12 @@ type
   TJOSEAlgorithmIdHelper = record helper for TJOSEAlgorithmId
   private
     function GetAsString: string;
-    procedure SetAsString(const Value: string);
+    procedure SetAsString(const AValue: string);
   public
     property AsString: string read GetAsString write SetAsString;
   end;
+
+  TJOSEAlgorithms = set of TJOSEAlgorithmId;
 
   IJOSEAlgorithm = interface
   ['{1BA290C7-D139-4CD8-86FE-7F80B9826007}']
@@ -66,6 +71,9 @@ type
   ['{2A2FBF37-8267-4DA3-AA11-7E1C3ED235DD}']
   end;
 
+  /// <summary>
+  ///   Defines the JW* algorithm
+  /// </summary>
   TJOSEAlgorithm = class(TInterfacedObject, IJOSEAlgorithm)
     FAlgorithmIdentifier: TJOSEAlgorithmId;
     FKeyCategory: TJOSEKeyCategory;
@@ -120,37 +128,37 @@ begin
   end;
 end;
 
-procedure TJOSEAlgorithmIdHelper.SetAsString(const Value: string);
+procedure TJOSEAlgorithmIdHelper.SetAsString(const AValue: string);
 begin
-  if Value = 'none' then
+  if AValue = 'none' then
     Self := TJOSEAlgorithmId.None
 
-  else if Value = 'HS256' then
+  else if AValue = 'HS256' then
     Self := TJOSEAlgorithmId.HS256
-  else if Value = 'HS384' then
+  else if AValue = 'HS384' then
     Self := TJOSEAlgorithmId.HS384
-  else if Value = 'HS512' then
+  else if AValue = 'HS512' then
     Self := TJOSEAlgorithmId.HS512
 
-  else if Value = 'RS256' then
+  else if AValue = 'RS256' then
     Self := TJOSEAlgorithmId.RS256
-  else if Value = 'RS384' then
+  else if AValue = 'RS384' then
     Self := TJOSEAlgorithmId.RS384
-  else if Value = 'RS512' then
+  else if AValue = 'RS512' then
     Self := TJOSEAlgorithmId.RS512
 
-  else if Value = 'ES256' then
+  else if AValue = 'ES256' then
     Self := TJOSEAlgorithmId.ES256
-  else if Value = 'ES384' then
+  else if AValue = 'ES384' then
     Self := TJOSEAlgorithmId.ES384
-  else if Value = 'ES512' then
+  else if AValue = 'ES512' then
     Self := TJOSEAlgorithmId.ES512
 
-  else if Value = 'PS256' then
+  else if AValue = 'PS256' then
     Self := TJOSEAlgorithmId.PS256
-  else if Value = 'PS384' then
+  else if AValue = 'PS384' then
     Self := TJOSEAlgorithmId.PS384
-  else if Value = 'PS512' then
+  else if AValue = 'PS512' then
     Self := TJOSEAlgorithmId.PS512
 
   else

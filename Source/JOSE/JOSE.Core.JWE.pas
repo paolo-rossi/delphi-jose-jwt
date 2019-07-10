@@ -20,12 +20,6 @@
 {                                                                              }
 {******************************************************************************}
 
-/// <summary>
-///   JSON Web Encryption (JWE) RFC implementation (initial)
-/// </summary>
-/// <seealso href="https://tools.ietf.org/html/rfc7516">
-///   JWE RFC Document
-/// </seealso>
 unit JOSE.Core.JWE;
 
 interface
@@ -38,6 +32,12 @@ uses
   JOSE.Core.JWT;
 
 type
+  /// <summary>
+  ///   JSON Web Encryption (JWE) RFC implementation (initial)
+  /// </summary>
+  /// <seealso href="https://tools.ietf.org/html/rfc7516">
+  ///   JWE RFC Document
+  /// </seealso>
   TJWE = class(TJOSEParts)
   private
     const COMPACT_PARTS = 5;

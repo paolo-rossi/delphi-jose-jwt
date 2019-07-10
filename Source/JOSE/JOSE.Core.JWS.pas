@@ -41,6 +41,10 @@ uses
   JOSE.Core.JWA.Signing;
 
 type
+  /// <summary>
+  ///   The TJWS class is used to produce and consume JSON Web Signature (JWS) as defined
+  ///   in RFC 7515. <br />
+  /// </summary>
   TJWS = class(TJOSEParts)
   private
     const COMPACT_PARTS = 3;

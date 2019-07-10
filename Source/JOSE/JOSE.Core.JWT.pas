@@ -44,6 +44,9 @@ uses
   JOSE.Core.JWK;
 
 type
+  /// <summary>
+  ///   Header part of the JWT
+  /// </summary>
   TJWTHeader = class sealed(TJOSEBase)
   private
     function GetAlgorithm: string;
@@ -72,6 +75,9 @@ type
   TClaimVerification = (Audience, Expiration, IssuedAt, Issuer, TokenId, NotBefore, Subject);
   TClaimVerifications = set of TClaimVerification;
 
+  /// <summary>
+  ///   JSON Web Token (JWT) claims set.
+  /// </summary>
   TJWTClaims = class(TJOSEBase)
   private
     const AUDIENCE_SEPARATOR = ',';
@@ -126,6 +132,9 @@ type
 
   TJWTClaimsClass = class of TJWTClaims;
 
+  /// <summary>
+  ///   JSON Web Token (JWT) interface.
+  /// </summary>
   TJWT = class
   private
     FVerified: Boolean;

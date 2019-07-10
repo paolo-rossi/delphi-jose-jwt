@@ -20,9 +20,6 @@
 {                                                                              }
 {******************************************************************************}
 
-/// <summary>
-///   Utility class to encode and decode a JWT
-/// </summary>
 unit JOSE.Consumer;
 
 interface
@@ -41,11 +38,17 @@ uses
   JOSE.Consumer.Validators;
 
 type
+  /// <summary>
+  ///   Base class for the Consumer Exceptions
+  /// </summary>
   EInvalidJWTException = class(Exception)
   public
     procedure SetDetails(ADetails: TStrings);
   end;
 
+  /// <summary>
+  ///   JOSE Consumer interface to process and validate a JWT
+  /// </summary>
   IJOSEConsumer = interface
   ['{A270E909-6D79-4FC1-B4F6-B9911EAB8D36}']
     procedure Process(const ACompactToken: TJOSEBytes);
@@ -53,11 +56,15 @@ type
     procedure Validate(AContext: TJOSEContext);
   end;
 
+  /// <summary>
+  ///   Implementation of IJOSEConsumer interface
+  /// </summary>
   TJOSEConsumer = class(TInterfacedObject, IJOSEConsumer)
   private
     FKey: TJOSEBytes;
     FValidators: TJOSEValidatorArray;
     FClaimsClass: TJWTClaimsClass;
+    FExpectedAlgorithms: TJOSEAlgorithms;
 
     FRequireSignature: Boolean;
     FRequireEncryption: Boolean;
@@ -70,6 +77,7 @@ type
     function SetRequireEncryption(ARequireEncryption: Boolean): TJOSEConsumer;
     function SetSkipSignatureVerification(ASkipSignatureVerification: Boolean): TJOSEConsumer;
     function SetSkipVerificationKeyValidation(ASkipVerificationKeyValidation: Boolean): TJOSEConsumer;
+    function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
   public
     constructor Create(AClaimsClass: TJWTClaimsClass);
 
@@ -78,7 +86,9 @@ type
     procedure Validate(AContext: TJOSEContext);
   end;
 
-
+  /// <summary>
+  ///   Interface to configure a JOSEConsumer
+  /// </summary>
   IJOSEConsumerBuilder = interface
   ['{8EC9CB4B-3233-493B-9366-F06CFFA81D99}']
     // Custom Claim Class
@@ -90,6 +100,7 @@ type
     function SetSkipVerificationKeyValidation: IJOSEConsumerBuilder;
     function SetVerificationKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
     function SetDecryptionKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
+    function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
     // String-based claims
     function SetSkipDefaultAudienceValidation(): IJOSEConsumerBuilder;
     function SetExpectedAudience(ARequireAudience: Boolean; const AExpectedAudience: TArray<string>): IJOSEConsumerBuilder;
@@ -116,7 +127,8 @@ type
   end;
 
   /// <summary>
-  ///   Used to create the appropriate TJOSEConsumer for the JWT processing needs
+  ///   Used to create the appropriate TJOSEConsumer for the JWT processing needs.
+  ///   Implements IJOSEConsumerBuilder interface
   /// </summary>
   TJOSEConsumerBuilder = class(TInterfacedObject, IJOSEConsumerBuilder)
   private
@@ -128,6 +140,7 @@ type
 
     FKey: TJOSEBytes;
     FClaimsClass: TJWTClaimsClass;
+    FExpectedAlgorithms: TJOSEAlgorithms;
     FDisableRequireSignature: Boolean;
     FEnableRequireEncryption: Boolean;
     FSkipVerificationKeyValidation: Boolean;
@@ -154,6 +167,7 @@ type
     function SetSkipVerificationKeyValidation: IJOSEConsumerBuilder;
     function SetVerificationKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
     function SetDecryptionKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
+    function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
     // String-based claims
     function SetSkipDefaultAudienceValidation(): IJOSEConsumerBuilder;
     function SetExpectedAudience(ARequireAudience: Boolean; const AExpectedAudience: TArray<string>): IJOSEConsumerBuilder;
@@ -196,7 +210,8 @@ begin
     .SetRequireSignature(not FDisableRequireSignature)
     .SetRequireEncryption(FEnableRequireEncryption)
     .SetSkipSignatureVerification(FSkipSignatureVerification)
-    .SetSkipVerificationKeyValidation(FSkipVerificationKeyValidation);
+    .SetSkipVerificationKeyValidation(FSkipVerificationKeyValidation)
+    .SetExpectedAlgorithms(FExpectedAlgorithms);
 
   BuildValidators(FDateValidatorParams);
   Result.SetValidators(FValidators);
@@ -240,6 +255,11 @@ constructor TJOSEConsumerBuilder.Create;
 begin
   inherited;
   FDateValidatorParams := TJOSEDateClaimsParams.New;
+  FExpectedAlgorithms := [TJOSEAlgorithmId.None,
+    TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.HS384, TJOSEAlgorithmId.HS512,
+    TJOSEAlgorithmId.RS256, TJOSEAlgorithmId.RS384, TJOSEAlgorithmId.RS512,
+    TJOSEAlgorithmId.ES256, TJOSEAlgorithmId.ES384, TJOSEAlgorithmId.ES512,
+    TJOSEAlgorithmId.PS256, TJOSEAlgorithmId.PS384, TJOSEAlgorithmId.PS512];
 end;
 
 destructor TJOSEConsumerBuilder.Destroy;
@@ -296,6 +316,13 @@ end;
 function TJOSEConsumerBuilder.SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
 begin
   FDateValidatorParams.StaticEvaluationTime := AEvaluationTime;
+  Result := Self as IJOSEConsumerBuilder;
+end;
+
+function TJOSEConsumerBuilder.SetExpectedAlgorithms(
+  AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+begin
+  FExpectedAlgorithms := AExpectedAlgorithms;
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -441,6 +468,9 @@ begin
     // JWS Signature Verification
     if not FSkipSignatureVerification then
     begin
+      if not (LJWS.HeaderAlgorithmId in FExpectedAlgorithms) then
+        raise EJOSEException.CreateFmt('JWS algorithm [%s] is not listed among those expected', [LJWS.HeaderAlgorithm]);
+
       if FSkipVerificationKeyValidation then
         LJWS.SkipKeyValidation := True;
 
@@ -462,6 +492,12 @@ begin
   end;
 
   Validate(AContext);
+end;
+
+function TJOSEConsumer.SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
+begin
+  FExpectedAlgorithms := AExpectedAlgorithms;
+  Result := Self;
 end;
 
 function TJOSEConsumer.SetKey(const AKey: TJOSEBytes): TJOSEConsumer;

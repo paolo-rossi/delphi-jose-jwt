@@ -37,6 +37,9 @@ uses
   JOSE.Encoding.Base64;
 
 type
+  /// <summary>
+  ///   Base class for the Key in a JWS process
+  /// </summary>
   TJWK = class(TJOSEBase)
   private
     FKey: TJOSEBytes;

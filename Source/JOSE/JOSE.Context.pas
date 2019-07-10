@@ -39,6 +39,9 @@ uses
   JOSE.Core.JWE;
 
 type
+  /// <summary>
+  ///   JOSE Context (for the Consumer)
+  /// </summary>
   TJOSEContext = class
   private
     FCompactToken: TJOSEBytes;
