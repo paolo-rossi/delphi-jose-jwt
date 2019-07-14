@@ -124,8 +124,9 @@ type
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
     procedure ProcessConsumer(AConsumer: TJOSEConsumer);
+    function GetCompact: TJOSEBytes;
   public
-    property Compact: TJOSEBytes read FCompact write SetCompact;
+    property Compact: TJOSEBytes read GetCompact write SetCompact;
   end;
 
 
@@ -160,23 +161,34 @@ begin
 
   ProcessConsumer(TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
+
     // JWS-related validation
     .SetVerificationKey(edtConsumerSecret.Text)
     .SetSkipVerificationKeyValidation
     .SetDisableRequireSignature
+
     // string-based claims validation
     .SetExpectedSubject('paolo-rossi')
     .SetExpectedAudience(True, LAud)
+
     // Time-related claims validation
     .SetRequireIssuedAt
     .SetRequireExpirationTime
     .SetEvaluationTime(IncSecond(FNow, 26))
     .SetAllowedClockSkew(20, TJOSETimeUnit.Seconds)
     .SetMaxFutureValidity(20, TJOSETimeUnit.Minutes)
+
     // Build the consumer object
     .Build()
   );
 
+  if memoLog.Lines.Count = 0 then
+    memoLog.Lines.Add('JWT Validated!')
+  else
+  begin
+    memoLog.Lines.Add(sLineBreak + '==========================================');
+    memoLog.Lines.Add('Errors in the validation process!');
+  end
 end;
 
 procedure TfrmConsumer.actBuildJWTConsumerUpdate(Sender: TObject);
@@ -224,7 +236,7 @@ begin
   if chkConsumerExpires.Checked then
     LBuilder.SetRequireExpirationTime;
 
-  // Not Before claim validation
+  // NotBefore claim validation
   if chkConsumerNotBefore.Checked then
     LBuilder.SetRequireNotBefore;
 
@@ -236,7 +248,13 @@ begin
   // Build the consumer object
   memoLog.Lines.Clear;
   ProcessConsumer(LBuilder.Build());
-  memoLog.Lines.Add('JWT Validated!')
+  if memoLog.Lines.Count = 0 then
+    memoLog.Lines.Add('JWT Validated!')
+  else
+  begin
+    memoLog.Lines.Add(sLineBreak + '==========================================');
+    memoLog.Lines.Add('Errors in the validation process!');
+  end
 end;
 
 procedure TfrmConsumer.actBuildJWTCustomConsumerUpdate(Sender: TObject);
@@ -295,6 +313,11 @@ end;
 procedure TfrmConsumer.FormDestroy(Sender: TObject);
 begin
   FJWT.Free;
+end;
+
+function TfrmConsumer.GetCompact: TJOSEBytes;
+begin
+  Result := edtHeader.Text + ',' + edtPayload.Text + '.' + edtSignature.Text;
 end;
 
 procedure TfrmConsumer.ProcessConsumer(AConsumer: TJOSEConsumer);

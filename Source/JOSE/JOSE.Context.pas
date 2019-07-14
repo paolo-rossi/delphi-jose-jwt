@@ -79,6 +79,7 @@ begin
     FromCompactToken;
   except
     FreeAndNil(FJWT);
+    raise;
   end;
 end;
 
@@ -109,8 +110,9 @@ begin
     begin
       raise EJOSEException.Create('Compact Serialization appears to be a JWE Token wich is not (yet) supported');
     end;
-    else
-      raise EJOSEException.Create('Malformed Compact Serialization');
+
+  else
+    raise EJOSEException.Create('Malformed Compact Serialization');
   end;
 end;
 

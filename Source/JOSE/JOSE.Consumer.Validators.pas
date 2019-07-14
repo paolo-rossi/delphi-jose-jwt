@@ -65,29 +65,15 @@ type
   end;
 
   TJOSEClaimsValidators = class
-    class function DateClaimsValidator(
-      ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
+    class function DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 
-    class function audValidator(AAudience: TJOSEStringArray;
-      ARequired: Boolean = True): TJOSEValidator;
-
-    class function issValidator(AIssuer: string;
-      ARequired: Boolean = True): TJOSEValidator; overload;
-
-    class function issValidator(AIssuers: TJOSEStringArray;
-      ARequired: Boolean = True): TJOSEValidator; overload;
-
-    class function subValidator(const ASubject: string;
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function subValidator(
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function jtiValidator(const AJwtId: string;
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function jtiValidator(
-      ARequired: Boolean): TJOSEValidator; overload;
+    class function audValidator(AAudience: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator;
+    class function issValidator(AIssuer: string; ARequired: Boolean = True): TJOSEValidator; overload;
+    class function issValidator(AIssuers: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator; overload;
+    class function subValidator(const ASubject: string; ARequired: Boolean): TJOSEValidator; overload;
+    class function subValidator(ARequired: Boolean): TJOSEValidator; overload;
+    class function jtiValidator(const AJwtId: string; ARequired: Boolean): TJOSEValidator; overload;
+    class function jtiValidator(ARequired: Boolean): TJOSEValidator; overload;
   end;
 
 
@@ -132,8 +118,7 @@ end;
 
 { TJOSEClaimsValidators }
 
-class function TJOSEClaimsValidators.audValidator(AAudience: TJOSEStringArray;
-  ARequired: Boolean = True): TJOSEValidator;
+class function TJOSEClaimsValidators.audValidator(AAudience: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -177,8 +162,7 @@ begin
     end
 end;
 
-class function TJOSEClaimsValidators.DateClaimsValidator(
-  ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
+class function TJOSEClaimsValidators.DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 var
   LDeltaInSeconds: Int64;
 begin
@@ -245,8 +229,7 @@ begin
   ;
 end;
 
-class function TJOSEClaimsValidators.issValidator(AIssuer: string;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.issValidator(AIssuer: string; ARequired: Boolean): TJOSEValidator;
 var
   LIssuers: TJOSEStringArray;
 begin
@@ -258,8 +241,7 @@ begin
   Result := issValidator(LIssuers, ARequired);
 end;
 
-class function TJOSEClaimsValidators.issValidator(AIssuers: TJOSEStringArray;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.issValidator(AIssuers: TJOSEStringArray; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -280,8 +262,7 @@ begin
   ;
 end;
 
-class function TJOSEClaimsValidators.jtiValidator(const AJwtId: string;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.jtiValidator(const AJwtId: string; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -307,8 +288,7 @@ begin
   Result :=  TJOSEClaimsValidators.jtiValidator('', ARequired);
 end;
 
-class function TJOSEClaimsValidators.subValidator(const ASubject: string;
-    ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.subValidator(const ASubject: string; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
