@@ -54,7 +54,9 @@ type
   private
     function GetAsString: string;
     procedure SetAsString(const AValue: string);
+    function GetLength: Integer;
   public
+    property Length: Integer read GetLength;
     property AsString: string read GetAsString write SetAsString;
   end;
 
@@ -125,6 +127,28 @@ begin
     TJOSEAlgorithmId.PS256: Result := 'PS256';
     TJOSEAlgorithmId.PS384: Result := 'PS384';
     TJOSEAlgorithmId.PS512: Result := 'PS512';
+  end;
+end;
+
+function TJOSEAlgorithmIdHelper.GetLength: Integer;
+begin
+  Result := 0;
+  case Self of
+    TJOSEAlgorithmId.HS256: Result := 256;
+    TJOSEAlgorithmId.HS384: Result := 384;
+    TJOSEAlgorithmId.HS512: Result := 512;
+
+    TJOSEAlgorithmId.RS256: Result := 256;
+    TJOSEAlgorithmId.RS384: Result := 384;
+    TJOSEAlgorithmId.RS512: Result := 512;
+
+    TJOSEAlgorithmId.ES256: Result := 256;
+    TJOSEAlgorithmId.ES384: Result := 384;
+    TJOSEAlgorithmId.ES512: Result := 512;
+
+    TJOSEAlgorithmId.PS256: Result := 256;
+    TJOSEAlgorithmId.PS384: Result := 384;
+    TJOSEAlgorithmId.PS512: Result := 512;
   end;
 end;
 

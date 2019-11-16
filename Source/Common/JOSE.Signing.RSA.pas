@@ -147,7 +147,7 @@ begin
 
       LCtx := _EVP_MD_CTX_create;
       try
-        if EVP_DigestSignInit(LCtx, NIL, LSha, NIL, LPrivKey ) <> 1 then
+        if EVP_DigestSignInit(LCtx, nil, LSha, nil, LPrivKey ) <> 1 then
           raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
         if EVP_DigestSignUpdate(LCtx, @AInput[0], Length(AInput) ) <> 1 then
           raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
@@ -218,7 +218,7 @@ begin
 
         LCtx := _EVP_MD_CTX_create;
         try
-          if EVP_DigestVerifyInit(LCtx, NIL, LSha, NIL, LPubKey) <> 1 then
+          if EVP_DigestVerifyInit(LCtx, nil, LSha, nil, LPubKey) <> 1 then
             raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
           if EVP_DigestVerifyUpdate(LCtx, @AInput[0], Length(AInput)) <> 1 then
             raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);

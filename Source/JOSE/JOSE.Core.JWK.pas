@@ -44,8 +44,24 @@ type
   private
     FKey: TJOSEBytes;
   public
-    constructor Create(AKey: TJOSEBytes);
+    constructor Create(AKey: TJOSEBytes); overload;
     property Key: TJOSEBytes read FKey write FKey;
+  end;
+
+  /// <summary>
+  ///   KeyPair utility class (to move in a key management framework)
+  /// </summary>
+  TKeyPair = class
+  private
+    FPrivateKey: TJWK;
+    FPublicKey: TJWK;
+  public
+    constructor Create; overload;
+    constructor Create(const APublicKey, APrivateKey: TJOSEBytes); overload;
+    destructor Destroy; override;
+
+    property PrivateKey: TJWK read FPrivateKey write FPrivateKey;
+    property PublicKey: TJWK read FPublicKey write FPublicKey;
   end;
 
 implementation
@@ -56,6 +72,27 @@ constructor TJWK.Create(AKey: TJOSEBytes);
 begin
   inherited Create;
   FKey := AKey;
+end;
+
+{ TKeyPair }
+
+constructor TKeyPair.Create;
+begin
+  FPrivateKey := TJWK.Create();
+  FPublicKey := TJWK.Create();
+end;
+
+constructor TKeyPair.Create(const APublicKey, APrivateKey: TJOSEBytes);
+begin
+  FPublicKey := TJWK.Create(APublicKey);
+  FPrivateKey := TJWK.Create(APrivateKey);
+end;
+
+destructor TKeyPair.Destroy;
+begin
+  FPublicKey.Free;
+  FPrivateKey.Free;
+  inherited;
 end;
 
 end.
