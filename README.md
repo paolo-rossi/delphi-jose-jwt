@@ -99,7 +99,7 @@ Delphi units used:
 - Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash
 
 #### Indy notes
-- Please use always the latest version [from svn](http://www.indyproject.org/Sockets/Download/svn.EN.aspx)
+- Please use always the latest version [from github](https://github.com/IndySockets/Indy)
 
 ## :floppy_disk: Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!
