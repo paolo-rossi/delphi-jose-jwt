@@ -35,7 +35,6 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <DCC_DcuOutput>.\$(Platform)\$(Config)</DCC_DcuOutput>
         <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
         <DCC_N>false</DCC_N>
@@ -53,6 +52,9 @@
         <DCC_Description>Delphi JOSE JWT Library</DCC_Description>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <RuntimeOnlyPackage>true</RuntimeOnlyPackage>
+        <DCC_DcpOutput>..\..\Lib\$(DLLSUFFIX)\$(Platform)\$(Config)</DCC_DcpOutput>
+        <DCC_BplOutput>..\..\Bin\260\$(Platform)\$(Config)</DCC_BplOutput>
+        <DCC_DcuOutput>..\..\Lib\$(DLLSUFFIX)\$(Platform)\$(Config)</DCC_DcuOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
@@ -67,7 +69,6 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
         <DCC_RemoteDebug>false</DCC_RemoteDebug>
-        <DCC_DcuOutput>..\..\Lib\$(DLLSUFFIX)\$(Platform)\$(Config)</DCC_DcuOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
