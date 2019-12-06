@@ -321,10 +321,9 @@ begin
   begin
     LArray := TJSONArray.Create;
     for LAudience in LAudienceArray do
-    begin
       LArray.Add(LAudience);
-    end;
-    FJSON.AddPair(TJSONPair.Create(TReservedClaimNames.AUDIENCE, LArray));
+
+    TJSONUtils.SetJSONValue(TReservedClaimNames.AUDIENCE, LArray, FJSON);
   end;
 
   if (Length(LAudienceArray) = 1) then

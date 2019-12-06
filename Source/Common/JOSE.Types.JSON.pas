@@ -50,7 +50,7 @@ type
 
   TJSONUtils = class
   private
-    class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
+    class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
   public
     class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
@@ -61,7 +61,9 @@ type
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 
+    class procedure SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
+
     class procedure RemoveJSONNode(const AName: string; AJSON: TJSONObject);
   end;
 
@@ -168,9 +170,26 @@ begin
     LPair.Free;
 end;
 
+class procedure TJSONUtils.SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject);
+var
+  LPair: TJSONPair;
+begin
+  LPair := AJSON.Get(AName);
+  if Assigned(LPair) then
+  begin
+    // Replace the JSON Value (the previous is freed by the TJSONPair object)
+    LPair.JsonValue := AValue;
+  end
+  else
+  begin
+    LPair := TJSONPair.Create(AName, AValue);
+    AJSON.AddPair(LPair);
+  end;
+end;
+
 class procedure TJSONUtils.SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
 begin
-  SetJSONValue(AName, TValue.From<T>(AValue), AJSON);
+  SetJSONRttiValue(AName, TValue.From<T>(AValue), AJSON);
 end;
 
 class function TJSONUtils.ToJSON(AJSONValue: TJSONValue): string;
@@ -182,9 +201,8 @@ begin
   Result := TEncoding.Default.GetString(LBytes);
 end;
 
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
+class procedure TJSONUtils.SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
 var
-  LPair: TJSONPair;
   LValue: TJSONValue;
 begin
   LValue := nil;
@@ -233,18 +251,7 @@ begin
   if not Assigned(LValue) then
     Exit;
 
-  LPair := AJSON.Get(AName);
-  if Assigned(LPair) then
-  begin
-    // Replace the JSON Value (the previous is freed by the TJSONPair object)
-    LPair.JsonValue := LValue;
-  end
-  else
-  begin
-    LPair := TJSONPair.Create(AName, LValue);
-    AJSON.AddPair(LPair);
-  end;
-
+  SetJSONValue(AName, LValue, AJSON);
 end;
 
 end.
