@@ -89,13 +89,13 @@ type
     function GetJWTId: string;
     function GetNotBefore: TDateTime;
     function GetSubject: string;
-    procedure SetAudience(Value: string);
-    procedure SetExpiration(Value: TDateTime);
-    procedure SetIssuedAt(Value: TDateTime);
-    procedure SetIssuer(Value: string);
-    procedure SetJWTId(Value: string);
-    procedure SetNotBefore(Value: TDateTime);
-    procedure SetSubject(Value: string);
+    procedure SetAudience(const AValue: string);
+    procedure SetExpiration(AValue: TDateTime);
+    procedure SetIssuedAt(AValue: TDateTime);
+    procedure SetIssuer(const AValue: string);
+    procedure SetJWTId(const AValue: string);
+    procedure SetNotBefore(AValue: TDateTime);
+    procedure SetSubject(const AValue: string);
 
     function GetHasAudience: Boolean;
     function GetHasExpiration: Boolean;
@@ -107,7 +107,7 @@ type
 
     function ClaimExists(const AClaimName: string): Boolean;
     function GetAudienceArray: TArray<string>;
-    procedure SetAudienceArray(const Value: TArray<string>);
+    procedure SetAudienceArray(const AValue: TArray<string>);
   public
     constructor Create; virtual;
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
@@ -303,19 +303,19 @@ begin
   Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SUBJECT, FJSON).AsString;
 end;
 
-procedure TJWTClaims.SetAudience(Value: string);
+procedure TJWTClaims.SetAudience(const AValue: string);
 var
   LAudienceArray: TArray<string>;
   LAudience: string;
   LArray: TJSONArray;
 begin
-  if Value.IsEmpty then
+  if AValue.IsEmpty then
   begin
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.AUDIENCE, FJSON);
     Exit;
   end;
 
-  LAudienceArray := Value.Split([AUDIENCE_SEPARATOR]);
+  LAudienceArray := AValue.Split([AUDIENCE_SEPARATOR]);
 
   if Length(LAudienceArray) > 1 then
   begin
@@ -327,60 +327,60 @@ begin
   end;
 
   if (Length(LAudienceArray) = 1) then
-    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetAudienceArray(const Value: TArray<string>);
+procedure TJWTClaims.SetAudienceArray(const AValue: TArray<string>);
 begin
-  Audience := string.Join(AUDIENCE_SEPARATOR, Value);
+  Audience := string.Join(AUDIENCE_SEPARATOR, AValue);
 end;
 
-procedure TJWTClaims.SetExpiration(Value: TDateTime);
+procedure TJWTClaims.SetExpiration(AValue: TDateTime);
 begin
-  if Value = 0 then
+  if AValue = 0 then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.EXPIRATION, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.EXPIRATION, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.EXPIRATION, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetIssuedAt(Value: TDateTime);
+procedure TJWTClaims.SetIssuedAt(AValue: TDateTime);
 begin
-  if Value = 0 then
+  if AValue = 0 then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.ISSUED_AT, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.ISSUED_AT, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.ISSUED_AT, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetIssuer(Value: string);
+procedure TJWTClaims.SetIssuer(const AValue: string);
 begin
-  if Value = '' then
+  if AValue = '' then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.ISSUER, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.ISSUER, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.ISSUER, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetJWTId(Value: string);
+procedure TJWTClaims.SetJWTId(const AValue: string);
 begin
-  if Value = '' then
+  if AValue = '' then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.JWT_ID, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.JWT_ID, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.JWT_ID, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetNotBefore(Value: TDateTime);
+procedure TJWTClaims.SetNotBefore(AValue: TDateTime);
 begin
-  if Value = 0 then
+  if AValue = 0 then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.NOT_BEFORE, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.NOT_BEFORE, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.NOT_BEFORE, AValue, FJSON);
 end;
 
-procedure TJWTClaims.SetSubject(Value: string);
+procedure TJWTClaims.SetSubject(const AValue: string);
 begin
-  if Value = '' then
+  if AValue = '' then
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.SUBJECT, FJSON)
   else
-    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.SUBJECT, Value, FJSON);
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.SUBJECT, AValue, FJSON);
 end;
 
 { TJWTHeader }
