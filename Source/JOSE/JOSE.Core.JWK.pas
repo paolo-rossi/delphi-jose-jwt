@@ -60,8 +60,8 @@ type
     constructor Create(const APublicKey, APrivateKey: TJOSEBytes); overload;
     destructor Destroy; override;
 
-    constructor SetSymmetricKey(const ASecret: TJOSEBytes);
-    constructor SetAsymmetricKeys(const APublicKey, APrivateKey: TJOSEBytes);
+    procedure SetSymmetricKey(const ASecret: TJOSEBytes);
+    procedure SetAsymmetricKeys(const APublicKey, APrivateKey: TJOSEBytes);
 
     property PrivateKey: TJWK read FPrivateKey write FPrivateKey;
     property PublicKey: TJWK read FPublicKey write FPublicKey;
@@ -98,13 +98,13 @@ begin
   inherited;
 end;
 
-constructor TKeyPair.SetAsymmetricKeys(const APublicKey, APrivateKey: TJOSEBytes);
+procedure TKeyPair.SetAsymmetricKeys(const APublicKey, APrivateKey: TJOSEBytes);
 begin
   FPublicKey.Key := APublicKey;
   FPrivateKey.Key := APrivateKey;
 end;
 
-constructor TKeyPair.SetSymmetricKey(const ASecret: TJOSEBytes);
+procedure TKeyPair.SetSymmetricKey(const ASecret: TJOSEBytes);
 begin
   FPublicKey.Key := ASecret;
   FPrivateKey.Key := ASecret;
