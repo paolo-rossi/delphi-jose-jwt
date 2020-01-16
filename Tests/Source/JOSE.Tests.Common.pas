@@ -37,11 +37,6 @@ type
   [TestFixture]
   TTestJOSEBytes = class
   public
-    [Setup]
-    procedure Setup;
-    [TearDown]
-    procedure TearDown;
-
     [Test]
     [TestCase('TestImplicit', 'aBc')]
     [TestCase('TestImplicitEmptyString', '')]
@@ -77,15 +72,9 @@ type
     procedure TestMerge(const AValue1, AValue2, _Result: string);
   end;
 
-
   [TestFixture]
   TTestBase64 = class
   public
-    [Setup]
-    procedure Setup;
-    [TearDown]
-    procedure TearDown;
-
     [Test]
     [TestCase('TestEncodeString', 'paolo,cGFvbG8=')]
     procedure TestEncodeString(const AValue1, _Expected: string);
@@ -98,24 +87,20 @@ type
   [TestFixture]
   TTestHMAC = class
   public
-    [Setup]
-    procedure Setup;
-    [TearDown]
-    procedure TearDown;
+    [Test]
+    [TestCase('TestSignSHA256', 'plaintext,secret,XXv4q83DfQItSR7PCiZwWFlG10ah668c1cRsrKh6Ylg=')]
+    procedure TestSignSHA256(const AValue1, AValue2, _Expected: string);
+
+    [Test]
+    [TestCase('TestSignSHA384', 'plaintext,secret,u0uk1bjmjw3CqOTwcgWrbrvcoCQMGE8LQCuT8SfxJRXedF3PvGw4FWsoZvPtIl3B')]
+    procedure TestSignSHA384(const AValue1, AValue2, _Expected: string);
+
+    [Test]
+    [TestCase('TestSignSHA512', 'plaintext,secret,3/adkEcz1vmOINXEEOxdtM119BDAnKgvIJyr7IxLpdQsaUWLu9vu1Wz4veWeKz7wrkKTzySUGFj6'#$D#$A'/rDBrJzRuQ==')]
+    procedure TestSignSHA512(const AValue1, AValue2, _Expected: string);
   end;
 
 implementation
-
-{ TTestBase64 }
-
-procedure TTestBase64.Setup;
-begin
-
-end;
-
-procedure TTestBase64.TearDown;
-begin
-end;
 
 procedure TTestBase64.TestDecodeString(const AValue1, _Expected: string);
 begin
@@ -127,26 +112,28 @@ begin
   Assert.AreEqual(_Expected, TBase64.Encode(AValue1).AsString);
 end;
 
-procedure TTestHMAC.Setup;
+procedure TTestHMAC.TestSignSHA256(const AValue1, AValue2, _Expected: string);
+var
+  LSignature: TJOSEBytes;
 begin
-
+  LSignature := THMAC.Sign(TEncoding.ANSI.GetBytes(AValue1), TEncoding.ANSI.GetBytes(AValue2), THMACAlgorithm.SHA256);
+  Assert.AreEqual(_Expected, TBase64.Encode(LSignature).AsString);
 end;
 
-procedure TTestHMAC.TearDown;
+procedure TTestHMAC.TestSignSHA384(const AValue1, AValue2, _Expected: string);
+var
+  LSignature: TJOSEBytes;
 begin
-
+  LSignature := THMAC.Sign(TEncoding.ANSI.GetBytes(AValue1), TEncoding.ANSI.GetBytes(AValue2), THMACAlgorithm.SHA384);
+  Assert.AreEqual(_Expected, TBase64.Encode(LSignature).AsString);
 end;
 
-{ TTestJOSEBytes }
-
-procedure TTestJOSEBytes.Setup;
+procedure TTestHMAC.TestSignSHA512(const AValue1, AValue2, _Expected: string);
+var
+  LSignature: TJOSEBytes;
 begin
-
-end;
-
-procedure TTestJOSEBytes.TearDown;
-begin
-
+  LSignature := THMAC.Sign(TEncoding.ANSI.GetBytes(AValue1), TEncoding.ANSI.GetBytes(AValue2), THMACAlgorithm.SHA512);
+  Assert.AreEqual(_Expected, TBase64.Encode(LSignature).AsString);
 end;
 
 procedure TTestJOSEBytes.TestAdd(const AValue1, AValue2, _Result: string);
