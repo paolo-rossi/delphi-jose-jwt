@@ -70,6 +70,7 @@ type
     JWT_ID     = 'jti';
     NOT_BEFORE = 'nbf';
     SUBJECT    = 'sub';
+	SCOPE      = 'scope';
   end;
 
   TClaimVerification = (Audience, Expiration, IssuedAt, Issuer, TokenId, NotBefore, Subject);
@@ -89,6 +90,7 @@ type
     function GetJWTId: string;
     function GetNotBefore: TDateTime;
     function GetSubject: string;
+    function GetScope: string;
     procedure SetAudience(const AValue: string);
     procedure SetExpiration(AValue: TDateTime);
     procedure SetIssuedAt(AValue: TDateTime);
@@ -96,6 +98,7 @@ type
     procedure SetJWTId(const AValue: string);
     procedure SetNotBefore(AValue: TDateTime);
     procedure SetSubject(const AValue: string);
+    procedure SetScope(const AValue: string);
 
     function GetHasAudience: Boolean;
     function GetHasExpiration: Boolean;
@@ -128,6 +131,7 @@ type
     property HasNotBefore: Boolean read GetHasNotBefore;
     property Subject: string read GetSubject write SetSubject;
     property HasSubject: Boolean read GetHasSubject;
+    property Scope: string read GetScope write SetScope;
   end;
 
   TJWTClaimsClass = class of TJWTClaims;
@@ -298,6 +302,11 @@ begin
   Result := TJSONUtils.GetJSONValueAsEpoch(TReservedClaimNames.NOT_BEFORE, FJSON);
 end;
 
+function TJWTClaims.GetScope: string;
+begin
+  Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SCOPE, FJSON).AsString;
+end;
+
 function TJWTClaims.GetSubject: string;
 begin
   Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SUBJECT, FJSON).AsString;
@@ -373,6 +382,14 @@ begin
     TJSONUtils.RemoveJSONNode(TReservedClaimNames.NOT_BEFORE, FJSON)
   else
     TJSONUtils.SetJSONValueFrom<TDateTime>(TReservedClaimNames.NOT_BEFORE, AValue, FJSON);
+end;
+
+procedure TJWTClaims.SetScope(const AValue: string);
+begin
+  if AValue = '' then
+    TJSONUtils.RemoveJSONNode(TReservedClaimNames.SCOPE, FJSON)
+  else
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.SCOPE, AValue, FJSON);
 end;
 
 procedure TJWTClaims.SetSubject(const AValue: string);
