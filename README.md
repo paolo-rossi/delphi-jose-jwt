@@ -86,7 +86,7 @@ If you need the OpenSSL library on the server, you can download the package at t
 
 
 ## :cookie: Prerequisite
-This library has been tested with **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin** and **Delphi XE6**, with some work it should compile with **D2010 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
+This library has been tested with **Delphi 10.4 Sydney**, **Delphi 10.3 Rio**, **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, and **Delphi 10.0 Seattle** but with some work it should compile with **D2010 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
 
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
