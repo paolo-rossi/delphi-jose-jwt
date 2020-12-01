@@ -181,6 +181,7 @@ var
   LCtx: PEVP_MD_CTX;
   LSha: PEVP_MD;
 begin
+  Result := False;
   if CompareMem(@PKCS1_X509_CERTIFICATE[1], @AKeyOrCertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
     Result := VerifyWithCertificate(AInput, ASignature, AKeyOrCertificate, AAlg)
   else
@@ -295,6 +296,7 @@ var
 begin
   LoadOpenSSL;
   LCertificateBIO := BIO_new(BIO_s_mem);
+  Result:=False;
   try
     BIO_write(LCertificateBIO, @ACertificate[0], Length(ACertificate));
     if not CompareMem(@PKCS1_X509_CERTIFICATE[1], @ACertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
@@ -345,6 +347,7 @@ var
 begin
   LoadOpenSSL;
   LCertificateBIO := BIO_new(BIO_s_mem);
+  Result:=False;
   try
     BIO_write(LCertificateBIO, @ACertificate[0], Length(ACertificate));
     if not CompareMem(@PKCS1_X509_CERTIFICATE[1], @ACertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
