@@ -123,7 +123,7 @@ type
     function SetSkipAllValidators: IJOSEConsumerBuilder;
     function SetSkipAllDefaultValidators: IJOSEConsumerBuilder;
 
-    function Build: TJOSEConsumer;
+    function Build: IJOSEConsumer;
   end;
 
   /// <summary>
@@ -190,7 +190,7 @@ type
     function SetSkipAllValidators: IJOSEConsumerBuilder;
     function SetSkipAllDefaultValidators: IJOSEConsumerBuilder;
 
-    function Build: TJOSEConsumer;
+    function Build: IJOSEConsumer;
   end;
 
 implementation
@@ -200,10 +200,12 @@ uses
   System.StrUtils,
   JOSE.Types.JSON;
 
-function TJOSEConsumerBuilder.Build: TJOSEConsumer;
+function TJOSEConsumerBuilder.Build: IJOSEConsumer;
 begin
   if not Assigned(FClaimsClass) then
     FClaimsClass := TJWTClaims;
+
+  BuildValidators(FDateValidatorParams);
 
   Result := TJOSEConsumer.Create(FClaimsClass)
     .SetKey(FKey)
@@ -211,10 +213,9 @@ begin
     .SetRequireEncryption(FEnableRequireEncryption)
     .SetSkipSignatureVerification(FSkipSignatureVerification)
     .SetSkipVerificationKeyValidation(FSkipVerificationKeyValidation)
-    .SetExpectedAlgorithms(FExpectedAlgorithms);
-
-  BuildValidators(FDateValidatorParams);
-  Result.SetValidators(FValidators);
+    .SetExpectedAlgorithms(FExpectedAlgorithms)
+    .SetValidators(FValidators)
+  ;
 end;
 
 procedure TJOSEConsumerBuilder.BuildValidators(const ADateParams: TJOSEDateClaimsParams);

@@ -472,23 +472,13 @@ object frmConsumer: TfrmConsumer
       Time = 42207.710233020840000000
       TabOrder = 14
     end
-    object edtConsumerEvaluationTime: TDateTimePicker
-      Left = 321
-      Top = 84
-      Width = 74
-      Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
-      Kind = dtkTime
-      TabOrder = 15
-    end
     object chkConsumerIssuedAt: TCheckBox
       Left = 209
       Top = 115
       Width = 69
       Height = 17
       Caption = 'Issued At'
-      TabOrder = 16
+      TabOrder = 15
     end
     object chkConsumerExpires: TCheckBox
       Left = 294
@@ -496,7 +486,7 @@ object frmConsumer: TfrmConsumer
       Width = 58
       Height = 17
       Caption = 'Expires'
-      TabOrder = 17
+      TabOrder = 16
     end
     object chkConsumerNotBefore: TCheckBox
       Left = 358
@@ -504,7 +494,7 @@ object frmConsumer: TfrmConsumer
       Width = 80
       Height = 17
       Caption = 'Not Before'
-      TabOrder = 18
+      TabOrder = 17
     end
     object edtSkewTime: TLabeledEdit
       Left = 10
@@ -514,7 +504,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Width = 100
       EditLabel.Height = 13
       EditLabel.Caption = 'Skew Time (seconds)'
-      TabOrder = 19
+      TabOrder = 18
       Text = '20'
     end
     object edtMaxFutureValidity: TLabeledEdit
@@ -525,8 +515,18 @@ object frmConsumer: TfrmConsumer
       EditLabel.Width = 140
       EditLabel.Height = 13
       EditLabel.Caption = 'Max Future Validity (minutes)'
-      TabOrder = 20
+      TabOrder = 19
       Text = '30'
+    end
+    object edtConsumerEvaluationTime: TDateTimePicker
+      Left = 321
+      Top = 82
+      Width = 74
+      Height = 23
+      Date = 42207.710233020840000000
+      Time = 42207.710233020840000000
+      Kind = dtkTime
+      TabOrder = 20
     end
   end
   object actListMain: TActionList

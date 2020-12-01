@@ -64,6 +64,7 @@ type
     function GetAsMilliSeconds: Int64;
     function GetAsSeconds: Int64;
     procedure SetAsSeconds(const AValue: Int64);
+    function GetAsISO8601: string;
   public
     constructor Create(AValue: TDateTime);
     class function FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate; static;
@@ -77,6 +78,7 @@ type
     property AsSeconds: Int64 read GetAsSeconds write SetAsSeconds;
     property AsMilliSeconds: Int64 read GetAsMilliSeconds;
     property AsDateTime: TDateTime read FValue write FValue;
+    property AsISO8601: string read GetAsISO8601;
   end;
 
   THeaderNames = class
@@ -100,6 +102,7 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    procedure Clear;
     function Clone: TJSONObject;
 
     property JSON: TJSONObject read FJSON write FJSON;
@@ -140,6 +143,12 @@ begin
 end;
 
 { TJOSEBase }
+
+procedure TJOSEBase.Clear;
+begin
+  FJSON.Free;
+  FJSON := TJSONObject.Create;
+end;
 
 function TJOSEBase.Clone: TJSONObject;
 begin
@@ -215,6 +224,11 @@ end;
 class function TJOSENumericDate.FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate;
 begin
   Result := TJOSENumericDate.Create(UnixToDateTime(ASecondsFromEpoch, False));
+end;
+
+function TJOSENumericDate.GetAsISO8601: string;
+begin
+  Result := DateToISO8601(FValue);
 end;
 
 function TJOSENumericDate.GetAsMilliSeconds: Int64;

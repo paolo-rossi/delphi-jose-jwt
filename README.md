@@ -34,7 +34,7 @@ The HMAC-RSA algorithm uses necessarily OpenSSL so if you plan to use this algor
 Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
 
 #### OpenSSL download
-If you need the OpenSSL library on the server, you can download the package at the [fulgan website](https://indy.fulgan.com/SSL/) (keep in mind to always update to the latest version and to match you application's bitness)
+If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page] (https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness)
 
 ## :question: What is JOSE
 
@@ -81,9 +81,8 @@ If you need the OpenSSL library on the server, you can download the package at t
 - Support of other crypto libraries (TMS Cryptography Pack, etc...)
 
 ##### Code
-- Unit Tests
+- More unit tests
 - More examples
-
 
 ## :cookie: Prerequisite
 This library has been tested with **Delphi 10.4 Sydney**, **Delphi 10.3 Rio**, **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, and **Delphi 10.0 Seattle** but with some work it should compile with **D2010 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
@@ -99,7 +98,7 @@ Delphi units used:
 - Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash
 
 #### Indy notes
-- Please use always the latest version [from github](https://github.com/IndySockets/Indy)
+- Please use always the latest version [from GitHub](https://github.com/IndySockets/Indy)
 
 ## :floppy_disk: Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!

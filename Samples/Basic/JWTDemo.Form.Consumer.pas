@@ -94,12 +94,12 @@ type
     chkConsumerJWTId: TCheckBox;
     lblEvaluationTime: TLabel;
     edtConsumerEvaluationDate: TDateTimePicker;
-    edtConsumerEvaluationTime: TDateTimePicker;
     chkConsumerIssuedAt: TCheckBox;
     chkConsumerExpires: TCheckBox;
     chkConsumerNotBefore: TCheckBox;
     edtSkewTime: TLabeledEdit;
     edtMaxFutureValidity: TLabeledEdit;
+    edtConsumerEvaluationTime: TDateTimePicker;
     procedure actBuildJWSExecute(Sender: TObject);
     procedure actBuildJWTConsumerExecute(Sender: TObject);
     procedure actBuildJWTConsumerUpdate(Sender: TObject);
@@ -123,7 +123,7 @@ type
     function BuildJWT: TJOSEBytes;
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
-    procedure ProcessConsumer(AConsumer: TJOSEConsumer);
+    procedure ProcessConsumer(AConsumer: IJOSEConsumer);
     function GetCompact: TJOSEBytes;
   public
     property Compact: TJOSEBytes read GetCompact write SetCompact;
@@ -242,8 +242,8 @@ begin
 
   LBuilder.SetEvaluationTime(edtConsumerEvaluationDate.Date + edtConsumerEvaluationTime.Time);
 
-  LBuilder.SetAllowedClockSkew(20, TJOSETimeUnit.Seconds);
-  LBuilder.SetMaxFutureValidity(20, TJOSETimeUnit.Minutes);
+  LBuilder.SetAllowedClockSkew(StrToInt(edtSkewTime.Text), TJOSETimeUnit.Seconds);
+  LBuilder.SetMaxFutureValidity(StrToInt(edtMaxFutureValidity.Text), TJOSETimeUnit.Minutes);
 
   // Build the consumer object
   memoLog.Lines.Clear;
@@ -274,7 +274,6 @@ var
 begin
   LJWT := TJWT.Create;
   try
-    SetNow;
 
     if chkIssuer.Checked then
       LJWT.Claims.Issuer := edtIssuer.Text;
@@ -317,10 +316,10 @@ end;
 
 function TfrmConsumer.GetCompact: TJOSEBytes;
 begin
-  Result := edtHeader.Text + ',' + edtPayload.Text + '.' + edtSignature.Text;
+  Result := edtHeader.Text + '.' + edtPayload.Text + '.' + edtSignature.Text;
 end;
 
-procedure TfrmConsumer.ProcessConsumer(AConsumer: TJOSEConsumer);
+procedure TfrmConsumer.ProcessConsumer(AConsumer: IJOSEConsumer);
 begin
   if Assigned(AConsumer) then
   try
@@ -329,7 +328,6 @@ begin
     on E: Exception do
       memoLog.Lines.Add(E.Message);
   end;
-  AConsumer.Free;
 end;
 
 procedure TfrmConsumer.SetCompact(const Value: TJOSEBytes);
@@ -354,14 +352,14 @@ begin
   edtIssuedAtDate.Date := FNow;
   edtIssuedAtTime.Time := FNow;
 
-  edtExpiresDate.Date := IncSecond(FNow, 5);
-  edtExpiresTime.Time := IncSecond(FNow, 5);
+  edtExpiresDate.Date := IncSecond(FNow, 30);
+  edtExpiresTime.Time := IncSecond(FNow, 30);
 
   edtNotBeforeDate.Date := IncMinute(FNow, -10);
   edtNotBeforeTime.Time := IncMinute(FNow, -10);
 
   edtConsumerEvaluationDate.Date := FNow;
-  edtConsumerEvaluationDate.Time := FNow;
+  edtConsumerEvaluationTime.Time := FNow;
 end;
 
 

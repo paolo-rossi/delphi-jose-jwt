@@ -192,18 +192,18 @@ begin
       begin
         if ADateParams.EvaluationTime.IsAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(
-            'The JWT is no longer valid - the evaluation time [%d] is on or after the Expiration Time [exp=%d] claim value %s',
-            [ADateParams.EvaluationTime.AsSeconds, JSONDate(LClaims.Expiration), ADateParams.SkewMessage])
+            'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value %s',
+            [ADateParams.EvaluationTime.AsISO8601, DateToISO8601(LClaims.Expiration, False), ADateParams.SkewMessage])
           );
 
         if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the IssuedAt (iat=%d) claim value',
-            [LExpiration.AsSeconds, LIssuedAt.AsSeconds])
+          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the IssuedAt (iat=%s) claim value',
+            [LExpiration.AsISO8601, LIssuedAt.AsISO8601])
           );
 
         if LClaims.HasNotBefore and LExpiration.IsBefore(LNotBefore, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the NotBefore (nbf=%d) claim value',
-            [LExpiration.AsSeconds, LNotBefore.AsSeconds])
+          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value',
+            [LExpiration.AsISO8601, LNotBefore.AsISO8601])
           );
 
         if ADateParams.MaxFutureValidityInMinutes > 0 then
@@ -214,16 +214,16 @@ begin
             ADateParams.EvaluationTime.AsSeconds;
 
           if LDeltaInSeconds > (ADateParams.MaxFutureValidityInMinutes * 60) then
-            Exit(Format('The Expiration Time [exp=%d] claim value cannot be more than [%d] minutes in the future relative to the evaluation time %[d] %s',
-              [LExpiration.AsSeconds, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsSeconds, ADateParams.SkewMessage])
+            Exit(Format('The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s] %s',
+              [LExpiration.AsISO8601, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsISO8601, ADateParams.SkewMessage])
             );
         end;
       end;
 
       if LClaims.HasNotBefore then
         if (ADateParams.EvaluationTime.AsSeconds + ADateParams.AllowedClockSkewSeconds) < LNotBefore.AsSeconds then
-          Exit(Format('The JWT is not yet valid as the evaluation time [%d] is before the NotBefore [nbf=%d] claim time %s',
-            [ADateParams.EvaluationTime.AsSeconds, LNotBefore.AsSeconds, ADateParams.SkewMessage])
+          Exit(Format('The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time %s',
+            [ADateParams.EvaluationTime.AsISO8601, LNotBefore.AsISO8601, ADateParams.SkewMessage])
           );
     end;
   ;

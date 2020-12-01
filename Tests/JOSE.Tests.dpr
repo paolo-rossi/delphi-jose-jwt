@@ -49,6 +49,7 @@ var
   LLogger : ITestLogger;
   LNUnitLogger : ITestLogger;
 begin
+  ReportMemoryLeaksOnShutdown := True;
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
