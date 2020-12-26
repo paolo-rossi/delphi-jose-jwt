@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -20,26 +20,47 @@
 {                                                                              }
 {******************************************************************************}
 
-program JWTDemo;
+unit JOSE.Common.Utils;
+
+interface
 
 uses
-  Vcl.Forms,
-  JWTDemo.Form.Main in 'JWTDemo.Form.Main.pas' {frmMain},
-  JWTDemo.Form.Debugger in 'JWTDemo.Form.Debugger.pas' {frmDebugger},
-  JWTDemo.Form.Misc in 'JWTDemo.Form.Misc.pas' {frmMisc},
-  JWTDemo.Form.Simple in 'JWTDemo.Form.Simple.pas' {frmSimple},
-  JWTDemo.Form.Consumer in 'JWTDemo.Form.Consumer.pas' {frmConsumer},
-  JWTDemo.Form.Claims in 'JWTDemo.Form.Claims.pas' {frmClaims},
-  JWTDemo.Form.OpenSSL in 'JWTDemo.Form.OpenSSL.pas' {frmOpenSSL};
+  System.SysUtils;
 
-{$R *.res}
+type
+  TUtils = class
+    class function BinToSingleHex(ABuffer: TBytes): string; overload;
+    class function BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string; overload;
+  end;
 
+implementation
+
+class function TUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
+const
+  Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
+var
+  LIndex: Integer;
+  LByte: PByte;
 begin
-  {$IFDEF DEBUG}
-  ReportMemoryLeaksOnShutdown := True;
-  {$ENDIF }
-  Application.Initialize;
-  Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TfrmMain, frmMain);
-  Application.Run;
+  Result := '';
+  for LIndex := 0 to ABufferLen - 1 do
+  begin
+    LByte := Pointer(Integer(ABuffer) + LIndex);
+    Result := Result + string(Convert[(LByte^) and $F]);
+  end;
+end;
+
+class function TUtils.BinToSingleHex(ABuffer: TBytes): string;
+const
+  Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
+var
+  LIndex: Integer;
+begin
+  Result := '';
+  for LIndex := 0 to Length(ABuffer) - 1 do
+  begin
+    Result := Result + string(Convert[Byte(ABuffer[LIndex]) and $F]);
+  end;
+end;
+
 end.

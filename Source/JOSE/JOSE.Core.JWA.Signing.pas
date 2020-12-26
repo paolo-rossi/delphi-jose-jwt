@@ -35,6 +35,7 @@ uses
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
   JOSE.Signing.RSA,
+  JOSE.Signing.ECDSA,
   JOSE.Core.Base,
   JOSE.Core.Parts,
   JOSE.Core.JWA,

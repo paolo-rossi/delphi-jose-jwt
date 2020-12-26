@@ -31,7 +31,8 @@ uses
   JWTDemo.Form.Consumer,
   JWTDemo.Form.Simple,
   JWTDemo.Form.Claims,
-  JWTDemo.Form.Misc;
+  JWTDemo.Form.Misc,
+  JWTDemo.Form.OpenSSL;
 
 type
   TfrmMain = class(TForm)
@@ -56,6 +57,7 @@ begin
   PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
   PasteForm(TfrmConsumer, 'tsConsumer', 'JWT Consumer (Claim Validation)');
   PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims');
+  PasteForm(TfrmOpenSSL, 'tsOpenSSL', 'OpenSSL');
   //PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
   pgcMain.ActivePageIndex := 0;
 end;

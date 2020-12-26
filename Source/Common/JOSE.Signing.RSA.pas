@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -26,7 +26,10 @@ interface
 
 uses
   System.SysUtils,
-  IdGlobal, IdCTypes, IdSSLOpenSSLHeaders,
+  IdGlobal, IdCTypes,
+  IdSSLOpenSSLHeaders,
+  JOSE.OpenSSL.Headers,
+  JOSE.Signing.Base,
   JOSE.Encoding.Base64;
 
 type
@@ -36,50 +39,24 @@ type
     function ToString: string;
   end;
 
-  TRSA = class
+  TRSA = class(TSigningBase)
   private
-    const PKCS1_SIGNATURE_PUBKEY: RawByteString = '-----BEGIN RSA PUBLIC KEY-----';
-    const PKCS1_X509_CERTIFICATE: RawByteString = '-----BEGIN CERTIFICATE-----';
-  private
-    class var _PEM_read_bio_RSA_PUBKEY: function(bp: PBIO; x: PPRSA; cb: ppem_password_cb; u: Pointer): PRSA cdecl;
-    class var _EVP_MD_CTX_create: function: PEVP_MD_CTX cdecl;
-    class var _EVP_MD_CTX_destroy: procedure(ctx: PEVP_MD_CTX); cdecl;
-  private
-    class procedure LoadOpenSSL;
-    class function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
-    class function VerifyCertificate(const ACertificate: TBytes): Boolean;
+    class function LoadPublicKey(const AKey: TBytes): PRSA;
+    class function LoadPrivateKey(const AKey: TBytes): PRSA;
+    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PRSA;
+
+    class function InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
+    class function InternalVerify(const AInput, ASignature: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): Boolean;
   public
     class function Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
-    class function Verify(const AInput, ASignature, AKeyOrCertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
-    class function VerifyPublicKey(const AKeyOrCertificate: TBytes): Boolean;
+    class function Verify(const AInput, ASignature, AKey: TBytes; AAlg: TRSAAlgorithm): Boolean;
+    class function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
+
+    class function VerifyPublicKey(const AKey: TBytes): Boolean;
     class function VerifyPrivateKey(const AKey: TBytes): Boolean;
   end;
 
 implementation
-
-{$IFDEF MSWINDOWS}
-uses
-  WinApi.Windows;
-{$ENDIF}
-
-function ArrayToString(const ASource: array of Char): string;
-var
-  LSourcePointer: PChar;
-  LTarget: string;
-begin
-  LSourcePointer := Addr(ASource);
-  SetString(LTarget, LSourcePointer, Length(ASource));
-  Result := LTarget;
-end;
-
-// Get OpenSSL error and message text
-function ERR_GetErrorMessage_OpenSSL: string;
-var
-  LErrMsg: array[0..160] of Char;
-begin
-  ERR_error_string(ERR_get_error, @LErrMsg);
-  Result := ArrayToString(LErrMsg);
-end;
 
 { TRSAAlgorithmHelper }
 
@@ -106,289 +83,229 @@ end;
 
 { TRSA }
 
-class function TRSA.Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
+class function TRSA.InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
 var
-  LPrivKeyBIO: pBIO;
-  LPrivKey: pEVP_PKEY;
-  LRsa: pRSA;
+  LHash: TBytes;
+  LNID: Integer;
+  LRsaLen: Integer;
+  LShaLen: Integer;
+begin
+  case AAlg of
+    RS256:
+    begin
+      LNID := JoseSSL.NID_sha256;
+      LShaLen := SHA256_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA256(@AInput[0], Length(AInput), @LHash[0]);
+    end;
+    RS384:
+    begin
+      LNID := JoseSSL.NID_sha384;
+      LShaLen := SHA384_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA384(@AInput[0], Length(AInput), @LHash[0]);
+    end;
+    RS512:
+    begin
+      LNID := JoseSSL.NID_sha512;
+      LShaLen := SHA512_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
+    end
+  else
+    raise ESignException.Create('[RSA] Unsupported signing algorithm!');
+  end;
 
-  LCtx: PEVP_MD_CTX;
-  LSha: PEVP_MD;
+  LRsaLen := JoseSSL.RSA_size(AKey);
+  SetLength(Result, LRsaLen);
+  if JoseSSL.RSA_sign(LNID, @LHash[0], LShaLen, @Result[0], @LRsaLen, AKey) = 0 then
+    raise ESignException.Create('[RSA] Unable to sign RSA message digest');
+end;
 
-  LLen: Integer;
-  LSig: Pointer;
+class function TRSA.InternalVerify(const AInput, ASignature: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): Boolean;
+var
+  LResult: Integer;
+  LHash: TBytes;
+  LNID: Integer;
+  LShaLen: Integer;
+begin
+  case AAlg of
+    RS256:
+    begin
+      LNID := JoseSSL.NID_sha256;
+      LShaLen := SHA256_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA256(@AInput[0], Length(AInput), @LHash[0]);
+    end;
+    RS384:
+    begin
+      LNID := JoseSSL.NID_sha384;
+      LShaLen := SHA384_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA384(@AInput[0], Length(AInput), @LHash[0]);
+    end;
+    RS512:
+    begin
+      LNID := JoseSSL.NID_sha512;
+      LShaLen := SHA512_DIGEST_LENGTH;
+      SetLength(LHash, LShaLen);
+      JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
+    end
+  else
+    raise ESignException.Create('[RSA] Unsupported signing algorithm!');
+  end;
+  LResult := JoseSSL.RSA_verify(LNID, @LHash[0], LShaLen, @ASignature[0], Length(ASignature), AKey);
+
+  Result := LResult = 1;
+end;
+
+class function TRSA.LoadPrivateKey(const AKey: TBytes): PRSA;
+var
+  LBio: PBIO;
+begin
+  // Load Private RSA Key into RSA object
+  LBio := BIO_new(BIO_s_mem);
+  try
+    BIO_write(LBio, @AKey[0], Length(AKey));
+    Result := PEM_read_bio_RSAPrivateKey(LBio, nil, nil, nil);
+    if Result = nil then
+      raise ESignException.Create('[RSA] Unable to load private key: ' + JOSESSL.GetLastError);
+  finally
+    BIO_free(LBio);
+  end;
+end;
+
+class function TRSA.LoadPublicKey(const AKey: TBytes): PRSA;
+var
+  LBio: PBIO;
+begin
+  // Load Public RSA Key into RSA object
+  LBio := BIO_new(BIO_s_mem);
+  try
+    BIO_write(LBio, @AKey[0], Length(AKey));
+    if CompareMem(@PEM_PUBKEY_PKCS1[1], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+      Result := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
+    else
+      Result := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    if Result = nil then
+      raise ESignException.Create('[RSA] Unable to load public key: ' + JOSESSL.GetLastError);
+  finally
+    BIO_free(LBio);
+  end;
+end;
+
+class function TRSA.LoadPublicKeyFromCert(const ACertificate: TBytes): PRSA;
+var
+  LCer: PX509;
+  LAlg: Integer;
+  LKey: PEVP_PKEY;
 begin
   LoadOpenSSL;
 
-  // Load Private RSA Key into RSA object
-  LPrivKeyBIO := BIO_new(BIO_s_mem);
+  LCer := LoadCertificate(ACertificate);
   try
-    BIO_write(LPrivKeyBIO, @AKey[0], Length(AKey));
-    LRsa := PEM_read_bio_RSAPrivateKey(LPrivKeyBIO, nil, nil, nil);
-    if LRsa = nil then
-      raise Exception.Create('[RSA] Unable to load private key: ' + ERR_GetErrorMessage_OpenSSL);
-  finally
-    BIO_free(LPrivKeyBIO);
-  end;
+    LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
+    if LAlg <> NID_rsaEncryption then
+      raise ESignException.Create('[CERT] Unsupported algorithm type in X509 public key (RSA expected)');
 
-  try
-    // Extract Private key from RSA object
-    LPrivKey := EVP_PKEY_new();
-    if EVP_PKEY_set1_RSA(LPrivKey, LRsa) <> 1 then
-      raise Exception.Create('[RSA] Unable to extract private key: ' + ERR_GetErrorMessage_OpenSSL);
+    LKey := X509_PUBKEY_get(LCer.cert_info.key);
+    if not Assigned(LKey) then
+      raise ESignException.Create('[CERT] Error extracting public key from X509 certificate');
     try
-      case AAlg of
-        RS256: LSha := EVP_sha256();
-        RS384: LSha := EVP_sha384();
-        RS512: LSha := EVP_sha512();
-      else
-        raise Exception.Create('[RSA] Unsupported signing algorithm!');
-      end;
-
-      LCtx := _EVP_MD_CTX_create;
-      try
-        if EVP_DigestSignInit(LCtx, nil, LSha, nil, LPrivKey ) <> 1 then
-          raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
-        if EVP_DigestSignUpdate(LCtx, @AInput[0], Length(AInput) ) <> 1 then
-          raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
-
-        // Get signature, first read signature len
-        EVP_DigestSignFinal(LCtx, nil, @LLen);
-        LSig := OPENSSL_malloc(LLen);
-        try
-          EVP_DigestSignFinal(LCtx, LSig, @LLen);
-          SetLength(Result, LLen);
-          Move(LSig^, Result[0], LLen);
-        finally
-          CRYPTO_free(LSig);
-        end;
-      finally
-        _EVP_MD_CTX_destroy(LCtx);
-      end;
+      Result := EVP_PKEY_get1_RSA(LKey);
+      if not Assigned(Result) then
+        raise ESignException.Create('[CERT] Error extracting RSA key from EVP_PKEY');
     finally
-      EVP_PKEY_free(LPrivKey);
+      EVP_PKEY_free(LKey);
     end;
+  finally
+    X509_free(LCer);
+  end;
+end;
+
+class function TRSA.Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
+var
+  LRsa: PRSA;
+begin
+  LoadOpenSSL;
+
+  LRsa := LoadPrivateKey(AKey);
+  try
+    Result := InternalSign(AInput, LRsa, AAlg);
   finally
     RSA_Free(LRsa);
   end;
 end;
 
-class function TRSA.Verify(const AInput, ASignature, AKeyOrCertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
+class function TRSA.Verify(const AInput, ASignature, AKey: TBytes; AAlg: TRSAAlgorithm): Boolean;
 var
-  LPubKeyBIO: pBIO;
-  LPubKey: pEVP_PKEY;
-  LRsa: pRSA;
-  LCtx: PEVP_MD_CTX;
-  LSha: PEVP_MD;
+  LRsa: PRSA;
 begin
-  Result := False;
-  if CompareMem(@PKCS1_X509_CERTIFICATE[1], @AKeyOrCertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
-    Result := VerifyWithCertificate(AInput, ASignature, AKeyOrCertificate, AAlg)
-  else
-  begin
-    LoadOpenSSL;
+  LoadOpenSSL;
 
-    // Load Public RSA Key into RSA object
-    LPubKeyBIO := BIO_new(BIO_s_mem);
-    try
-      BIO_write(LPubKeyBIO, @AKeyOrCertificate[0], Length(AKeyOrCertificate));
-      if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKeyOrCertificate[0], Length(PKCS1_SIGNATURE_PUBKEY)) then
-        LRsa := PEM_read_bio_RSAPublicKey(LPubKeyBIO, nil, nil, nil)
-      else
-        LRsa := _PEM_read_bio_RSA_PUBKEY(LPubKeyBIO, nil, nil, nil);
-      if LRsa = nil then
-        raise Exception.Create('[RSA] Unable to load public key: ' + ERR_GetErrorMessage_OpenSSL);
-    finally
-      BIO_free(LPubKeyBIO);
-    end;
-
-    try
-      // Extract Public key from RSA object
-      LPubKey := EVP_PKEY_new();
-      try
-        if EVP_PKEY_set1_RSA(LPubKey, LRsa) <> 1 then
-          raise Exception.Create('[RSA] Unable to extract public key: ' + ERR_GetErrorMessage_OpenSSL);
-
-        case AAlg of
-          RS256: LSha := EVP_sha256();
-          RS384: LSha := EVP_sha384();
-          RS512: LSha := EVP_sha512();
-        else
-          raise Exception.Create('[RSA] Unsupported signing algorithm!');
-        end;
-
-        LCtx := _EVP_MD_CTX_create;
-        try
-          if EVP_DigestVerifyInit(LCtx, nil, LSha, nil, LPubKey) <> 1 then
-            raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
-          if EVP_DigestVerifyUpdate(LCtx, @AInput[0], Length(AInput)) <> 1 then
-            raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
-
-          Result := EVP_DigestVerifyFinal(LCtx, @ASignature[0], Length(ASignature)) = 1;
-        finally
-          _EVP_MD_CTX_destroy(LCtx);
-        end;
-      finally
-        EVP_PKEY_free(LPubKey);
-      end;
-    finally
-      RSA_Free(LRsa);
-    end;
+  LRsa := LoadPublicKey(AKey);
+  try
+    Result := InternalVerify(AInput, ASignature, LRsa, AAlg);
+  finally
+    RSA_Free(LRsa);
   end;
 end;
 
 class function TRSA.VerifyPrivateKey(const AKey: TBytes): Boolean;
 var
-  LPubKeyBIO: pBIO;
-  LRsa: pRSA;
+  LBio: PBIO;
+  LRsa: PRSA;
 begin
   LoadOpenSSL;
 
-  // Load Public RSA Key
-  LPubKeyBIO := BIO_new(BIO_s_mem);
+  // Load Private RSA Key
+  LBio := BIO_new(BIO_s_mem);
   try
-    BIO_write(LPubKeyBIO, @AKey[0], Length(AKey));
-    LRsa := PEM_read_bio_RSAPrivateKey(LPubKeyBIO, nil, nil, nil);
+    BIO_write(LBio, @AKey[0], Length(AKey));
+    LRsa := PEM_read_bio_RSAPrivateKey(LBio, nil, nil, nil);
     Result := (LRsa <> nil);
     if Result then
       RSA_Free(LRsa);
   finally
-    BIO_free(LPubKeyBIO);
+    BIO_free(LBio);
   end;
 end;
 
-class function TRSA.VerifyPublicKey(const AKeyOrCertificate: TBytes): Boolean;
+class function TRSA.VerifyPublicKey(const AKey: TBytes): Boolean;
 var
-  LPubKeyBIO: pBIO;
-  LRsa: pRSA;
+  LBio: PBIO;
+  LRsa: PRSA;
 begin
-  if CompareMem(@PKCS1_X509_CERTIFICATE[1], @AKeyOrCertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
-    Result := VerifyCertificate(AKeyOrCertificate)
-  else
-  begin
-    LoadOpenSSL;
+  LoadOpenSSL;
 
-    // Load Public RSA Key
-    LPubKeyBIO := BIO_new(BIO_s_mem);
-    try
-      BIO_write(LPubKeyBIO, @AKeyOrCertificate[0], Length(AKeyOrCertificate));
-      if CompareMem(@PKCS1_SIGNATURE_PUBKEY[1], @AKeyOrCertificate[0], Length(PKCS1_SIGNATURE_PUBKEY)) then
-        LRsa := PEM_read_bio_RSAPublicKey(LPubKeyBIO, nil, nil, nil)
-      else
-        LRsa := _PEM_read_bio_RSA_PUBKEY(LPubKeyBIO, nil, nil, nil);
-      Result := (LRsa <> nil);
-      if Result then
-        RSA_Free(LRsa);
-    finally
-      BIO_free(LPubKeyBIO);
-    end;
+  // Load Public RSA Key
+  LBio := BIO_new(BIO_s_mem);
+  try
+    BIO_write(LBio, @AKey[0], Length(AKey));
+    if CompareMem(@PEM_PUBKEY_PKCS1[1], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+      LRsa := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
+    else
+      LRsa := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    Result := (LRsa <> nil);
+    if Result then
+      RSA_Free(LRsa);
+  finally
+    BIO_free(LBio);
   end;
 end;
 
 class function TRSA.VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
 var
-  LCertificateBIO: pBIO;
-  LX509: pX509;
-  LPubKey: PEVP_PKEY;
-  AlgID: integer;
-  LCtx: PEVP_MD_CTX;
-  LSha: PEVP_MD;
+  LRsa: PRSA;
 begin
   LoadOpenSSL;
-  LCertificateBIO := BIO_new(BIO_s_mem);
-  Result:=False;
+
+  LRsa := LoadPublicKeyFromCert(ACertificate);
   try
-    BIO_write(LCertificateBIO, @ACertificate[0], Length(ACertificate));
-    if not CompareMem(@PKCS1_X509_CERTIFICATE[1], @ACertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
-      raise Exception.Create('[CERT] No X509 certificate received');
-
-    LX509 := PEM_read_bio_X509(LCertificateBIO, nil, nil, nil);
-    if not Assigned(LX509) then
-      raise Exception.Create('[CERT] Failure by X509 certificate loading');
-
-    LPubKey := X509_PUBKEY_get(LX509.cert_info.key);
-    if not Assigned(LPubKey) then
-      raise Exception.Create('[CERT] Failure by public key extracting from X509 certificate');
-
-    AlgID := OBJ_obj2nid(LX509.cert_info.key.algor.algorithm);
-    if AlgID <> NID_rsaEncryption then
-      raise Exception.Create('[CERT] Unsupported algorithm type in X509 public key (RSA expected)');
-
-    case AAlg of
-      RS256: LSha := EVP_sha256();
-      RS384: LSha := EVP_sha384();
-      RS512: LSha := EVP_sha512();
-      else
-        raise Exception.Create('[RSA] Unsupported signing algorithm!');
-    end;
-
-    LCtx := _EVP_MD_CTX_create;
-    try
-      if EVP_DigestVerifyInit(LCtx, nil, LSha, nil, LPubKey) <> 1 then
-        raise Exception.Create('[RSA] Unable to init context: ' + ERR_GetErrorMessage_OpenSSL);
-      if EVP_DigestVerifyUpdate(LCtx, @AInput[0], Length(AInput)) <> 1 then
-        raise Exception.Create('[RSA] Unable to update context with payload: ' + ERR_GetErrorMessage_OpenSSL);
-
-      Result := EVP_DigestVerifyFinal(LCtx, @ASignature[0], Length(ASignature)) = 1;
-    finally
-      _EVP_MD_CTX_destroy(LCtx);
-    end;
+    Result := InternalVerify(AInput, ASignature, LRsa, AAlg);
   finally
-    BIO_free(LCertificateBIO);
+    RSA_free(LRsa);
   end;
 end;
-
-class function TRSA.VerifyCertificate(const ACertificate: TBytes): Boolean;
-var
-  LCertificateBIO: pBIO;
-  LX509: pX509;
-  LPubKey: PEVP_PKEY;
-  AlgID: integer;
-begin
-  LoadOpenSSL;
-  LCertificateBIO := BIO_new(BIO_s_mem);
-  Result:=False;
-  try
-    BIO_write(LCertificateBIO, @ACertificate[0], Length(ACertificate));
-    if not CompareMem(@PKCS1_X509_CERTIFICATE[1], @ACertificate[0], Length(PKCS1_X509_CERTIFICATE)) then
-      raise Exception.Create('[CERT] No X509 certificate received');
-
-    LX509 := PEM_read_bio_X509(LCertificateBIO, nil, nil, nil);
-    LPubKey := X509_PUBKEY_get(LX509.cert_info.key);
-    AlgID := OBJ_obj2nid(LX509.cert_info.key.algor.algorithm);
-    Result := Assigned(LX509) and Assigned(LPubKey) and (AlgID = NID_rsaEncryption);
-  finally
-    BIO_free(LCertificateBIO);
-  end;
-end;
-
-class procedure TRSA.LoadOpenSSL;
-begin
-  if not IdSSLOpenSSLHeaders.Load then
-    raise Exception.Create('[RSA] Unable to load OpenSSL libraries');
-
-  if @EVP_DigestVerifyInit = nil then
-    raise Exception.Create('[RSA] Please, use OpenSSL 1.0.0. or newer!');
-
-  if GetCryptLibHandle <> 0 then
-  begin
-    _PEM_read_bio_RSA_PUBKEY := GetProcAddress(GetCryptLibHandle, 'PEM_read_bio_RSA_PUBKEY');
-    if @_PEM_read_bio_RSA_PUBKEY = nil then
-      raise Exception.Create('[RSA] Unable to get proc address for "PEM_read_bio_RSA_PUBKEY"');
-
-    _EVP_MD_CTX_create := GetProcAddress(GetCryptLibHandle, 'EVP_MD_CTX_create');
-    if @_EVP_MD_CTX_create = nil then
-      raise Exception.Create('[RSA] Unable to get proc address for "EVP_MD_CTX_create"');
-
-    _EVP_MD_CTX_destroy := GetProcAddress(GetCryptLibHandle, 'EVP_MD_CTX_destroy');
-    if @_EVP_MD_CTX_create = nil then
-      raise Exception.Create('[RSA] Unable to get proc address for "EVP_MD_CTX_destroy"');
-  end;
-end;
-
-initialization
-  TRSA._PEM_read_bio_RSA_PUBKEY := nil;
-  TRSA._EVP_MD_CTX_create := nil;
-  TRSA._EVP_MD_CTX_destroy := nil;
 
 end.

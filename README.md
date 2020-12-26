@@ -27,8 +27,8 @@ Prior to Delphi 10 Seattle the the HMAC-SHA algorithm uses OpenSSL through the I
 
 In Delphi 10 Seattle or newer Delphi versions the HMAC algorithm is also is the System.Hash unit so OpenSSL is not needed.
 
-#### HMAC using RSA algorithm
-The HMAC-RSA algorithm uses necessarily OpenSSL so if you plan to use this algorithm to sign your token you have to download and deploy OpenSSL (on the server).
+#### HMAC using RSA or ECDSA algorithm
+The HMAC-RSA(ECDSA) algorithm uses necessarily OpenSSL so if you plan to use these algorithms to sign your token you have to download and deploy OpenSSL (on the server).
 
 #### Client-side considerations
 Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
@@ -63,7 +63,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 - `NONE algorithm`: supported (but discouraged)
 - `HS256`, `HS384`, `HS512 algorithms`: supported
 - `RS256`, `RS384`, `RS512 algorithms`: supported (thanks to [SirAlex](https://github.com/SirAlex))
-- `ES256`, `ES384`, `ES512` algorithms - not (yet) supported
+- `ES256`, `ES384`, `ES512 algorithms`: supported (new!)
 
 #### Security notes
 - This library is not affected by the `None` algorithm vulnerability
@@ -214,7 +214,7 @@ Using the new class `TJOSEConsumer` it's very easy to validate the token's claim
 
 ```delphi
 var
-  LConsumer: TJOSEConsumer;
+  LConsumer: IJOSEConsumer;
 begin
   LConsumer := TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
@@ -243,7 +243,6 @@ begin
     on E: Exception do
       memoLog.Lines.Add(E.Message);
   end;
-  LConsumer.Free;
 ```
 
 <hr />

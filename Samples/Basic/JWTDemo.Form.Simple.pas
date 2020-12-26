@@ -153,8 +153,8 @@ begin
     memoCompact.Lines.Add(FCompact);
 
     // Header and Claims JSON representation
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
+    memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+    memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
   finally
     LToken.Free;
   end;
