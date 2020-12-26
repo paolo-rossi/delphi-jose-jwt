@@ -20,7 +20,7 @@
 {                                                                              }
 {******************************************************************************}
 
-unit JOSE.Common.Utils;
+unit JOSE.Types.Utils;
 
 interface
 
@@ -28,14 +28,14 @@ uses
   System.SysUtils;
 
 type
-  TUtils = class
+  TJOSEUtils = class
     class function BinToSingleHex(ABuffer: TBytes): string; overload;
     class function BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string; overload;
   end;
 
 implementation
 
-class function TUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
+class function TJOSEUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
 const
   Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
 var
@@ -50,7 +50,7 @@ begin
   end;
 end;
 
-class function TUtils.BinToSingleHex(ABuffer: TBytes): string;
+class function TJOSEUtils.BinToSingleHex(ABuffer: TBytes): string;
 const
   Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
 var

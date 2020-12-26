@@ -159,7 +159,7 @@ type
 implementation
 
 uses
-  JOSE.Common.Utils;
+  JOSE.Types.Utils;
 
 class function JoseSSL.LoadFunctionCLib(const AFunctionName: string; const ARaiseException: Boolean = True): Pointer;
 begin

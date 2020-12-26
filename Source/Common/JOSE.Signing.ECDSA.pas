@@ -30,7 +30,7 @@ uses
   IdGlobal, IdCTypes,
   IdSSLOpenSSLHeaders,
   JOSE.OpenSSL.Headers,
-  JOSE.Common.Utils,
+  JOSE.Types.Utils,
   JOSE.Signing.Base,
   JOSE.Encoding.Base64;
 
@@ -166,11 +166,11 @@ begin
   try
     LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
     if LAlg <> JoseSSL.NID_X9_62_id_ecPublicKey then
-      raise ESignException.Create('[CERT] Unsupported algorithm type in X509 public key (RSA expected)');
+      raise ESignException.Create('[ECDSA] Unsupported algorithm type in X509 public key (RSA expected)');
 
     Result := X509_PUBKEY_get(LCer.cert_info.key);
     if not Assigned(Result) then
-      raise ESignException.Create('[CERT] Error extracting public key from X509 certificate');
+      raise ESignException.Create('[ECDSA] Error extracting public key from X509 certificate');
   finally
     X509_free(LCer);
   end;
