@@ -53,7 +53,7 @@
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_UnitSearchPath>..\..\Source;..\..\Source\Common;..\..\Source\JOSE;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_DcuOutput>$(Platform)\$(Config)</DCC_DcuOutput>
-        <DCC_ExeOutput>$(Platform)\$(Config)</DCC_ExeOutput>
+        <DCC_ExeOutput>..\Exe</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>

@@ -1,7 +1,7 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'frmMain'
+  Caption = 'Custom Claims Demo'
   ClientHeight = 530
   ClientWidth = 685
   Color = clBtnFace

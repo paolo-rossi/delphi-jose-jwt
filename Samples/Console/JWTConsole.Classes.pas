@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,8 +25,8 @@ unit JWTConsole.Classes;
 interface
 
 uses
-  System.SysUtils,
-  System.Classes,
+  System.SysUtils, System.Classes,
+
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWK,
@@ -38,7 +38,6 @@ type
   public
     class function CompileSampleToken: string;
   end;
-
 
 implementation
 
@@ -58,7 +57,7 @@ begin
   LToken := TJWT.Create();
   try
     LToken.Claims.Issuer := 'Delphi JOSE Library';
-    LToken.Claims.IssuedAt := EncodeDateTime(2017, 3, 10, 10, 20, 30, 0);
+    LToken.Claims.IssuedAt := EncodeDateTime(2021, 10, 2, 2, 30, 50, 0);
     LToken.Claims.Expiration := LToken.Claims.IssuedAt + 1;
 
     LSigner := TJWS.Create(LToken);
