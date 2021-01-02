@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="http://jwt.io/">
-    <img src="https://user-images.githubusercontent.com/4686497/59972946-554a2180-9598-11e9-9842-8ab83cf3a97d.png" alt="Delphi JWT Library" width="250" />
+    <img src="https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png" alt="Delphi JWT Library" width="250" />
   </a>
 </p>
 
@@ -54,7 +54,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 #### Token deserialization
 - One method call to validate and deserialize a compact token
 
-#### Claims validation
+#### Token & Claims validation (Consumer)
 - `exp`, `iat`, `nbf`, `aud`, `iss`, `sub` claims validatation: supported
 - Easy to use `TJOSEConsumer` and `TJOSEConsumerBuilder` classes to validate token with a fine granularity
 - Easy to write custom validators!
@@ -64,6 +64,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 - `HS256`, `HS384`, `HS512 algorithms`: supported
 - `RS256`, `RS384`, `RS512 algorithms`: supported (thanks to [SirAlex](https://github.com/SirAlex))
 - `ES256`, `ES384`, `ES512 algorithms`: supported (new!)
+- `ES256K algorithm`: supported (new!)
 
 #### Security notes
 - This library is not affected by the `None` algorithm vulnerability

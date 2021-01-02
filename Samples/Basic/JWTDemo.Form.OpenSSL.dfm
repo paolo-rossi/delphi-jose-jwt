@@ -218,7 +218,6 @@ object frmOpenSSL: TfrmOpenSSL
     Color = clBlack
     ParentBackground = False
     TabOrder = 2
-    ExplicitWidth = 838
     DesignSize = (
       987
       41)
@@ -267,7 +266,6 @@ object frmOpenSSL: TfrmOpenSSL
       Caption = 'Sign'
       TabOrder = 1
       OnClick = btnSignClick
-      ExplicitLeft = 593
     end
   end
   object pnlSignedText: TPanel
@@ -313,7 +311,6 @@ object frmOpenSSL: TfrmOpenSSL
       ScrollBars = ssVertical
       TabOrder = 0
       WantReturns = False
-      ExplicitHeight = 620
     end
   end
 end

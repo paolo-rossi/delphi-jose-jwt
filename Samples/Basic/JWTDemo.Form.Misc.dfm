@@ -22,8 +22,6 @@ object frmMisc: TfrmMisc
     Height = 232
     Align = alBottom
     TabOrder = 0
-    ExplicitTop = 216
-    ExplicitWidth = 635
   end
   object btnTestJSON: TButton
     Left = 8

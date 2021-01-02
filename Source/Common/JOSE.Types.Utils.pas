@@ -29,11 +29,15 @@ uses
 
 type
   TJOSEUtils = class
+    class function DirectoryUp(const ADirectory: string; ALevel: Integer = 1): string;
     class function BinToSingleHex(ABuffer: TBytes): string; overload;
     class function BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string; overload;
   end;
 
 implementation
+
+uses
+  System.IOUtils;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
 const
@@ -48,6 +52,15 @@ begin
     LByte := Pointer(Integer(ABuffer) + LIndex);
     Result := Result + string(Convert[(LByte^) and $F]);
   end;
+end;
+
+class function TJOSEUtils.DirectoryUp(const ADirectory: string; ALevel: Integer): string;
+var
+  LIndex: Integer;
+begin
+  Result := ADirectory;
+  for LIndex := 1 to ALevel do
+    Result := TDirectory.GetParent(Result);
 end;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: TBytes): string;

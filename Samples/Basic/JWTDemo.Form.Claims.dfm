@@ -34,7 +34,6 @@ object frmClaims: TfrmClaims
     ParentFont = False
     ScrollBars = ssVertical
     TabOrder = 0
-    ExplicitTop = 391
   end
   object grpClaims: TGroupBox
     Left = 8
@@ -389,6 +388,5 @@ object frmClaims: TfrmClaims
     ParentFont = False
     ScrollBars = ssVertical
     TabOrder = 2
-    ExplicitHeight = 370
   end
 end

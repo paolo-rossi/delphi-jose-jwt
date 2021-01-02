@@ -35,7 +35,7 @@ uses
   JOSE.Encoding.Base64;
 
 type
-  TECDSAAlgorithm = (ES256, ES384, ES512);
+  TECDSAAlgorithm = (ES256, ES256K, ES384, ES512);
   TECDSAAlgorithmHelper = record helper for TECDSAAlgorithm
     procedure FromString(const AValue: string);
     function ToString: string;
@@ -67,6 +67,8 @@ procedure TECDSAAlgorithmHelper.FromString(const AValue: string);
 begin
   if AValue = 'ES256' then
     Self := ES256
+  else if AValue = 'ES256K' then
+    Self := ES256K
   else if AValue = 'ES384' then
     Self := ES384
   else if AValue = 'ES512' then
@@ -79,6 +81,7 @@ function TECDSAAlgorithmHelper.ToString: string;
 begin
   case Self of
     ES256: Result := 'ES256';
+    ES256K: Result := 'ES256K';
     ES384: Result := 'ES384';
     ES512: Result := 'ES512';
   end;

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -27,6 +27,8 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
+  System.ImageList, Vcl.ImgList,
+  
   JWTDemo.Form.Debugger,
   JWTDemo.Form.Consumer,
   JWTDemo.Form.Simple,
@@ -37,9 +39,10 @@ uses
 type
   TfrmMain = class(TForm)
     pgcMain: TPageControl;
+    imgMain: TImageList;
     procedure FormCreate(Sender: TObject);
   private
-    procedure PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string);
+    procedure PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string; AIndex: Integer);
   public
     { Public declarations }
   end;
@@ -53,16 +56,16 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  PasteForm(TfrmDebugger, 'tsDebugger', 'JWT Debugger (http://jwt.io)');
-  PasteForm(TfrmSimple, 'tsSimple', 'Simple Token');
-  PasteForm(TfrmConsumer, 'tsConsumer', 'JWT Consumer (Claim Validation)');
-  PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims');
-  PasteForm(TfrmOpenSSL, 'tsOpenSSL', 'OpenSSL');
+  PasteForm(TfrmDebugger, 'tsDebugger', 'Debugger (http://jwt.io)', 0);
+  PasteForm(TfrmSimple, 'tsSimple', 'Build Simple Token', 1);
+  PasteForm(TfrmConsumer, 'tsConsumer', 'Consumer (Claim Validation)', 2);
+  PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims', 3);
+  PasteForm(TfrmOpenSSL, 'tsOpenSSL', 'OpenSSL Stuff', 4);
   //PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
   pgcMain.ActivePageIndex := 0;
 end;
 
-procedure TfrmMain.PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string);
+procedure TfrmMain.PasteForm(AFormClass: TFormClass; const ATabName, ATabTitle: string; AIndex: Integer);
 var
   LView: TForm;
   LTab: TTabSheet;
@@ -71,6 +74,7 @@ begin
   LTab.PageControl := pgcMain;
   LTab.Name := ATabName;
   LTab.Caption := ATabTitle;
+  LTab.ImageIndex := AIndex;
 
   LView := AFormClass.Create(Application);
   LView.BorderStyle := bsNone;

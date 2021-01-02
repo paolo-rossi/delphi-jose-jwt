@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -47,7 +47,7 @@ type
     Unknown, None,
     HS256, HS384, HS512,
     RS256, RS384, RS512,
-    ES256, ES384, ES512,
+    ES256, ES256K, ES384, ES512,
     PS256, PS384, PS512
   );
   TJOSEAlgorithmIdHelper = record helper for TJOSEAlgorithmId
@@ -121,6 +121,7 @@ begin
     TJOSEAlgorithmId.RS512: Result := 'RS512';
 
     TJOSEAlgorithmId.ES256: Result := 'ES256';
+    TJOSEAlgorithmId.ES256K: Result := 'ES256K';
     TJOSEAlgorithmId.ES384: Result := 'ES384';
     TJOSEAlgorithmId.ES512: Result := 'ES512';
 
@@ -143,6 +144,7 @@ begin
     TJOSEAlgorithmId.RS512: Result := 512;
 
     TJOSEAlgorithmId.ES256: Result := 256;
+    TJOSEAlgorithmId.ES256K: Result := 256;
     TJOSEAlgorithmId.ES384: Result := 384;
     TJOSEAlgorithmId.ES512: Result := 512;
 
@@ -173,6 +175,8 @@ begin
 
   else if AValue = 'ES256' then
     Self := TJOSEAlgorithmId.ES256
+  else if AValue = 'ES256K' then
+    Self := TJOSEAlgorithmId.ES256K
   else if AValue = 'ES384' then
     Self := TJOSEAlgorithmId.ES384
   else if AValue = 'ES512' then

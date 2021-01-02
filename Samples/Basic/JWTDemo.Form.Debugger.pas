@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -26,7 +26,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, Vcl.ExtDlgs,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWE,
@@ -43,7 +43,6 @@ type
     memoHeader: TMemo;
     memoPayload: TMemo;
     richEncoded: TRichEdit;
-    edtKey: TEdit;
     chkKeyBase64: TCheckBox;
     shpStatus: TShape;
     lblStatus: TLabel;
@@ -56,32 +55,45 @@ type
     pnlHeader: TPanel;
     lblHeader: TLabel;
     lblRSA: TLabel;
-    memoPublicKey: TMemo;
-    memoPrivateKey: TMemo;
+    memoPublicKeyRSA: TMemo;
+    memoPrivateKeyRSA: TMemo;
     pnlAlgorithm: TPanel;
     lblAlgorithm: TLabel;
     cbbDebuggerAlgo: TComboBox;
     statusDebugger: TStatusBar;
+    pnlSignatureECDSA: TPanel;
+    lblSignatureECDSA: TLabel;
+    lblECDSA: TLabel;
+    memoPublicKeyECDSA: TMemo;
+    memoPrivateKeyECDSA: TMemo;
+    dlgOpenPEMFile: TOpenTextFileDialog;
+    memoSecretHMAC: TMemo;
     procedure cbbDebuggerAlgoChange(Sender: TObject);
     procedure chkKeyBase64Click(Sender: TObject);
-    procedure edtKeyChange(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure memoHeaderChange(Sender: TObject);
     procedure memoPayloadChange(Sender: TObject);
-    procedure memoPrivateKeyChange(Sender: TObject);
-    procedure memoPublicKeyChange(Sender: TObject);
+    procedure memoPrivateKeyECDSAChange(Sender: TObject);
+    procedure memoPrivateKeyRSAChange(Sender: TObject);
+    procedure memoPublicKeyECDSAChange(Sender: TObject);
+    procedure memoPublicKeyRSAChange(Sender: TObject);
+    procedure memoSecretHMACChange(Sender: TObject);
   private const
     clSignatureOk = $00F1B900;
   private
+    FStartup: Boolean;
+    FKeysDir: string;
     FJWT: TJWT;
     FAlg: TJOSEAlgorithmId;
 
     FHeaderText: string;
     FSignatureSHAText: string;
     FSignatureRSAText: string;
-    FSecretText: string;
+    FSignatureECDSAText: string;
 
+    procedure MemoLoad(AMemo: TMemo; const AFileName: string);
+    procedure LoadKeys(AAlgorithm: TJOSEAlgorithmId);
     procedure AlgorithmChanged;
     function GenerateKeyPair: TKeyPair;
     procedure GenerateToken;
@@ -102,6 +114,10 @@ var
 
 implementation
 
+uses
+  System.IOUtils,
+  JOSE.Types.Utils;
+
 {$R *.dfm}
 
 procedure TfrmDebugger.AlgorithmChanged;
@@ -116,20 +132,19 @@ begin
     3: FAlg := TJOSEAlgorithmId.RS256;
     4: FAlg := TJOSEAlgorithmId.RS384;
     5: FAlg := TJOSEAlgorithmId.RS512;
+
+    6: FAlg := TJOSEAlgorithmId.ES256;
+    7: FAlg := TJOSEAlgorithmId.ES256K;
+    8: FAlg := TJOSEAlgorithmId.ES384;
+    9: FAlg := TJOSEAlgorithmId.ES512;
   end;
 
-  case cbbDebuggerAlgo.ItemIndex of
-    0..2:
-    begin
-      pnlSignatureSHA.Visible := True;
-      pnlSignatureRSA.Visible := False;
-    end;
+  LoadKeys(FAlg);
 
-    3..5:
-    begin
-      pnlSignatureSHA.Visible := False;
-      pnlSignatureRSA.Visible := True;
-    end;
+  case cbbDebuggerAlgo.ItemIndex of
+    0..2: pnlSignatureSHA.BringToFront;
+    3..5: pnlSignatureRSA.BringToFront;
+    6..9: pnlSignatureECDSA.BringToFront;
   end;
 
   LOnChange := memoHeader.OnChange;
@@ -139,11 +154,7 @@ begin
 
   lblHMAC.Caption := Format(FSignatureSHAText, [FAlg.Length.ToString]);
   lblRSA.Caption := Format(FSignatureRSAText, [FAlg.Length.ToString]);
-
-  LOnChange := edtKey.OnChange;
-  edtKey.OnChange := nil;
-  edtKey.Text := Format(FSecretText, [FAlg.Length.ToString]);
-  edtKey.OnChange := LOnChange;
+  lblECDSA.Caption := Format(FSignatureECDSAText, [FAlg.Length.ToString]);
 
   GenerateToken;
 end;
@@ -158,22 +169,6 @@ begin
   GenerateToken;
 end;
 
-procedure TfrmDebugger.edtKeyChange(Sender: TObject);
-var
-  LKey: TJWK;
-begin
-  if chkKeyBase64.Checked then
-    LKey := TJWK.Create(TBase64.Decode(edtKey.Text))
-  else
-    LKey := TJWK.Create(edtKey.Text);
-
-  try
-    SetStatus(VerifyToken(LKey));
-  finally
-    LKey.Free;
-  end;
-end;
-
 procedure TfrmDebugger.FormDestroy(Sender: TObject);
 begin
   FJWT.Free;
@@ -181,24 +176,32 @@ end;
 
 procedure TfrmDebugger.FormCreate(Sender: TObject);
 begin
-  FHeaderText := memoHeader.Lines.Text;
-  FSignatureSHAText := lblHMAC.Caption;
-  FSignatureRSAText := lblRSA.Caption;
-  FSecretText := edtKey.Text;
+  FStartup := True;
+  try
+    FKeysDir := TJOSEUtils.DirectoryUp(Application.ExeName, 2);
+    FKeysDir := TPath.Combine(FKeysDir, 'Keys');
+    FHeaderText := memoHeader.Lines.Text;
 
-  FJWT := TJWT.Create(TJWTClaims);
+    FSignatureSHAText := lblHMAC.Caption;
+    FSignatureRSAText := lblRSA.Caption;
+    FSignatureECDSAText := lblECDSA.Caption;
 
-  FJWT.Header.JSON.Free;
-  FJWT.Header.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoHeader.Lines.Text));
+    FJWT := TJWT.Create(TJWTClaims);
 
-  FJWT.Claims.JSON.Free;
-  FJWT.Claims.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoPayload.Lines.Text));
+    FJWT.Header.JSON.Free;
+    FJWT.Header.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoHeader.Lines.Text));
 
-  FAlg := TJOSEAlgorithmId.HS256;
+    FJWT.Claims.JSON.Free;
+    FJWT.Claims.JSON := TJSONObject(TJSONObject.ParseJSONValue(memoPayload.Lines.Text));
 
-  AlgorithmChanged;
+    FAlg := TJOSEAlgorithmId.HS256;
 
-  WriteDefault;
+    AlgorithmChanged;
+
+    WriteDefault;
+  finally
+    FStartup := False;
+  end;
 end;
 
 function TfrmDebugger.GenerateKeyPair: TKeyPair;
@@ -211,9 +214,9 @@ begin
     TJOSEAlgorithmId.HS512:
     begin
       if chkKeyBase64.Checked then
-        Result.PrivateKey.Key := TBase64.Decode(edtKey.Text)
+        Result.PrivateKey.Key := TBase64.Decode(memoSecretHMAC.Lines.Text)
       else
-        Result.PrivateKey.Key := edtKey.Text;
+        Result.PrivateKey.Key := memoSecretHMAC.Lines.Text;
       Result.PublicKey.Key := Result.PrivateKey.Key;
     end;
 
@@ -221,8 +224,17 @@ begin
     TJOSEAlgorithmId.RS384,
     TJOSEAlgorithmId.RS512:
     begin
-      Result.PrivateKey.Key := memoPrivateKey.Lines.Text;
-      Result.PublicKey.Key := memoPublicKey.Lines.Text;
+      Result.PrivateKey.Key := memoPrivateKeyRSA.Lines.Text;
+      Result.PublicKey.Key := memoPublicKeyRSA.Lines.Text;
+    end;
+
+    TJOSEAlgorithmId.ES256,
+    TJOSEAlgorithmId.ES256K,
+    TJOSEAlgorithmId.ES384,
+    TJOSEAlgorithmId.ES512:
+    begin
+      Result.PrivateKey.Key := memoPrivateKeyECDSA.Lines.Text;
+      Result.PublicKey.Key := memoPublicKeyECDSA.Lines.Text;
     end;
   end;
 end;
@@ -272,31 +284,94 @@ begin
   end;
 end;
 
+procedure TfrmDebugger.LoadKeys(AAlgorithm: TJOSEAlgorithmId);
+var
+  LFileName: string;
+  LPrefix: string;
+begin
+  case AAlgorithm of
+    TJOSEAlgorithmId.HS256..TJOSEAlgorithmId.HS512:
+    begin
+      LPrefix := LowerCase(AAlgorithm.AsString);
+      LFileName := TPath.Combine(FKeysDir, LPrefix + '.key');
+      MemoLoad(memoSecretHMAC, LFileName);
+    end;
+
+    TJOSEAlgorithmId.RS256..TJOSEAlgorithmId.RS512:
+    begin
+      LPrefix := 'rsa';
+      LFileName := TPath.Combine(FKeysDir, LPrefix + '-private.pem');
+      MemoLoad(memoPrivateKeyRSA, LFileName);
+      LFileName := TPath.Combine(FKeysDir, LPrefix + '-public.pem');
+      MemoLoad(memoPublicKeyRSA, LFileName);
+    end;
+
+    TJOSEAlgorithmId.ES256..TJOSEAlgorithmId.ES512:
+    begin
+      LPrefix := LowerCase(AAlgorithm.AsString);
+      LFileName := TPath.Combine(FKeysDir, LPrefix + '-private.pem');
+      MemoLoad(memoPrivateKeyECDSA, LFileName);
+      LFileName := TPath.Combine(FKeysDir, LPrefix + '-public.pem');
+      MemoLoad(memoPublicKeyECDSA, LFileName);
+    end;
+  end;
+end;
+
 procedure TfrmDebugger.memoHeaderChange(Sender: TObject);
 begin
+  if FStartup then
+    Exit;
+
   FJWT.Header.JSON.Free;
   FJWT.Header.JSON := TJSONObject(TJSONObject.ParseJSONValue((Sender as TMemo).Lines.Text));
   GenerateToken;
 end;
 
+procedure TfrmDebugger.MemoLoad(AMemo: TMemo; const AFileName: string);
+var
+  LEvent: TNotifyEvent;
+begin
+  LEvent := AMemo.OnChange;
+  AMemo.OnChange := nil;
+  AMemo.Lines.LoadFromFile(AFileName);
+  AMemo.OnChange := LEvent;
+end;
+
 procedure TfrmDebugger.memoPayloadChange(Sender: TObject);
 begin
+  if FStartup then
+    Exit;
+
   FJWT.Claims.JSON.Free;
   FJWT.Claims.JSON := TJSONObject(TJSONObject.ParseJSONValue((Sender as TMemo).Lines.Text));
   GenerateToken;
 end;
 
-procedure TfrmDebugger.memoPrivateKeyChange(Sender: TObject);
+procedure TfrmDebugger.memoPrivateKeyECDSAChange(Sender: TObject);
 begin
+  if FStartup then
+    Exit;
+
   GenerateToken;
 end;
 
-procedure TfrmDebugger.memoPublicKeyChange(Sender: TObject);
+procedure TfrmDebugger.memoPrivateKeyRSAChange(Sender: TObject);
+begin
+  if FStartup then
+    Exit;
+
+  GenerateToken;
+end;
+
+procedure TfrmDebugger.memoPublicKeyECDSAChange(Sender: TObject);
 var
   LKeys: TKeyPair;
 begin
+  if FStartup then
+    Exit;
+
   statusDebugger.Panels[1].Text := '';
-  LKeys := TKeyPair.Create(memoPublicKey.Lines.Text, memoPrivateKey.Lines.Text);
+  LKeys := TKeyPair.Create(memoPublicKeyECDSA.Lines.Text, memoPrivateKeyECDSA.Lines.Text);
   try
     SetStatus(VerifyToken(LKeys.PublicKey));
   except
@@ -304,6 +379,43 @@ begin
       statusDebugger.Panels[1].Text := E.Message;
   end;
   LKeys.Free;
+end;
+
+procedure TfrmDebugger.memoPublicKeyRSAChange(Sender: TObject);
+var
+  LKeys: TKeyPair;
+begin
+  if FStartup then
+    Exit;
+
+  statusDebugger.Panels[1].Text := '';
+  LKeys := TKeyPair.Create(memoPublicKeyRSA.Lines.Text, memoPrivateKeyRSA.Lines.Text);
+  try
+    SetStatus(VerifyToken(LKeys.PublicKey));
+  except
+    on E: Exception do
+      statusDebugger.Panels[1].Text := E.Message;
+  end;
+  LKeys.Free;
+end;
+
+procedure TfrmDebugger.memoSecretHMACChange(Sender: TObject);
+var
+  LKey: TJWK;
+begin
+  if FStartup then
+    Exit;
+
+  if chkKeyBase64.Checked then
+    LKey := TJWK.Create(TBase64.Decode(memoSecretHMAC.Lines.Text))
+  else
+    LKey := TJWK.Create(memoSecretHMAC.Lines.Text);
+
+  try
+    SetStatus(VerifyToken(LKey));
+  finally
+    LKey.Free;
+  end;
 end;
 
 procedure TfrmDebugger.SetErrorJSON;
@@ -389,9 +501,9 @@ begin
   richEncoded.Lines.Clear;
   WriteCompactHeader('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
   WriteCompactSeparator;
-  WriteCompactClaims('eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9');
+  WriteCompactClaims('eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ');
   WriteCompactSeparator;
-  WriteCompactSignature('TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ');
+  WriteCompactSignature('SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c');
 
   SetStatus(True);
 end;

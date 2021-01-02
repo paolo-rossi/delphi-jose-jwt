@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -104,6 +104,25 @@ type
     procedure ValidateSigningKey(const AKey: TJOSEBytes);
     procedure ValidateVerificationKey(const AKey: TJOSEBytes);
   end;
+
+  TECDSAUsingSHAAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
+  private
+    FKeyMinLength: Integer;
+  protected
+    FECDSAAlgorithm: TECDSAAlgorithm;
+    constructor Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+  public
+    class function ECDSA256: IJOSESigningAlgorithm;
+    class function ECDSA256K: IJOSESigningAlgorithm;
+    class function ECDSA384: IJOSESigningAlgorithm;
+    class function ECDSA512: IJOSESigningAlgorithm;
+
+    function VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+    function Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+    procedure ValidateSigningKey(const AKey: TJOSEBytes);
+    procedure ValidateVerificationKey(const AKey: TJOSEBytes);
+  end;
+
 
 implementation
 
@@ -302,6 +321,78 @@ begin
   ValidateVerificationKey(AKey);
   LDecodedSignature := TBase64.URLDecode(ASignature);
   Result := TRSA.Verify(AInput, LDecodedSignature, AKey, FRSAAlgorithm);
+end;
+
+{ TECDSAUsingSHAAlgorithm }
+
+constructor TECDSAUsingSHAAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+begin
+  FAlgorithmIdentifier := AAlgorithmId;
+
+  case AAlgorithmId of
+    TJOSEAlgorithmId.ES256: FECDSAAlgorithm := TECDSAAlgorithm.ES256;
+    TJOSEAlgorithmId.ES256K: FECDSAAlgorithm := TECDSAAlgorithm.ES256K;
+    TJOSEAlgorithmId.ES384: FECDSAAlgorithm := TECDSAAlgorithm.ES384;
+    TJOSEAlgorithmId.ES512: FECDSAAlgorithm := TECDSAAlgorithm.ES512;
+  end;
+  FKeyCategory := TJOSEKeyCategory.Asymmetric;
+  FKeyType := 'pem';
+  FKeyMinLength := AKeyMinLength;
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA256: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES256, 256);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA256K: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES256K, 256);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA384: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES384, 384);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA512: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES512, 512);
+end;
+
+function TECDSAUsingSHAAlgorithm.Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+var
+  LSign: TJOSEBytes;
+begin
+  LSign := TECDSA.Sign(AInput, AKey, FECDSAAlgorithm);
+  Result := TBase64.URLEncode(LSign.AsBytes);
+end;
+
+procedure TECDSAUsingSHAAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TECDSA.VerifyPrivateKey(AKey) then
+    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+end;
+
+procedure TECDSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TECDSA.VerifyPublicKey(AKey) then
+    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+end;
+
+function TECDSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+var
+  LDecodedSignature: TJOSEBytes;
+begin
+  ValidateVerificationKey(AKey);
+  LDecodedSignature := TBase64.URLDecode(ASignature);
+  Result := TECDSA.Verify(AInput, LDecodedSignature, AKey, FECDSAAlgorithm);
 end;
 
 end.

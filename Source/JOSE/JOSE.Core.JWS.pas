@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -112,7 +112,9 @@ begin
       [THeaderNames.ALGORITHM]);
 
   Result := TJOSEAlgorithmRegistryFactory.Instance
-    .SigningAlgorithmRegistry.GetAlgorithm(LAlgId);
+    .SigningAlgorithmRegistry
+    .GetAlgorithm(LAlgId);
+
   if Result = nil then
     raise EJOSEException.CreateFmt('Signing algorithm (%s) is not supported.',
       [LAlgId]);
