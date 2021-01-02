@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -58,11 +58,15 @@ requires
   IndyCore;
 
 contains
+  JOSE.OpenSSL.Headers in '..\..\Source\Common\JOSE.OpenSSL.Headers.pas',
   JOSE.Encoding.Base64 in '..\..\Source\Common\JOSE.Encoding.Base64.pas',
   JOSE.Hashing.HMAC in '..\..\Source\Common\JOSE.Hashing.HMAC.pas',
+  JOSE.Signing.Base in '..\..\Source\Common\JOSE.Signing.Base.pas',
   JOSE.Signing.RSA in '..\..\Source\Common\JOSE.Signing.RSA.pas',
+  JOSE.Signing.ECDSA in '..\..\Source\Common\JOSE.Signing.ECDSA.pas',
   JOSE.Types.Arrays in '..\..\Source\Common\JOSE.Types.Arrays.pas',
   JOSE.Types.Bytes in '..\..\Source\Common\JOSE.Types.Bytes.pas',
+  JOSE.Types.Utils in '..\..\Source\Common\JOSE.Types.Utils.pas',
   JOSE.Types.JSON in '..\..\Source\Common\JOSE.Types.JSON.pas',
   JOSE.Core.Base in '..\..\Source\JOSE\JOSE.Core.Base.pas',
   JOSE.Core.Builder in '..\..\Source\JOSE\JOSE.Core.Builder.pas',

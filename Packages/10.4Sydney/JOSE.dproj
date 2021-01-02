@@ -113,6 +113,10 @@
         <DCCReference Include="..\..\Source\JOSE\JOSE.Builder.pas"/>
         <DCCReference Include="..\..\Source\JOSE\JOSE.Consumer.pas"/>
         <DCCReference Include="..\..\Source\JOSE\JOSE.Consumer.Validators.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.OpenSSL.Headers.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Types.Utils.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Signing.Base.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Signing.ECDSA.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
