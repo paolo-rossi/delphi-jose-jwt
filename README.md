@@ -4,13 +4,13 @@
 
 <p align="center">
   <a href="http://jwt.io/">
-    <img src="https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png" alt="Delphi JWT Library" width="250" />
+    <img src="https://user-images.githubusercontent.com/4686497/59972946-554a2180-9598-11e9-9842-8ab83cf3a97d.png" alt="Delphi JWT Library" width="250" />
   </a>
 </p>
 
 [Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.
 
-![Image of Delphi-JOSE Demo](https://paolo-rossi.github.io/delphi-jose-jwt/images/jose-delphi.png)
+![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
 
 ## :books: Articles about using Delphi-JOSE
