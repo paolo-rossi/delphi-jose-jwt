@@ -27,10 +27,10 @@ uses
   System.SysUtils, System.Classes, System.Rtti, System.JSON;
 
 type
+
   TTestUtils = class
   public
     class function ExpectedFromFile(const AFileName: string): string;
-  public
   end;
 
 implementation

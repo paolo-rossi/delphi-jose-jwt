@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2019 Paolo Rossi                                         }
+{  Copyright (c) 2015-2021 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -36,12 +36,15 @@ uses
   DUnitX.TestFramework,
   JOSE.Tests.Builder in 'Source\JOSE.Tests.Builder.pas',
   JOSE.Tests.Consumer in 'Source\JOSE.Tests.Consumer.pas',
-  JOSE.Tests.JWA in 'Source\JOSE.Tests.JWA.pas',
   JOSE.Tests.JWK in 'Source\JOSE.Tests.JWK.pas',
   JOSE.Tests.JWS in 'Source\JOSE.Tests.JWS.pas',
   JOSE.Tests.JWT in 'Source\JOSE.Tests.JWT.pas',
   JOSE.Tests.Utils in 'Source\JOSE.Tests.Utils.pas',
-  JOSE.Tests.Common in 'Source\JOSE.Tests.Common.pas';
+  JOSE.Tests.Common in 'Source\JOSE.Tests.Common.pas',
+  JOSE.Tests.JWA.HMAC in 'Source\JOSE.Tests.JWA.HMAC.pas',
+  JOSE.Tests.JWA.ECDSA in 'Source\JOSE.Tests.JWA.ECDSA.pas',
+  JOSE.Tests.JWA.RSA in 'Source\JOSE.Tests.JWA.RSA.pas',
+  JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas';
 
 var
   LRunner : ITestRunner;

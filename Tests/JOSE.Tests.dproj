@@ -100,12 +100,15 @@
         </DelphiCompile>
         <DCCReference Include="Source\JOSE.Tests.Builder.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Consumer.pas"/>
-        <DCCReference Include="Source\JOSE.Tests.JWA.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWK.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWS.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWT.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Utils.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Common.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.HMAC.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.ECDSA.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.RSA.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Classes.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

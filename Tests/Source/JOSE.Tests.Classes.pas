@@ -19,47 +19,39 @@
 {  limitations under the License.                                              }
 {                                                                              }
 {******************************************************************************}
-unit JOSE.Tests.JWS;
+unit JOSE.Tests.Classes;
 
 interface
 
 uses
-  System.Rtti, DUnitX.TestFramework,
-
-  JOSE.Core.JWS,
-  JOSE.Tests.Classes;
+  System.SysUtils, System.Classes;
 
 type
-  [TestFixture]
-  TTestJWS = class(TObject)
+
+  /// <summary>
+  ///   Base class for the Test classes
+  /// </summary>
+  TTestBase = class
+  protected
+    FRootPath: string;
+    FDataPath: string;
   public
-    [Setup]
-    procedure Setup;
-    [TearDown]
-    procedure TearDown;
-    [Test]
-    //[TestCase('TestBoolTrue', 'True,True')]
-    procedure TestSignHSA256(const AValue: Boolean);
+    constructor Create;
   end;
 
 implementation
 
-procedure TTestJWS.Setup;
+uses
+  System.IOUtils;
+
+{ TTestBase }
+
+constructor TTestBase.Create;
 begin
-
+  FRootPath := TDirectory.GetCurrentDirectory;
+  FRootPath := TDirectory.GetParent(FRootPath);
+  FRootPath := TDirectory.GetParent(FRootPath);
+  FDataPath := TPath.Combine(FRootPath, 'Data');
 end;
-
-procedure TTestJWS.TearDown;
-begin
-end;
-
-procedure TTestJWS.TestSignHSA256(const AValue: Boolean);
-begin
-  //Assert.AreEqual(_Result, TTestUtils.SerializeValue(AValue));
-end;
-
-initialization
-  TDUnitX.RegisterTestFixture(TTestJWS);
 
 end.
-

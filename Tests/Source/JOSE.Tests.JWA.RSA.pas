@@ -19,47 +19,51 @@
 {  limitations under the License.                                              }
 {                                                                              }
 {******************************************************************************}
-unit JOSE.Tests.JWS;
+unit JOSE.Tests.JWA.RSA;
 
 interface
 
 uses
-  System.Rtti, DUnitX.TestFramework,
+  System.Rtti, System.SysUtils, DUnitX.TestFramework,
 
+  JOSE.Core.JWT,
   JOSE.Core.JWS,
+  JOSE.Core.JWK,
+  JOSE.Core.JWA,
+  JOSE.Signing.Base,
+  JOSE.Signing.RSA,
+
   JOSE.Tests.Classes;
 
 type
   [TestFixture]
-  TTestJWS = class(TObject)
+  [Category('jwa')]
+  TTestJWA = class(TTestBase)
   public
     [Setup]
     procedure Setup;
     [TearDown]
     procedure TearDown;
-    [Test]
-    //[TestCase('TestBoolTrue', 'True,True')]
-    procedure TestSignHSA256(const AValue: Boolean);
+
   end;
 
 implementation
 
-procedure TTestJWS.Setup;
+uses
+  System.IOUtils,
+  JOSE.Tests.Utils;
+
+procedure TTestJWA.Setup;
 begin
 
 end;
 
-procedure TTestJWS.TearDown;
+procedure TTestJWA.TearDown;
 begin
-end;
-
-procedure TTestJWS.TestSignHSA256(const AValue: Boolean);
-begin
-  //Assert.AreEqual(_Result, TTestUtils.SerializeValue(AValue));
 end;
 
 initialization
-  TDUnitX.RegisterTestFixture(TTestJWS);
+  TDUnitX.RegisterTestFixture(TTestJWA);
 
 end.
 

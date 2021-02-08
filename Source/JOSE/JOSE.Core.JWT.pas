@@ -111,6 +111,9 @@ type
   public
     constructor Create; virtual;
 
+    procedure SetAsJSON(AClaims: TJSONObject); overload;
+    procedure SetAsJSON(const AClaims: string); overload;
+
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
 
@@ -311,6 +314,20 @@ end;
 function TJWTClaims.GetSubject: string;
 begin
   Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SUBJECT, FJSON).AsString;
+end;
+
+procedure TJWTClaims.SetAsJSON(const AClaims: string);
+var
+  LJSON: TJSONObject;
+begin
+  LJSON := FJSON.ParseJSONValue(AClaims) as TJSONObject;
+  SetAsJSON(LJSON);
+end;
+
+procedure TJWTClaims.SetAsJSON(AClaims: TJSONObject);
+begin
+  FJSON.Free;
+  FJSON := AClaims;
 end;
 
 procedure TJWTClaims.SetAudience(const AValue: string);

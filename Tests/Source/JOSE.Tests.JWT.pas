@@ -26,11 +26,12 @@ interface
 uses
   System.Rtti, DUnitX.TestFramework,
 
-  JOSE.Core.JWT;
+  JOSE.Core.JWT,
+  JOSE.Tests.Classes;
 
 type
   [TestFixture]
-  TTestJWT = class(TObject)
+  TTestJWT = class(TTestBase)
   public
     [Setup]
     procedure Setup;

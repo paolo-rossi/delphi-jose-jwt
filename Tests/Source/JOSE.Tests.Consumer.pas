@@ -32,11 +32,13 @@ uses
   JOSE.Core.Builder,
   JOSE.Core.JWA,
   JOSE.Core.JWT,
-  JOSE.Core.JWS;
+  JOSE.Core.JWS,
+
+  JOSE.Tests.Classes;
 
 type
   [TestFixture]
-  TTestConsumer = class(TObject)
+  TTestConsumer = class(TTestBase)
   private
     FJWT: TJWT;
     FCompact: TJOSEBytes;

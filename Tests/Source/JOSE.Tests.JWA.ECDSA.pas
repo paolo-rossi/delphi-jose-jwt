@@ -19,26 +19,38 @@
 {  limitations under the License.                                              }
 {                                                                              }
 {******************************************************************************}
-unit JOSE.Tests.JWA;
+unit JOSE.Tests.JWA.ECDSA;
 
 interface
 
 uses
-  System.Rtti, DUnitX.TestFramework,
+  System.Rtti, System.SysUtils, DUnitX.TestFramework,
 
-  JOSE.Core.JWA;
+  JOSE.Core.JWT,
+  JOSE.Core.JWS,
+  JOSE.Core.JWK,
+  JOSE.Core.JWA,
+  JOSE.Signing.Base,
+  JOSE.Signing.ECDSA,
+
+  JOSE.Tests.Classes;
 
 type
   [TestFixture]
-  TTestJWA = class(TObject)
+  TTestJWA = class(TTestBase)
   public
     [Setup]
     procedure Setup;
     [TearDown]
     procedure TearDown;
+
   end;
 
 implementation
+
+uses
+  System.IOUtils,
+  JOSE.Tests.Utils;
 
 procedure TTestJWA.Setup;
 begin
