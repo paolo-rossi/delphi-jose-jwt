@@ -44,6 +44,11 @@ type
     [TearDown]
     procedure TearDown;
 
+    [Test]
+    [TestCase('TestECDSASign256', 'EC256,jHok3-EqiaoiWxBQ9Gh84Kc6vIrNM1NeoNRiPBHaTAA')]
+    [TestCase('TestECDSASign384', 'EC384,WrDaePkHG0cJMuRXHCz0pY5lt_Is4ZEYw139qt7o-zx40Ze90osIZ8ZhOX5VipE-')]
+    [TestCase('TestECDSASign512', 'EC512,wSSOeaU_UlEhOiGksvDZaKdcIJBBDD_cEj_pLhTdW5VK-XeZL5L1LxgJyOArMAOZBaPe-iwKW6UFLy3YlTQr_A')]
+    procedure TestECDSASign(AAlg: TJOSEAlgorithmId; const ASignature: string);
   end;
 
 implementation
@@ -59,6 +64,11 @@ end;
 
 procedure TTestJWA.TearDown;
 begin
+end;
+
+procedure TTestJWA.TestECDSASign(AAlg: TJOSEAlgorithmId; const ASignature: string);
+begin
+
 end;
 
 initialization

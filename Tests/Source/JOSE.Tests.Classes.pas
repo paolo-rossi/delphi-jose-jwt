@@ -35,6 +35,7 @@ type
   protected
     FRootPath: string;
     FDataPath: string;
+    FKeysPath: string;
   public
     constructor Create;
   end;
@@ -42,16 +43,16 @@ type
 implementation
 
 uses
-  System.IOUtils;
+  System.IOUtils,
+  JOSE.Types.Utils;
 
 { TTestBase }
 
 constructor TTestBase.Create;
 begin
   FRootPath := TDirectory.GetCurrentDirectory;
-  FRootPath := TDirectory.GetParent(FRootPath);
-  FRootPath := TDirectory.GetParent(FRootPath);
-  FDataPath := TPath.Combine(FRootPath, 'Data');
+  FDataPath := TPath.Combine(TJOSEUtils.DirectoryUp(FRootPath, 1), 'Data');
+  FKeysPath := TPath.Combine(TJOSEUtils.DirectoryUp(FRootPath, 1), 'Keys');
 end;
 
 end.
