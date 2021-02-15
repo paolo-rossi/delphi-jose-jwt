@@ -49,6 +49,10 @@ type
 
     class function InternalSign(const AInput: TBytes; AKey: PEVP_PKEY; AAlg: TECDSAAlgorithm): TBytes;
     class function InternalVerify(const AInput, ASignature: TBytes; APublicKey: PEVP_PKEY; AAlg: TECDSAAlgorithm): Boolean;
+
+    class function HashFromBytes(const AInput: TBytes; AAlg: TECDSAAlgorithm): TBytes;
+    class function Sig2OctetSequence(ASignature: PECDSA_SIG; AAlg: TECDSAAlgorithm): TBytes;
+    class function OctetSequence2Sig(const ASignature: TBytes; AAlg: TECDSAAlgorithm): PECDSA_SIG;
   public
     class function Sign(const AInput, APrivateKey: TBytes; AAlg: TECDSAAlgorithm): TBytes;
     class function Verify(const AInput, ASignature, APublicKey: TBytes; AAlg: TECDSAAlgorithm): Boolean;
@@ -87,6 +91,34 @@ begin
   end;
 end;
 
+class function TECDSA.HashFromBytes(const AInput: TBytes; AAlg: TECDSAAlgorithm): TBytes;
+var
+  LShaLen: Integer;
+begin
+  case AAlg of
+    ES256, ES256K:
+    begin
+      LShaLen := SHA256_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA256(@AInput[0], Length(AInput), @Result[0]);
+    end;
+    ES384:
+    begin
+      LShaLen := SHA384_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA384(@AInput[0], Length(AInput), @Result[0]);
+    end;
+    ES512:
+    begin
+      LShaLen := SHA512_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA512(@AInput[0], Length(AInput), @Result[0]);
+    end
+  else
+    raise Exception.Create('[ECDSA] Unsupported signing algorithm!');
+  end;
+end;
+
 { TECDSA }
 
 class function TECDSA.InternalVerify(const AInput, ASignature: TBytes; APublicKey:
@@ -94,26 +126,24 @@ class function TECDSA.InternalVerify(const AInput, ASignature: TBytes; APublicKe
 var
   LECKey: PEC_KEY;
   LSig: PECDSA_SIG;
-  LPSig: Pointer;
+  LShaHash: TBytes;
 begin
   LoadOpenSSL;
-  LSig := nil;
 
   // Get the actual ec_key
   LECKey := EVP_PKEY_get1_EC_KEY(APublicKey);
   if LECKey = nil then
     raise Exception.Create('[ECDSA] Error getting memory for ECDSA');
   try
-    LPSig := @ASignature[0];
-    LSig := JoseSSL.d2i_ECDSA_SIG(@LSig, @LPSig, Length(ASignature));
-    if LSig = nil then
-      raise Exception.Create('[ECDSA] Can''t decode ECDSA signature');
+    // Pick R & S from the octect representation
+    LSig := OctetSequence2Sig(ASignature, AAlg);
     try
-      Result := JoseSSL.ECDSA_do_verify(@AInput[0], Length(AInput), LSig, LECKey) = 1;
+      // Calculate SHA Hash value from input
+      LShaHash := HashFromBytes(AInput, AAlg);
+      Result := JoseSSL.ECDSA_do_verify(@LShaHash[0], Length(LShaHash), LSig, LECKey) = 1;
     finally
       JoseSSL.ECDSA_SIG_free(LSig);
     end;
-
   finally
     JoseSSL.EC_KEY_free(LECKey);
   end;
@@ -196,9 +226,9 @@ end;
 
 class function TECDSA.InternalSign(const AInput: TBytes; AKey: PEVP_PKEY; AAlg: TECDSAAlgorithm): TBytes;
 var
-  LSigPointer: Pointer;
   LECKey: PEC_KEY;
   LSig: PECDSA_SIG;
+  LShaHash: TBytes;
 begin
   LoadOpenSSL;
 
@@ -208,20 +238,55 @@ begin
   if LECKey = nil then
     raise ESignException.Create('[ECDSA] Error getting EC Key: ' + JOSESSL.GetLastError);
   try
-    LSig := JoseSSL.ECDSA_do_sign(@AInput[0], Length(AInput), LECKey);
+    // Calculate SHA Hash value from Input
+    LShaHash := HashFromBytes(AInput, AAlg);
+
+    LSig := JoseSSL.ECDSA_do_sign(@LShaHash[0], Length(LShaHash), LECKey);
     if LSig = nil then
       raise ESignException.Create('[ECDSA] Digest signing failed: ' + JOSESSL.GetLastError);
     try
-      SetLength(Result, JoseSSL.ECDSA_size(LECKey));
-
-      LSigPointer := @Result[0];
-      JoseSSL.i2d_ECDSA_SIG(LSig, @LSigPointer);
+      // Convert R & S to octect repr. and write them
+      Result := Sig2OctetSequence(LSig, AAlg);
     finally
       JoseSSL.ECDSA_SIG_free(LSig);
     end;
   finally
     JoseSSL.EC_KEY_free(LECKey);
   end;
+end;
+
+class function TECDSA.OctetSequence2Sig(const ASignature: TBytes; AAlg: TECDSAAlgorithm): PECDSA_SIG;
+var
+  LKeyLength: Integer;
+begin
+  Result := JoseSSL.ECDSA_SIG_new();
+  LKeyLength := Length(ASignature) div 2;
+
+  JoseSSL.BN_bin2bn(Pointer(ASignature), LKeyLength, Result.r);
+  JoseSSL.BN_bin2bn(Pointer(Integer(ASignature) + LKeyLength), LKeyLength, Result.s);
+end;
+
+class function TECDSA.Sig2OctetSequence(ASignature: PECDSA_SIG; AAlg: TECDSAAlgorithm): TBytes;
+var
+  LSigLength, LRLength, LSLength: Integer;
+begin
+  LSigLength := 0;
+
+  case AAlg of
+    ES256:  LSigLength := 32 * 2;
+    ES256K: LSigLength := 32 * 2;
+    ES384:  LSigLength := 48 * 2;
+    ES512:  LSigLength := 66 * 2;
+  end;
+
+  LRLength := JoseSSL.BN_num_bytes(ASignature.r);
+  LSLength := JoseSSL.BN_num_bytes(ASignature.s);
+
+  SetLength(Result, LSigLength);
+  FillChar(Result[0], LSigLength, #0);
+
+  JoseSSL.BN_bn2bin(ASignature.r, Pointer(Integer(Result) + (LSigLength div 2) - LRLength));
+  JoseSSL.BN_bn2bin(ASignature.s, Pointer(Integer(Result) + LSigLength-LSLength));
 end;
 
 class function TECDSA.Verify(const AInput, ASignature, APublicKey: TBytes; AAlg: TECDSAAlgorithm): Boolean;

@@ -176,6 +176,14 @@ object frmCryptoECDSA: TfrmCryptoECDSA
     TabOrder = 9
     OnClick = btnVerifyPublicClick
   end
+  object Button1: TButton
+    Left = 32
+    Top = 360
+    Width = 75
+    Height = 25
+    Caption = 'Button1'
+    TabOrder = 10
+  end
   object dlgOpenPEMFile: TOpenTextFileDialog
     DefaultExt = '.pem'
     Filter = 'PEM File|*.pem'

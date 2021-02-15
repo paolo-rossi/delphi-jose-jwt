@@ -47,6 +47,7 @@ type
     memoPublicKey2: TMemo;
     btnVerifyPublic: TButton;
     dlgOpenPEMFile: TOpenTextFileDialog;
+    Button1: TButton;
     procedure btnCertificateClick(Sender: TObject);
     procedure btnSignECDSAClick(Sender: TObject);
     procedure btnVerifyClick(Sender: TObject);
@@ -58,6 +59,10 @@ type
   private
     FFileName: string;
   protected
+    function HashFromSignature(const AInput: TBytes): TBytes;
+
+    function ToOctect(AAlg: TECDSAAlgorithm; ASignature: PECDSA_SIG): TBytes;
+
     function OpenPEMFile(const ATitle: string): string;
     procedure SetFromPEMFile(const ATitle: string; AMemo: TObject);
     function LoadPrivateKey: PEC_KEY;
@@ -109,6 +114,7 @@ begin
   LInput := Sanitize(memoPayload.Lines.Text);
   LKey := Sanitize(memoPublicKey.Lines.Text);
 
+  // test version
   //if Verify(LInput.AsBytes, LBinarySig, LKey.AsBytes, TECDSAAlgorithm.ES256) then
   if TECDSA.Verify(LInput.AsBytes, LBinarySig, LKey.AsBytes, TECDSAAlgorithm.ES256) then
     ShowMessage('Success!!!')
@@ -126,6 +132,37 @@ begin
     ShowMessage('key verified')
   else
     ShowMessage('key not verified')
+end;
+
+function TfrmCryptoECDSA.HashFromSignature(const AInput: TBytes): TBytes;
+var
+  LShaLen: Integer;
+  AAlg: TECDSAAlgorithm;
+begin
+  AALg := TECDSAAlgorithm.ES256;
+
+  case AAlg of
+    ES256:
+    begin
+      LShaLen := SHA256_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA256(@AInput[0], Length(AInput), @Result[0]);
+    end;
+    ES384:
+    begin
+      LShaLen := SHA384_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA384(@AInput[0], Length(AInput), @Result[0]);
+    end;
+    ES512:
+    begin
+      LShaLen := SHA512_DIGEST_LENGTH;
+      SetLength(Result, LShaLen);
+      JoseSSL.SHA512(@AInput[0], Length(AInput), @Result[0]);
+    end
+  else
+    raise Exception.Create('[ECDSA] Unsupported signing algorithm!');
+  end;
 end;
 
 function TfrmCryptoECDSA.LoadPrivateKey: PEC_KEY;
@@ -185,8 +222,12 @@ var
   eckey: PEC_KEY;
   sig: PECDSA_SIG;
   sigder: TBytes;
+
+  LHash: TBytes;
 begin
   TECDSA.LoadOpenSSL;
+
+  LHash := HashFromSignature(AInput);
 
   // Load Private Key into ECDSA object
   LBIO := BIO_new(BIO_s_mem);
@@ -206,7 +247,11 @@ begin
       raise Exception.Create('[ECDSA] Error getting EC Key: ' + JOSESSL.GetLastError);
 
     // ***************************************
-    sig := JoseSSL.ECDSA_do_sign(@AInput[0], Length(AInput), eckey);
+    sig := JoseSSL.ECDSA_do_sign(@LHash[0], Length(LHash), eckey);
+
+    Result := ToOctect(AAlg, sig);
+    Exit;
+
     try
       SetLength(sigder, JoseSSL.ECDSA_size(eckey));
 
@@ -223,6 +268,33 @@ begin
   Result := sigder;
 end;
 
+function TfrmCryptoECDSA.ToOctect(AAlg: TECDSAAlgorithm; ASignature: PECDSA_SIG): TBytes;
+var
+  LNumR, LNumS: PBIGNUM;
+  LSigLength, LRLength, LSLength: Integer;
+begin
+  LSigLength := 0;
+
+  case AAlg of
+    ES256:  LSigLength := 32 * 2;
+    ES256K: LSigLength := 32 * 2;
+    ES384:  LSigLength := 48 * 2;
+    ES512:  LSigLength := 66 * 2;
+  end;
+
+  LNumR := ASignature.r;
+  LNumS := ASignature.s;
+
+  LRLength := JoseSSL.BN_num_bytes(LNumR);
+  LSLength := JoseSSL.BN_num_bytes(LNumS);
+
+  SetLength(Result, LSigLength);
+  //FillChar(buffer, 32*2, 0);
+
+  JoseSSL.BN_bn2bin(LNumR, Pointer(Integer(Result) + (LSigLength div 2) - LRLength));
+  JoseSSL.BN_bn2bin(LNumS, Pointer(Integer(Result) + LSigLength-LSLength));
+end;
+
 function TfrmCryptoECDSA.Verify(const AInput, ASignature, AKeyOrCertificate:
     TBytes; AAlg: TECDSAAlgorithm): Boolean;
 var
@@ -234,6 +306,7 @@ var
   sig: PECDSA_SIG;
   psig: Pointer;
 begin
+  TECDSA.LoadOpenSSL;
   sig := nil;
 
   // Load Public RSA Key into RSA object

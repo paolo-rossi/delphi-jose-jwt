@@ -27,7 +27,6 @@ uses
   System.SysUtils, System.Classes;
 
 type
-
   /// <summary>
   ///   Base class for the Test classes
   /// </summary>
