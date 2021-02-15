@@ -34,11 +34,11 @@ The HMAC-RSA(ECDSA) algorithm uses necessarily OpenSSL so if you plan to use the
 Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
 
 #### OpenSSL download
-If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page] (https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness)
+If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page](https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness)
 
 ## :question: What is JOSE
 
-[JOSE](https://tools.ietf.org/html/rfc7520) is a standard that provides a general approach to signing and encryption of any content. JOSE consists of several RFC:
+[JOSE](https://tools.ietf.org/html/rfc7520) is a standard that provides a general approach to the signing and encryption of any content. JOSE consists of several RFC:
 
 - [JWT (JSON Web Token)](https://tools.ietf.org/html/rfc7519) - describes representation of claims encoded in JSON
 - [JWS (JSON Web Signature)](https://tools.ietf.org/html/rfc7515) - describes producing and handling signed messages
@@ -62,7 +62,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 #### Signing algorithms
 - `NONE algorithm`: supported (but discouraged)
 - `HS256`, `HS384`, `HS512 algorithms`: supported
-- `RS256`, `RS384`, `RS512 algorithms`: supported (thanks to [SirAlex](https://github.com/SirAlex))
+- `RS256`, `RS384`, `RS512 algorithms`: supported (updated!)
 - `ES256`, `ES384`, `ES512 algorithms`: supported (new!)
 - `ES256K algorithm`: supported (new!)
 
@@ -86,7 +86,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 - More examples
 
 ## :cookie: Prerequisite
-This library has been tested with **Delphi 10.4 Sydney**, **Delphi 10.3 Rio**, **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, and **Delphi 10.0 Seattle** but with some work it should compile with **D2010 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
+This library has been tested with **Delphi 10.4 Sydney**, **Delphi 10.3 Rio**, **Delphi 10.2 Tokyo**, **Delphi 10.1 Berlin**, and **Delphi 10.0 Seattle** but with some work it should compile with **DXE6 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
 
 #### Libraries/Units dependencies
 This library has no dependencies on external libraries/units.
@@ -104,7 +104,7 @@ Delphi units used:
 ## :floppy_disk: Installation
 Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!
 
-## :scroll: Code Examples
+## :scroll: Quick Code Examples
 
 ### Creating a token
 To create a token, simply create an instance of the `TJWT` class and set the properties (claims).
