@@ -55,16 +55,37 @@ If you need the OpenSSL library on the server, you can download the package dire
 - One method call to validate and deserialize a compact token
 
 #### Token & Claims validation (Consumer)
-- `exp`, `iat`, `nbf`, `aud`, `iss`, `sub` claims validatation: supported
+
+| _Algorithms_ | _Supported_      | 
+| -------------| -----------      |
+|  `exp`       | ✔️               |
+|  `iat`       | ✔️               |
+|  `nbf`       | ✔️               |
+|  `aud`       | ✔️               |
+|  `iss`       | ✔️               |
+|  `jti`       | ✔️               |
+|  `typ`       | ✔️               |
+
+#### Easy to use classes for custom validation
+
 - Easy to use `TJOSEConsumer` and `TJOSEConsumerBuilder` classes to validate token with a fine granularity
 - Easy to write custom validators!
 
 #### Signing algorithms
-- `NONE algorithm`: supported (but discouraged)
-- `HS256`, `HS384`, `HS512 algorithms`: supported
-- `RS256`, `RS384`, `RS512 algorithms`: supported (updated!)
-- `ES256`, `ES384`, `ES512 algorithms`: supported (new!)
-- `ES256K algorithm`: supported (new!)
+
+| _Algorithms_ | _Supported_      | 
+| -------------| -----------      |
+|  `None`      | ✔️ don't use! 💀 |
+|  `HS256`     | ✔️               |
+|  `HS384`     | ✔️               |
+|  `HS512`     | ✔️               |
+|  `RS256`     | ✔️ updated! 🔥   |
+|  `RS384`     | ✔️ updated! 🔥   |
+|  `RS512`     | ✔️ updated! 🔥   |
+|  `ES256`     | ✔️ new! 🌟      |
+|  `ES384`     | ✔️ new! 🌟      |
+|  `ES512`     | ✔️ new! 🌟      |
+|  `ES256K`    | ✔️ new! 🌟      |
 
 #### Security notes
 - This library is not affected by the `None` algorithm vulnerability
@@ -144,12 +165,13 @@ var
 begin
   LToken := TJWT.Create;
   try
+    // Set your claims
     LToken.Claims.Subject := 'Paolo Rossi';
     LToken.Claims.Issuer := 'Delphi JOSE Library';
     LToken.Claims.IssuedAt := Now;
     LToken.Claims.Expiration := Now + 1;
 
-    // Signing algorithm
+    // Choose the signing algorithm
     case cbbAlgorithm.ItemIndex of
       0: LAlg := TJOSEAlgorithmId.HS256;
       1: LAlg := TJOSEAlgorithmId.HS384;
@@ -157,21 +179,29 @@ begin
     else LAlg := TJOSEAlgorithmId.HS256;
     end;
 
-    LSigner := TJWS.Create(LToken);
+    // Create your key from any text or TBytes
     LKey := TJWK.Create(edtSecret.Text);
-    try
-      // With this option you can have keys < algorithm length
-      LSigner.SkipKeyValidation := True;
-      LSigner.Sign(LKey, LAlg);
 
-      memoCompact.Lines.Add('Header: ' + LSigner.Header);
-      memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
-      memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
-      memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+    try
+      // Create the signer
+      LSigner := TJWS.Create(LToken);
+      try
+        // With this option you can have keys < algorithm length
+        LSigner.SkipKeyValidation := True;
+
+        // Sign the token!
+        LSigner.Sign(LKey, LAlg);
+
+        memoCompact.Lines.Add('Header: ' + LSigner.Header);
+        memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
+        memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
+        memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+      finally
+        LSigner.Free;
+      end;
     finally
       LKey.Free;
-      LSigner.Free;
-    end;
+    end;  
   finally
     LToken.Free;
   end;
@@ -190,8 +220,10 @@ var
   LKey: TJWK;
   LToken: TJWT;
 begin
+  // Create the key from a text or TBytes
   LKey := TJWK.Create('my_very_long_and_safe_secret_key');
-  // Unpack and verify the token
+
+  // Unpack and verify the token!
   LToken := TJOSE.Verify(LKey, FCompactToken);
 
   if Assigned(LToken) then
@@ -219,6 +251,7 @@ var
 begin
   LConsumer := TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
+
     // JWS-related validation
     .SetVerificationKey(edtConsumerSecret.Text)
     .SetSkipVerificationKeyValidation
@@ -239,8 +272,10 @@ begin
     .Build();
 
   try
+    // Process the token with your rules!
     LConsumer.Process(Compact);
   except
+    // (optionally) log the errors
     on E: Exception do
       memoLog.Lines.Add(E.Message);
   end;
