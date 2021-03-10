@@ -123,9 +123,9 @@ type
     BN_dup: function(const _from: PBIGNUM): PBIGNUM cdecl;
     BN_clear_free: procedure(a: PBIGNUM); cdecl;
 
-    SHA256: function (const d: PBytes; n: SIZE_T; md: PBytes): PBytes cdecl;
-    SHA384: function (const d: PBytes; n: SIZE_T; md: PBytes): PBytes cdecl;
-    SHA512: function (const d: PBytes; n: SIZE_T; md: PBytes): PBytes cdecl;
+    SHA256: function (const d: PBytes; n: NativeUInt; md: PBytes): PBytes cdecl;
+    SHA384: function (const d: PBytes; n: NativeUInt; md: PBytes): PBytes cdecl;
+    SHA512: function (const d: PBytes; n: NativeUInt; md: PBytes): PBytes cdecl;
 
     RSA_size: function (const rsa: PRSA): Integer cdecl;
     RSA_sign: function(_type: Integer; m: PBytes; m_len: Cardinal; sigret: PBytes; siglen: PCardinal; rsa: PRSA): Integer; cdecl;
