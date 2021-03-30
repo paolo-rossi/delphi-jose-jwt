@@ -56,12 +56,12 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  PasteForm(TfrmDebugger, 'tsDebugger', 'Debugger (http://jwt.io)', 0);
-  PasteForm(TfrmSimple, 'tsSimple', 'Build Simple Token', 1);
+  PasteForm(TfrmDebugger, 'tsDebugger', 'Debugger (jwt.io)', 0);
+  PasteForm(TfrmSimple,   'tsSimple',   'Build Simple Token', 1);
   PasteForm(TfrmConsumer, 'tsConsumer', 'Consumer (Claim Validation)', 2);
-  PasteForm(TfrmClaims, 'tsClaims', 'Custom Claims', 3);
-  PasteForm(TfrmOpenSSL, 'tsOpenSSL', 'OpenSSL Stuff', 4);
-  //PasteForm(TfrmMisc, 'tsMisc', 'Miscellanea');
+  PasteForm(TfrmClaims,   'tsClaims',   'Custom Claims', 3);
+  PasteForm(TfrmOpenSSL,  'tsOpenSSL',  'OpenSSL Stuff', 4);
+  //PasteForm(TfrmMisc,     'tsMisc',     'Miscellanea');
   pgcMain.ActivePageIndex := 0;
 end;
 

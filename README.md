@@ -123,7 +123,14 @@ Delphi units used:
 - Please use always the latest version [from GitHub](https://github.com/IndySockets/Indy)
 
 ## :floppy_disk: Installation
-Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path or using the [`boss install`](https://github.com/HashLoad/boss) command and.. you are good to go!
+
+### Manual installation
+Simply add the source path "Source/Common" and Source/JOSE" to your Delphi project path and.. you are good to go!
+
+### Boss package manager
+
+Using the [`boss install`](https://github.com/HashLoad/boss) command:
+
 ``` sh
 $ boss install github.com/paolo-rossi/delphi-jose-jwt
 ```
