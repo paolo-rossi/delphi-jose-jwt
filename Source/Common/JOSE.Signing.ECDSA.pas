@@ -45,7 +45,6 @@ type
   private
     class function LoadPublicKey(const AKey: TBytes): PEVP_PKEY;
     class function LoadPrivateKey(const AKey: TBytes): PEVP_PKEY;
-    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
 
     class function InternalSign(const AInput: TBytes; AKey: PEVP_PKEY; AAlg: TECDSAAlgorithm): TBytes;
     class function InternalVerify(const AInput, ASignature: TBytes; APublicKey: PEVP_PKEY; AAlg: TECDSAAlgorithm): Boolean;
@@ -185,27 +184,6 @@ begin
       raise Exception.Create('[ECDSA] Unable to load public key: ' + JOSESSL.GetLastError);
   finally
     BIO_free(LKeyBuffer);
-  end;
-end;
-
-class function TECDSA.LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
-var
-  LCer: PX509;
-  LAlg: Integer;
-begin
-  LoadOpenSSL;
-
-  LCer := LoadCertificate(ACertificate);
-  try
-    LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
-    if LAlg <> JoseSSL.NID_X9_62_id_ecPublicKey then
-      raise ESignException.Create('[ECDSA] Unsupported algorithm type in X509 public key (RSA expected)');
-
-    Result := X509_PUBKEY_get(LCer.cert_info.key);
-    if not Assigned(Result) then
-      raise ESignException.Create('[ECDSA] Error extracting public key from X509 certificate');
-  finally
-    X509_free(LCer);
   end;
 end;
 

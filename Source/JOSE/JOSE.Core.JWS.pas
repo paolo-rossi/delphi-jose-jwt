@@ -68,6 +68,7 @@ type
     procedure SetKey(const AKey: TBytes); overload;
     procedure SetKey(const AKey: TJOSEBytes); overload;
     procedure SetKey(const AKey: TJWK); overload;
+    procedure SetKeyFromCert(const ACert: TJOSEBytes); overload;
 
     function Sign: TJOSEBytes; overload;
     function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes; overload;
@@ -87,6 +88,7 @@ implementation
 uses
   System.Types,
   System.StrUtils,
+  JOSE.Signing.Base,
   JOSE.Encoding.Base64,
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
@@ -181,6 +183,11 @@ end;
 procedure TJWS.SetKey(const AKey: TJWK);
 begin
   FKey := AKey.Key;
+end;
+
+procedure TJWS.SetKeyFromCert(const ACert: TJOSEBytes);
+begin
+  FKey.AsBytes := TSigningBase.PublicKeyFromCertificate(ACert.AsBytes);
 end;
 
 procedure TJWS.SetPayload(const Value: TJOSEBytes);

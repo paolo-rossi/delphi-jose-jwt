@@ -44,8 +44,6 @@ object frmCryptoSSL: TfrmCryptoSSL
     ParentFont = False
     TabOrder = 1
     WordWrap = False
-    ExplicitTop = 401
-    ExplicitWidth = 841
   end
   object btnBuildKey: TButton
     Left = 89
@@ -245,5 +243,14 @@ object frmCryptoSSL: TfrmCryptoSSL
     TabOrder = 16
     WantReturns = False
     WordWrap = False
+  end
+  object btnPublicKeyFromCert: TButton
+    Left = 89
+    Top = 68
+    Width = 156
+    Height = 27
+    Caption = 'Public Key From Cert'
+    TabOrder = 17
+    OnClick = btnPublicKeyFromCertClick
   end
 end

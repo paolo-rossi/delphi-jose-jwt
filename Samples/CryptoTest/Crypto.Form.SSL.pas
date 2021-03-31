@@ -54,6 +54,7 @@ type
     memoPublicKey: TMemo;
     btnCertificate: TButton;
     memoCertificate: TMemo;
+    btnPublicKeyFromCert: TButton;
     procedure Button1Click(Sender: TObject);
     procedure btnBuildKeyClick(Sender: TObject);
     procedure btnECDSASignClick(Sender: TObject);
@@ -62,6 +63,7 @@ type
     procedure btnURLDecodeClick(Sender: TObject);
     procedure btnSSLVersionClick(Sender: TObject);
     procedure btnCertificateClick(Sender: TObject);
+    procedure btnPublicKeyFromCertClick(Sender: TObject);
   private
     function LoadCertificate(const ACertificate: TBytes): Integer;
     function Sanitize(const AText: string): string;
@@ -76,7 +78,13 @@ type
 implementation
 
 uses
-  JOSE.Core.JWK, JOSE.Core.JWT, JOSE.Core.JWS, System.JSON, JOSE.Core.JWA, JOSE.Core.Builder;
+  System.JSON,
+  JOSE.Types.Utils,
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Core.JWS,
+  JOSE.Core.JWA,
+  JOSE.Core.Builder;
 
 {$R *.dfm}
 
@@ -194,6 +202,54 @@ begin
   LCer.AsString := Sanitize(memoCertificate.Lines.Text);
 
   ShowMessage(LoadCertificate(LCer).ToString);
+end;
+
+procedure TfrmCryptoSSL.btnPublicKeyFromCertClick(Sender: TObject);
+{
+var
+  LKey: PEVP_PKEY;
+  LBio: PBIO;
+  LBuffer, LResult: TBytes;
+  LJOSEBytes: TJOSEBytes;
+  LBytesRead: Integer;
+}
+begin
+  IdSSLOpenSSLHeaders.Load;
+  JoseSSL.Load;
+
+  {
+  LResult := [];
+  LBuffer := [1,2,3,0,0,0,0,0];
+  TJOSEUtils.ArrayPush(LBuffer, LResult, 3);
+
+  LBuffer := [8,9,0,0,0,0,0,0];
+  TJOSEUtils.ArrayPush(LBuffer, LResult, 2);
+
+  LBuffer := [6,6,3,7,1,0,0,0];
+  TJOSEUtils.ArrayPush(LBuffer, LResult, 5);
+  }
+
+  {
+  LJOSEBytes := Sanitize(memoCertificate.Text);
+
+  LResult := [];
+  LKey := TRSA.LoadPublicKeyFromCert(LJOSEBytes.AsBytes);
+  LBio := BIO_new(BIO_s_mem);
+  try
+    JoseSSL.PEM_write_bio_PUBKEY(LBio, LKey);
+    SetLength(LBuffer, 50);
+
+    repeat
+      LBytesRead := BIO_read(LBio, @LBuffer[0], 50);
+      TJOSEUtils.ArrayPush(LBuffer, LResult, LBytesRead);
+    until (LBytesRead <= 0);
+
+    LJOSEBytes := LResult;
+    memoPayload.Lines.Text := LJOSEBytes;
+  finally
+    BIO_free(LBio);
+  end;
+  }
 end;
 
 function TfrmCryptoSSL.LoadCertificate(const ACertificate: TBytes): Integer;

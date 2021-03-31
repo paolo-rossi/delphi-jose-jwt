@@ -41,9 +41,11 @@ type
 
   TRSA = class(TSigningBase)
   private
+    class function RSAKeyFromEVP(AKey: PEVP_PKEY): PRSA;
+
     class function LoadPublicKey(const AKey: TBytes): PRSA;
     class function LoadPrivateKey(const AKey: TBytes): PRSA;
-    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PRSA;
+    class function LoadRSAPublicKeyFromCert(const ACertificate: TBytes): PRSA;
 
     class function InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
     class function InternalVerify(const AInput, ASignature: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): Boolean;
@@ -194,33 +196,23 @@ begin
   end;
 end;
 
-class function TRSA.LoadPublicKeyFromCert(const ACertificate: TBytes): PRSA;
+class function TRSA.LoadRSAPublicKeyFromCert(const ACertificate: TBytes): PRSA;
 var
-  LCer: PX509;
-  LAlg: Integer;
   LKey: PEVP_PKEY;
 begin
-  LoadOpenSSL;
-
-  LCer := LoadCertificate(ACertificate);
+  LKey := LoadPublicKeyFromCert(ACertificate);
   try
-    LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
-    if LAlg <> NID_rsaEncryption then
-      raise ESignException.Create('[CERT] Unsupported algorithm type in X509 public key (RSA expected)');
-
-    LKey := X509_PUBKEY_get(LCer.cert_info.key);
-    if not Assigned(LKey) then
-      raise ESignException.Create('[CERT] Error extracting public key from X509 certificate');
-    try
-      Result := EVP_PKEY_get1_RSA(LKey);
-      if not Assigned(Result) then
-        raise ESignException.Create('[CERT] Error extracting RSA key from EVP_PKEY');
-    finally
-      EVP_PKEY_free(LKey);
-    end;
+    Result := RSAKeyFromEVP(LKey);
   finally
-    X509_free(LCer);
+    EVP_PKEY_free(LKey);
   end;
+end;
+
+class function TRSA.RSAKeyFromEVP(AKey: PEVP_PKEY): PRSA;
+begin
+  Result := EVP_PKEY_get1_RSA(AKey);
+  if not Assigned(Result) then
+    raise ESignException.Create('[RSA] Error extracting RSA key from EVP_PKEY');
 end;
 
 class function TRSA.Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
@@ -300,7 +292,7 @@ var
 begin
   LoadOpenSSL;
 
-  LRsa := LoadPublicKeyFromCert(ACertificate);
+  LRsa := LoadRSAPublicKeyFromCert(ACertificate);
   try
     Result := InternalVerify(AInput, ASignature, LRsa, AAlg);
   finally

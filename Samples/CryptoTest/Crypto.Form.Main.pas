@@ -51,9 +51,9 @@ implementation
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
-  PasteForm(TfrmCryptoRSA, 'tsRSA', 'RSA stuff');
+  PasteForm(TfrmCryptoRSA,   'tsRSA',   'RSA stuff');
   PasteForm(TfrmCryptoECDSA, 'tsECDSA', 'ECDSA stuff');
-  PasteForm(TfrmCryptoSSL, 'tsSSL', 'Misc SSL stuff');
+  PasteForm(TfrmCryptoSSL,   'tsSSL',   'Misc SSL stuff');
   pgcMain.ActivePageIndex := 0;
 end;
 

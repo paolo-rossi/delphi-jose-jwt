@@ -29,6 +29,7 @@ uses
 
 type
   TJOSEUtils = class
+    class procedure ArrayPush(const ASource: TBytes; var ADest: TBytes; ACount: Integer);
     class function DirectoryUp(const ADirectory: string; ALevel: Integer = 1): string;
     class function BinToSingleHex(ABuffer: TBytes): string; overload;
     class function BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string; overload;
@@ -38,6 +39,21 @@ implementation
 
 uses
   System.IOUtils;
+
+class procedure TJOSEUtils.ArrayPush(const ASource: TBytes; var ADest: TBytes; ACount: Integer);
+var
+  LIndex: Integer;
+  LLen: Integer;
+begin
+  if ACount = 0 then
+    Exit;
+
+  LLen := Length(ADest);
+  SetLength(ADest, LLen + ACount);
+
+  for LIndex := 0 to ACount - 1 do
+    ADest[LIndex + LLen] := ASource[LIndex];
+end;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
 const

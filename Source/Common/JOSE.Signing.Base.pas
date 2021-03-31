@@ -46,28 +46,33 @@ type
     const PEM_PRVKEY_PKCS1: RawByteString = '-----BEGIN EC PRIVATE KEY-----';
 
     class function LoadCertificate(const ACertificate: TBytes): PX509;
+    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
   public
     class procedure LoadOpenSSL;
 
+    class function PublicKeyFromCertificate(const ACertificate: TBytes): TBytes;
     class function VerifyCertificate(const ACertificate: TBytes; AObjectID: Integer): Boolean;
   end;
 
 
 implementation
 
+uses
+  JOSE.Types.Utils;
+
 class function TSigningBase.LoadCertificate(const ACertificate: TBytes): PX509;
 var
   LBio: PBIO;
 begin
   if not CompareMem(@PEM_X509_CERTIFICATE[1], @ACertificate[0], Length(PEM_X509_CERTIFICATE)) then
-    raise ESignException.Create('[SSL] Not a valid X509 certificate');
+    raise ESignException.Create('[OpenSSL] Not a valid X509 certificate');
 
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @ACertificate[0], Length(ACertificate));
     Result := PEM_read_bio_X509(LBio, nil, nil, nil);
     if Result = nil then
-      raise ESignException.Create('[SSL] Error loading X509 certificate');
+      raise ESignException.Create('[OpenSSL] Error loading X509 certificate');
   finally
     BIO_free(LBio);
   end;
@@ -76,13 +81,61 @@ end;
 class procedure TSigningBase.LoadOpenSSL;
 begin
   if not IdSSLOpenSSLHeaders.Load then
-    raise ESignException.Create('[SSL] Unable to load OpenSSL libraries');
+    raise ESignException.Create('[OpenSSL] Unable to load OpenSSL libraries');
 
   if not JoseSSL.Load then
-    raise ESignException.Create('[SSL] Unable to load OpenSSL libraries');
+    raise ESignException.Create('[OpenSSL] Unable to load OpenSSL libraries');
 
   if @EVP_DigestVerifyInit = nil then
-    raise ESignException.Create('[SSL] Please, use OpenSSL 1.0.0 or newer!');
+    raise ESignException.Create('[OpenSSL] Please, use OpenSSL 1.0.0 or newer!');
+end;
+
+class function TSigningBase.LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
+var
+  LCer: PX509;
+  LAlg: Integer;
+begin
+  LoadOpenSSL;
+
+  LCer := LoadCertificate(ACertificate);
+  try
+    LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
+    if LAlg <> JoseSSL.NID_X9_62_id_ecPublicKey then
+      raise ESignException.Create('[OpenSSL] Unsupported algorithm type in X509 public key (RSA expected)');
+
+    Result := X509_PUBKEY_get(LCer.cert_info.key);
+    if not Assigned(Result) then
+      raise ESignException.Create('[OpenSSL] Error extracting public key from X509 certificate');
+  finally
+    X509_free(LCer);
+  end;
+end;
+
+class function TSigningBase.PublicKeyFromCertificate(const ACertificate: TBytes): TBytes;
+var
+  LKey: PEVP_PKEY;
+  LBio: PBIO;
+  LBuffer: TBytes;
+  LBytesRead: Integer;
+begin
+  LKey := LoadPublicKeyFromCert(ACertificate);
+  try
+    LBio := BIO_new(BIO_s_mem);
+    try
+      JoseSSL.PEM_write_bio_PUBKEY(LBio, LKey);
+
+      Result := [];
+      SetLength(LBuffer, 255);
+      repeat
+        LBytesRead := BIO_read(LBio, @LBuffer[0], 255);
+        TJOSEUtils.ArrayPush(LBuffer, Result, LBytesRead);
+      until (LBytesRead <= 0);
+    finally
+      BIO_free(LBio);
+    end;
+  finally
+    EVP_PKEY_free(LKey);
+  end;
 end;
 
 class function TSigningBase.VerifyCertificate(const ACertificate: TBytes; AObjectID: Integer): Boolean;
