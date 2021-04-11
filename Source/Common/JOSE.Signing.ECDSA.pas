@@ -328,7 +328,7 @@ var
 begin
   LoadOpenSSL;
 
-  LKey := LoadPublicKeyFromCert(ACertificate);
+  LKey := LoadPublicKeyFromCert(ACertificate, JoseSSL.NID_X9_62_id_ecPublicKey);
   try
     Result := InternalVerify(AInput, ASignature, LKey, AAlg);
   finally

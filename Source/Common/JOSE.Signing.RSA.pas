@@ -200,7 +200,7 @@ class function TRSA.LoadRSAPublicKeyFromCert(const ACertificate: TBytes): PRSA;
 var
   LKey: PEVP_PKEY;
 begin
-  LKey := LoadPublicKeyFromCert(ACertificate);
+  LKey := LoadPublicKeyFromCert(ACertificate, NID_rsaEncryption);
   try
     Result := RSAKeyFromEVP(LKey);
   finally

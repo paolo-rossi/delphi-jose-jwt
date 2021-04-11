@@ -46,7 +46,8 @@ type
     const PEM_PRVKEY_PKCS1: RawByteString = '-----BEGIN EC PRIVATE KEY-----';
 
     class function LoadCertificate(const ACertificate: TBytes): PX509;
-    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
+    class function LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY; overload;
+    class function LoadPublicKeyFromCert(const ACertificate: TBytes; AAlgID: Integer): PEVP_PKEY; overload;
   public
     class procedure LoadOpenSSL;
 
@@ -90,7 +91,7 @@ begin
     raise ESignException.Create('[OpenSSL] Please, use OpenSSL 1.0.0 or newer!');
 end;
 
-class function TSigningBase.LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
+class function TSigningBase.LoadPublicKeyFromCert(const ACertificate: TBytes; AAlgID: Integer): PEVP_PKEY;
 var
   LCer: PX509;
   LAlg: Integer;
@@ -100,9 +101,25 @@ begin
   LCer := LoadCertificate(ACertificate);
   try
     LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
-    if LAlg <> JoseSSL.NID_X9_62_id_ecPublicKey then
+    if LAlg <> AAlgID then
       raise ESignException.Create('[OpenSSL] Unsupported algorithm type in X509 public key (RSA expected)');
 
+    Result := X509_PUBKEY_get(LCer.cert_info.key);
+    if not Assigned(Result) then
+      raise ESignException.Create('[OpenSSL] Error extracting public key from X509 certificate');
+  finally
+    X509_free(LCer);
+  end;
+end;
+
+class function TSigningBase.LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY;
+var
+  LCer: PX509;
+begin
+  LoadOpenSSL;
+
+  LCer := LoadCertificate(ACertificate);
+  try
     Result := X509_PUBKEY_get(LCer.cert_info.key);
     if not Assigned(Result) then
       raise ESignException.Create('[OpenSSL] Error extracting public key from X509 certificate');
