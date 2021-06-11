@@ -40,6 +40,11 @@ type
   PBytes = ^TBytes;
   PPBIGNUM = ^PBIGNUM;
 
+  {$IFDEF NEXTGEN}
+    AnsiChar = WideChar;
+    PAnsiChar = PWideChar;
+  {$ENDIF NEXTGEN}
+
   JoseSSL = class
   public
     //ECDASA Keys
