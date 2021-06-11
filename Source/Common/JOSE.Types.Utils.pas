@@ -28,6 +28,11 @@ uses
   System.SysUtils;
 
 type
+  {$IFDEF NEXTGEN}
+    AnsiChar = WideChar;
+    PAnsiChar = PWideChar;
+  {$ENDIF NEXTGEN}
+
   TJOSEUtils = class
     class procedure ArrayPush(const ASource: TBytes; var ADest: TBytes; ACount: Integer);
     class function DirectoryUp(const ADirectory: string; ALevel: Integer = 1): string;
