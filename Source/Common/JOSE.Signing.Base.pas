@@ -96,6 +96,7 @@ var
   LCer: PX509;
   LAlg: Integer;
 begin
+  Result := nil;  //prevent compiler warning
   LoadOpenSSL;
 
   LCer := LoadCertificate(ACertificate);
