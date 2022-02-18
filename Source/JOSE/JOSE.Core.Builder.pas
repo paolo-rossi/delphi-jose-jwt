@@ -53,6 +53,8 @@ type
     class function DeserializeCompact(AKey: TJWK; const ACompactToken: TJOSEBytes): TJWT; overload;
     class function DeserializeCompact(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes): TJWT; overload;
 
+    class function DeserializeOnly(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+
     class function SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
     class function SHA284CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
     class function SHA512CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
@@ -79,6 +81,11 @@ begin
   end;
 end;
 
+class function TJOSE.DeserializeOnly(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
+begin
+  Result := DeserializeVerify(nil, ACompactToken, False, AClaimsClass);
+end;
+
 class function TJOSE.DeserializeCompact(AKey: TJWK; const ACompactToken: TJOSEBytes): TJWT;
 begin
   Result := DeserializeVerify(AKey, ACompactToken, True, TJWTClaims);
@@ -101,10 +108,12 @@ begin
         LSigner := TJWS.Create(Result);
         LSigner.SkipKeyValidation := True;
         try
-          LSigner.SetKey(AKey);
           LSigner.CompactToken := ACompactToken;
           if AVerify then
+          begin
+            LSigner.SetKey(AKey);
             LSigner.VerifySignature;
+          end;
         finally
           LSigner.Free;
         end;
