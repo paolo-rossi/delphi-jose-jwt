@@ -63,6 +63,8 @@ type
     function GetCompactToken: TJOSEBytes; override;
     procedure SetCompactToken(const Value: TJOSEBytes); override;
   public
+    class function CheckCompactToken(const Value: TJOSEBytes): Boolean; static;
+  public
     constructor Create(AToken: TJWT); override;
 
     procedure SetKey(const AKey: TBytes); overload;
@@ -92,6 +94,27 @@ uses
   JOSE.Encoding.Base64,
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
+
+class function TJWS.CheckCompactToken(const Value: TJOSEBytes): Boolean;
+var
+  LRes: TStringDynArray;
+  LIndex: Integer;
+begin
+  Result := True;
+
+  if Value.IsEmpty then
+    Exit(False);
+
+  LRes := SplitString(Value, PART_SEPARATOR);
+  if not (Length(LRes) = COMPACT_PARTS) then
+    Exit(False);
+
+  for LIndex := 0 to Length(LRes) - 1 do
+  begin
+    if LRes[LIndex].IsEmpty then
+      Exit(False);
+  end;
+end;
 
 constructor TJWS.Create(AToken: TJWT);
 var
@@ -151,6 +174,9 @@ procedure TJWS.SetCompactToken(const Value: TJOSEBytes);
 var
   LRes: TStringDynArray;
 begin
+  if Value.IsEmpty then
+    raise EJOSEException.Create('The JWS Compact Serialization is empty');
+
   LRes := SplitString(Value, PART_SEPARATOR);
   if Length(LRes) = COMPACT_PARTS then
   begin
