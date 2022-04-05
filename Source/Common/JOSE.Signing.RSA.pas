@@ -185,7 +185,7 @@ begin
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @AKey[0], Length(AKey));
-    if CompareMem(@PEM_PUBKEY_PKCS1[1], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+    if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
       Result := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
     else
       Result := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
@@ -274,7 +274,7 @@ begin
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @AKey[0], Length(AKey));
-    if CompareMem(@PEM_PUBKEY_PKCS1[1], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+    if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
       LRsa := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
     else
       LRsa := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);

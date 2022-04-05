@@ -42,12 +42,6 @@ type
   PPBIGNUM = ^PBIGNUM;
 
   JoseSSL = class
-  public
-    //ECDASA Keys
-    const PEM_PUBKEY: RawByteString = '-----BEGIN PUBLIC KEY-----';
-    const PEM_PRVKEY_PKCS8: RawByteString = '-----BEGIN PRIVATE KEY-----';
-    const PEM_PRVKEY_PKCS1: RawByteString = '-----BEGIN EC PRIVATE KEY-----';
-    const PEM_X509_CERTIFICATE: RawByteString = '-----BEGIN CERTIFICATE-----';
   private const
     fn_SSLeay_version = 'SSLeay_version';
 
