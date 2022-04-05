@@ -96,8 +96,10 @@ var
   LCer: PX509;
   LAlg: Integer;
 begin
-  Result := nil;  //prevent compiler warning
-  LoadOpenSSL;
+{$IF CompilerVersion < 33 } // Delphi 10.3 Rio or lower
+   Result := nil; // prevent compiler warning
+{$IFEND}
+   LoadOpenSSL;
 
   LCer := LoadCertificate(ACertificate);
   try
