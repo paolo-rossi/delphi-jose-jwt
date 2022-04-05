@@ -22,7 +22,11 @@
 
 unit JOSE.Signing.Base;
 
+{$I JOSE.inc}
+
 interface
+
+{$IFDEF RSA_SIGNING}
 
 uses
   System.SysUtils,
@@ -62,8 +66,11 @@ type
     class function VerifyCertificate(const ACertificate: TBytes; AObjectID: Integer): Boolean;
   end;
 
+{$ENDIF}
 
 implementation
+
+{$IFDEF RSA_SIGNING}
 
 uses
   JOSE.Types.Utils;
@@ -195,5 +202,7 @@ begin
     X509_free(LCer);
   end;
 end;
+
+{$ENDIF}
 
 end.

@@ -22,7 +22,11 @@
 
 unit JOSE.OpenSSL.Headers;
 
+{$I JOSE.inc}
+
 interface
+
+{$IFDEF RSA_SIGNING}
 
 uses
   System.SysUtils,
@@ -153,7 +157,11 @@ type
     class procedure Unload;
   end;
 
+{$ENDIF}
+
 implementation
+
+{$IFDEF RSA_SIGNING}
 
 uses
   JOSE.Types.Utils;
@@ -291,5 +299,7 @@ begin
   @d2i_ECDSA_SIG := nil;
   @i2d_ECDSA_SIG := nil;
 end;
+
+{$ENDIF}
 
 end.

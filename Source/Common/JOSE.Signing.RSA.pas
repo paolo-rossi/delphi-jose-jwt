@@ -22,7 +22,11 @@
 
 unit JOSE.Signing.RSA;
 
+{$I JOSE.inc}
+
 interface
+
+{$IFDEF RSA_SIGNING}
 
 uses
   System.SysUtils,
@@ -58,7 +62,11 @@ type
     class function VerifyPrivateKey(const AKey: TBytes): Boolean;
   end;
 
+{$ENDIF}
+
 implementation
+
+{$IFDEF RSA_SIGNING}
 
 { TRSAAlgorithmHelper }
 
@@ -299,5 +307,7 @@ begin
     RSA_free(LRsa);
   end;
 end;
+
+{$ENDIF}
 
 end.

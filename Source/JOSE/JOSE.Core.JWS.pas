@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWS;
 
+{$I JOSE.inc}
+
 interface
 
 uses
@@ -70,7 +72,9 @@ type
     procedure SetKey(const AKey: TBytes); overload;
     procedure SetKey(const AKey: TJOSEBytes); overload;
     procedure SetKey(const AKey: TJWK); overload;
+{$IFDEF RSA_SIGNING}
     procedure SetKeyFromCert(const ACert: TJOSEBytes); overload;
+{$ENDIF}
 
     function Sign: TJOSEBytes; overload;
     function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes; overload;
@@ -211,10 +215,12 @@ begin
   FKey := AKey.Key;
 end;
 
+{$IFDEF RSA_SIGNING}
 procedure TJWS.SetKeyFromCert(const ACert: TJOSEBytes);
 begin
   FKey.AsBytes := TSigningBase.PublicKeyFromCertificate(ACert.AsBytes);
 end;
+{$ENDIF}
 
 procedure TJWS.SetPayload(const Value: TJOSEBytes);
 begin
