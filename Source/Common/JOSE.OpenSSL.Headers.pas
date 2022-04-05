@@ -34,6 +34,7 @@ uses
   Posix.SysTime,
   Posix.SysTypes,
   {$ENDIF}
+  IdGlobal,
   IdSSLOpenSSLHeaders;
 
 type
@@ -102,7 +103,7 @@ type
     NID_X9_62_id_ecPublicKey = 408; // EC Key
 
   public class var
-    SSLeay_version: function(_type: Integer): PAnsiChar cdecl;
+    SSLeay_version: function(_type: Integer): PIdAnsiChar cdecl;
 
     PEM_read_bio_PUBKEY: function(bp: PBIO; x: PPEVP_PKEY; cb: ppem_password_cb; u: Pointer): PEVP_PKEY; cdecl;
     PEM_write_bio_PUBKEY: function(bp: PBIO; x: PEVP_PKEY): Integer; cdecl;
@@ -117,10 +118,10 @@ type
     BN_num_bits: function(const a: PBIGNUM): Integer cdecl;
     BN_bn2bin: function(const a: PBIGNUM; _to: Pointer): Integer cdecl;
     BN_bin2bn: function(const s: Pointer; len: Integer; ret: PBIGNUM): PBIGNUM cdecl;
-    BN_bn2hex: function(const a: PBIGNUM): PAnsiChar cdecl;
-    BN_hex2bn: function(a: PPBIGNUM; str: PAnsiChar): Integer; cdecl;
-    BN_bn2dec: function(const a: PBIGNUM): PAnsiChar cdecl;
-    BN_dec2bn: function(a: PPBIGNUM; str: PAnsiChar): Integer; cdecl;
+    BN_bn2hex: function(const a: PBIGNUM): PIdAnsiChar cdecl;
+    BN_hex2bn: function(a: PPBIGNUM; str: PIdAnsiChar): Integer; cdecl;
+    BN_bn2dec: function(const a: PBIGNUM): PIdAnsiChar cdecl;
+    BN_dec2bn: function(a: PPBIGNUM; str: PIdAnsiChar): Integer; cdecl;
     BN_copy: function(_to: PBIGNUM; const _from: PBIGNUM): PBIGNUM cdecl;
     BN_dup: function(const _from: PBIGNUM): PBIGNUM cdecl;
     BN_clear_free: procedure(a: PBIGNUM); cdecl;
@@ -203,11 +204,14 @@ begin
 end;
 
 class function JoseSSL.GetLastError: string;
+const
+  LErrMsgLength = 160;
 var
-  LErrMsg: array[0..160] of AnsiChar;
+  LErrMsg: TBytes;
 begin
-  ERR_error_string(ERR_get_error, @LErrMsg);
-  Result := string(LErrMsg);
+  SetLength(LErrMsg, LErrMsgLength);
+  ERR_error_string_n(ERR_get_error, @LErrMsg[0], LErrMsgLength);
+  Result := TEncoding.ASCII.GetString(LErrMsg);
 end;
 
 class function JoseSSL.Load: Boolean;
