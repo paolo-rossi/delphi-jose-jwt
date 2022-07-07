@@ -84,6 +84,7 @@ end;
 
 function TRSAAlgorithmHelper.ToString: string;
 begin
+  Result := '';
   case Self of
     RS256: Result := 'RS256';
     RS384: Result := 'RS384';

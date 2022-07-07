@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -21,7 +21,9 @@
 {******************************************************************************}
 
 /// <summary>
-///   JSON Web Key (JWK) RFC implementation (partial)
+///   JSON Web Key (JWK) RFC implementation The JWK is not (yet) implemented,
+///   this unit contains only a small utility class to work with cryptographic
+///   keys in Delphi
 /// </summary>
 /// <seealso href="https://tools.ietf.org/html/rfc7517">
 ///   JWK RFC Document
