@@ -140,6 +140,16 @@ $ boss install github.com/paolo-rossi/delphi-jose-jwt
 ### Creating a token
 To create a token, simply create an instance of the `TJWT` class and set the properties (claims).
 
+### Uses
+
+Declare:
+
+```delphi
+uses
+  JOSE.Core.JWT,
+  JOSE.Core.Builder;
+```
+
 #### Using TJOSE utility class
 The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`utility class:
 
