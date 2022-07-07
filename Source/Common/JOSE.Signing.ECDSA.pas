@@ -22,7 +22,11 @@
 
 unit JOSE.Signing.ECDSA;
 
+{$I JOSE.inc}
+
 interface
+
+{$IFDEF RSA_SIGNING}
 
 uses
   System.SysUtils,
@@ -61,8 +65,11 @@ type
     class function VerifyPrivateKey(const AKey: TBytes): Boolean;
   end;
 
+{$ENDIF}
 
 implementation
+
+{$IFDEF RSA_SIGNING}
 
 { TECDSAAlgorithmHelper }
 
@@ -335,5 +342,7 @@ begin
     EVP_PKEY_free(LKey);
   end;
 end;
+
+{$ENDIF}
 
 end.

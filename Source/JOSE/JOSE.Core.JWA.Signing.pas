@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWA.Signing;
 
+{$I JOSE.inc}
+
 interface
 
 uses
@@ -88,6 +90,8 @@ type
     procedure ValidateVerificationKey(const AKey: TJOSEBytes);
   end;
 
+{$IFDEF RSA_SIGNING}
+
   TRSAUsingSHAAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
   private
     FKeyMinLength: Integer;
@@ -123,6 +127,7 @@ type
     procedure ValidateVerificationKey(const AKey: TJOSEBytes);
   end;
 
+{$ENDIF}
 
 implementation
 
@@ -256,6 +261,8 @@ begin
   ValidateKey(AKey);
   Result := ASignature.IsEmpty;
 end;
+
+{$IFDEF RSA_SIGNING}
 
 { TRSAAlgorithm }
 
@@ -394,5 +401,7 @@ begin
   LDecodedSignature := TBase64.URLDecode(ASignature);
   Result := TECDSA.Verify(AInput, LDecodedSignature, AKey, FECDSAAlgorithm);
 end;
+
+{$ENDIF}
 
 end.

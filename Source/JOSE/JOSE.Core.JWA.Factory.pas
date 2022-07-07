@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWA.Factory;
 
+{$I JOSE.inc}
+
 interface
 
 uses
@@ -130,6 +132,7 @@ begin
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha384)
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha512)
 
+{$IFDEF RSA_SIGNING}
     .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA256)
     .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA384)
     .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA512)
@@ -138,6 +141,7 @@ begin
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA256K)
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA384)
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA512)
+{$ENDIF}
   ;
 
   FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('alg');
