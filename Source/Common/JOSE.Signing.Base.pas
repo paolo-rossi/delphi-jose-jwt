@@ -22,7 +22,11 @@
 
 unit JOSE.Signing.Base;
 
+{$I JOSE.inc}
+
 interface
+
+{$IFDEF RSA_SIGNING}
 
 uses
   System.SysUtils,
@@ -36,14 +40,21 @@ type
   ESignException = class(Exception);
 
   TSigningBase = class
+  strict private class var
+    FPEM_X509_CERTIFICATE: TBytes;
+    FPEM_PUBKEY_PKCS1: TBytes;
+    FPEM_PUBKEY: TBytes;
+    FPEM_PRVKEY_PKCS8: TBytes;
+    FPEM_PRVKEY_PKCS1: TBytes;
+    class constructor Create;
   protected //CERT
-    const PEM_X509_CERTIFICATE: RawByteString = '-----BEGIN CERTIFICATE-----';
+    class property PEM_X509_CERTIFICATE: TBytes read FPEM_X509_CERTIFICATE;
   protected //RSA
-    const PEM_PUBKEY_PKCS1: RawByteString = '-----BEGIN RSA PUBLIC KEY-----';
+    class property PEM_PUBKEY_PKCS1: TBytes read FPEM_PUBKEY_PKCS1;
   protected  //ECDSA
-    const PEM_PUBKEY: RawByteString = '-----BEGIN PUBLIC KEY-----';
-    const PEM_PRVKEY_PKCS8: RawByteString = '-----BEGIN PRIVATE KEY-----';
-    const PEM_PRVKEY_PKCS1: RawByteString = '-----BEGIN EC PRIVATE KEY-----';
+    class property PEM_PUBKEY: TBytes read FPEM_PUBKEY;
+    class property PEM_PRVKEY_PKCS8: TBytes read FPEM_PRVKEY_PKCS8;
+    class property PEM_PRVKEY_PKCS1: TBytes read FPEM_PRVKEY_PKCS1;
 
     class function LoadCertificate(const ACertificate: TBytes): PX509;
     class function LoadPublicKeyFromCert(const ACertificate: TBytes): PEVP_PKEY; overload;
@@ -55,17 +66,29 @@ type
     class function VerifyCertificate(const ACertificate: TBytes; AObjectID: Integer): Boolean;
   end;
 
+{$ENDIF}
 
 implementation
 
+{$IFDEF RSA_SIGNING}
+
 uses
   JOSE.Types.Utils;
+
+class constructor TSigningBase.Create;
+begin
+  FPEM_X509_CERTIFICATE := TEncoding.ASCII.GetBytes('-----BEGIN CERTIFICATE-----');
+  FPEM_PUBKEY_PKCS1 := TEncoding.ASCII.GetBytes('-----BEGIN RSA PUBLIC KEY-----');
+  FPEM_PUBKEY := TEncoding.ASCII.GetBytes('-----BEGIN PUBLIC KEY-----');
+  FPEM_PRVKEY_PKCS8 := TEncoding.ASCII.GetBytes('-----BEGIN PRIVATE KEY-----');
+  FPEM_PRVKEY_PKCS1 := TEncoding.ASCII.GetBytes('-----BEGIN EC PRIVATE KEY-----');
+end;
 
 class function TSigningBase.LoadCertificate(const ACertificate: TBytes): PX509;
 var
   LBio: PBIO;
 begin
-  if not CompareMem(@PEM_X509_CERTIFICATE[1], @ACertificate[0], Length(PEM_X509_CERTIFICATE)) then
+  if not CompareMem(@PEM_X509_CERTIFICATE[0], @ACertificate[0], Length(PEM_X509_CERTIFICATE)) then
     raise ESignException.Create('[OpenSSL] Not a valid X509 certificate');
 
   LBio := BIO_new(BIO_s_mem);
@@ -97,9 +120,9 @@ var
   LAlg: Integer;
 begin
 {$IF CompilerVersion < 33 } // Delphi 10.3 Rio or lower
-  Result := nil; // prevent compiler warning
-{$ENDIF}
-  LoadOpenSSL;
+   Result := nil; // prevent compiler warning
+{$IFEND}
+   LoadOpenSSL;
 
   LCer := LoadCertificate(ACertificate);
   try
@@ -179,5 +202,7 @@ begin
     X509_free(LCer);
   end;
 end;
+
+{$ENDIF}
 
 end.

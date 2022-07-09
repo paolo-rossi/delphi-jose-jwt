@@ -57,7 +57,7 @@ end;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: Pointer; ABufferLen: Integer): string;
 const
-  Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
+  Convert: array[0..15] of string = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 var
   LIndex: Integer;
   LByte: PByte;
@@ -66,7 +66,7 @@ begin
   for LIndex := 0 to ABufferLen - 1 do
   begin
     LByte := Pointer(Integer(ABuffer) + LIndex);
-    Result := Result + string(Convert[(LByte^) and $F]);
+    Result := Result + Convert[(LByte^) and $F];
   end;
 end;
 
@@ -81,14 +81,14 @@ end;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: TBytes): string;
 const
-  Convert: array[0..15] of AnsiChar = '0123456789ABCDEF';
+  Convert: array[0..15] of string = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 var
   LIndex: Integer;
 begin
   Result := '';
   for LIndex := 0 to Length(ABuffer) - 1 do
   begin
-    Result := Result + string(Convert[Byte(ABuffer[LIndex]) and $F]);
+    Result := Result + Convert[Byte(ABuffer[LIndex]) and $F];
   end;
 end;
 
