@@ -49,8 +49,6 @@ type
   TJSONArray = System.JSON.TJSONArray;
 
   TJSONUtils = class
-  private
-    class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
   public
     class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
@@ -62,6 +60,7 @@ type
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 
     class procedure SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject); overload;
+    class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
 
     class procedure RemoveJSONNode(const AName: string; AJSON: TJSONObject);

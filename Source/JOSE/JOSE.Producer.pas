@@ -25,6 +25,7 @@ interface
 
 uses
   System.SysUtils,
+  System.Rtti,
   JOSE.Types.Bytes,
   JOSE.Core.Base,
   JOSE.Core.Parts,
@@ -67,6 +68,7 @@ type
     function SetJWTId(const AValue: string): IJOSEProducerBuilder;
     function SetNotBefore(AValue: TDateTime): IJOSEProducerBuilder;
     function SetSubject(const AValue: string): IJOSEProducerBuilder;
+    function SetCustomClaim(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
 
     function SetKey(const AKey: TJOSEBytes): IJOSEProducerBuilder;
     function SetKeyPair(const APublicKey, APrivateKey: TJOSEBytes): IJOSEProducerBuilder;
@@ -97,6 +99,7 @@ type
     function SetJWTId(const AValue: string): IJOSEProducerBuilder;
     function SetNotBefore(AValue: TDateTime): IJOSEProducerBuilder;
     function SetSubject(const AValue: string): IJOSEProducerBuilder;
+    function SetCustomClaim(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
 
     function SetKey(const AKey: TJOSEBytes): IJOSEProducerBuilder;
     function SetKeyPair(const APublicKey, APrivateKey: TJOSEBytes): IJOSEProducerBuilder;
@@ -214,6 +217,12 @@ end;
 function TJOSEProducerBuilder.SetAudience(const AValue: TArray<string>): IJOSEProducerBuilder;
 begin
   GetJWT.Claims.AudienceArray := AValue;
+  Result := Self;
+end;
+
+function TJOSEProducerBuilder.SetCustomClaim(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
+begin
+  GetJWT.Claims.SetClaim(AName, AValue);
   Result := Self;
 end;
 

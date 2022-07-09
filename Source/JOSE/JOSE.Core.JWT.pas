@@ -111,6 +111,7 @@ type
   public
     constructor Create; virtual;
 
+    procedure SetClaim(const AName: string; const AValue: TValue);
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
 
@@ -220,6 +221,11 @@ begin
 end;
 
 { TJWTClaims }
+
+procedure TJWTClaims.SetClaim(const AName: string; const AValue: TValue);
+begin
+  TJSONUtils.SetJSONRttiValue(AName, AValue, FJSON);
+end;
 
 procedure TJWTClaims.SetClaimOfType<T>(const AName: string; const AValue: T);
 begin
