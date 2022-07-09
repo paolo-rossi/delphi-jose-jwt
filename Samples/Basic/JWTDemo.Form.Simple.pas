@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -32,7 +32,7 @@ uses
   JOSE.Core.JWS,
   JOSE.Core.JWK,
   JOSE.Core.JWA,
-  JOSE.Types.JSON;
+  JOSE.Types.JSON, Vcl.Mask;
 
 type
   TfrmSimple = class(TForm)
@@ -49,12 +49,14 @@ type
     edtSecret: TLabeledEdit;
     btnDeserializeTJOSE: TButton;
     btnVerifyClasses: TButton;
+    btnBuildProducer: TButton;
     procedure btnBuildClassesClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
     procedure btnBuildTJOSEClick(Sender: TObject);
     procedure btnVerifyTJOSEClick(Sender: TObject);
     procedure btnDeserializeTJOSEClick(Sender: TObject);
     procedure btnVerifyClassesClick(Sender: TObject);
+    procedure btnBuildProducerClick(Sender: TObject);
     procedure edtSecretChange(Sender: TObject);
   private
     const SECRET_CAPTION = 'Secret (%dbit)';
@@ -72,7 +74,8 @@ type
 implementation
 
 uses
-  System.Rtti,
+  System.Rtti, System.JSON,
+  JOSE.Producer,
   JOSE.Types.Bytes,
   JOSE.Core.Builder;
 
@@ -220,6 +223,32 @@ begin
   finally
     LToken.Free;
   end;
+end;
+
+procedure TfrmSimple.btnBuildProducerClick(Sender: TObject);
+var
+  LAlg: TJOSEAlgorithmId;
+  LResult: string;
+begin
+  // Signing algorithm
+  case cbbAlgorithm.ItemIndex of
+    0: LAlg := TJOSEAlgorithmId.HS256;
+    1: LAlg := TJOSEAlgorithmId.HS384;
+    2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+  end;
+
+  LResult := TJOSEProcess.New
+    .SetIssuer('Delphi JOSE Library')
+    .SetIssuedAt(Now)
+    .SetExpiration(Now + 1)
+    .SetAlgorithm(LAlg)
+    .SetKey(edtSecret.Text)
+    .Build
+    .GetCompactToken
+  ;
+
+  memoCompact.Lines.Add(LResult);
 end;
 
 procedure TfrmSimple.DeserializeToken;

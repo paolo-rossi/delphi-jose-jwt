@@ -2,7 +2,7 @@ object frmSimple: TfrmSimple
   Left = 0
   Top = 0
   Caption = 'frmSimple'
-  ClientHeight = 518
+  ClientHeight = 531
   ClientWidth = 923
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -10,11 +10,9 @@ object frmSimple: TfrmSimple
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   DesignSize = (
     923
-    518)
-  PixelsPerInch = 96
+    531)
   TextHeight = 13
   object lblJSON: TLabel
     Left = 157
@@ -57,7 +55,7 @@ object frmSimple: TfrmSimple
   end
   object btnVerifyTJOSE: TButton
     Left = 8
-    Top = 152
+    Top = 171
     Width = 135
     Height = 25
     Caption = 'Verify JWS using TJOSE'
@@ -91,7 +89,7 @@ object frmSimple: TfrmSimple
     Left = 8
     Top = 320
     Width = 907
-    Height = 190
+    Height = 203
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -100,6 +98,7 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 5
+    ExplicitHeight = 190
   end
   object cbbAlgorithm: TComboBox
     Left = 8
@@ -130,7 +129,7 @@ object frmSimple: TfrmSimple
   end
   object btnDeserializeTJOSE: TButton
     Left = 8
-    Top = 215
+    Top = 233
     Width = 135
     Height = 25
     Caption = 'Deserialize using TJOSE'
@@ -139,11 +138,20 @@ object frmSimple: TfrmSimple
   end
   object btnVerifyClasses: TButton
     Left = 8
-    Top = 183
+    Top = 202
     Width = 135
     Height = 25
     Caption = 'Verify JWS using classes'
     TabOrder = 9
     OnClick = btnVerifyClassesClick
+  end
+  object btnBuildProducer: TButton
+    Left = 8
+    Top = 135
+    Width = 135
+    Height = 25
+    Caption = 'Build using Producer'
+    TabOrder = 10
+    OnClick = btnBuildProducerClick
   end
 end

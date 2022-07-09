@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -38,7 +38,7 @@ uses
   JOSE.Core.Builder,
   JOSE.Consumer,
   JOSE.Hashing.HMAC,
-  JOSE.Encoding.Base64;
+  JOSE.Encoding.Base64, Vcl.Mask;
 
 type
   TMyClaims = class(TJWTClaims)

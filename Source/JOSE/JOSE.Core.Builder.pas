@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -59,7 +59,6 @@ type
     class function SHA284CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
     class function SHA512CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
   end;
-
 
 implementation
 

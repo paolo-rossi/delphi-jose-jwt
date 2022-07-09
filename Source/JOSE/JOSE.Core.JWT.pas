@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -111,9 +111,6 @@ type
   public
     constructor Create; virtual;
 
-    procedure SetAsJSON(AClaims: TJSONObject); overload;
-    procedure SetAsJSON(const AClaims: string); overload;
-
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
 
@@ -150,7 +147,10 @@ type
     constructor Create(AClaimsClass: TJWTClaimsClass); overload;
     destructor Destroy; override;
 
+    function Clone: TJWT;
     procedure Clear;
+
+    function ClaimClass: TJWTClaimsClass;
 
     function GetClaimsAs<T: TJWTClaims>: T; deprecated;
     function ClaimsAs<T: TJWTClaims>: T;
@@ -164,6 +164,11 @@ implementation
 
 uses
   JOSE.Encoding.Base64;
+
+function TJWT.ClaimClass: TJWTClaimsClass;
+begin
+  Result := TJWTClaimsClass(FClaims.ClassType);
+end;
 
 function TJWT.GetClaimsAs<T>: T;
 begin
@@ -180,6 +185,19 @@ begin
   Header.Clear;
   Claims.Clear;
   Verified := False;
+end;
+
+function TJWT.Clone: TJWT;
+begin
+  Result := TJWT.Create(Self.ClaimClass);
+  try
+    Result.Claims.Assign(FClaims);
+    Result.Header.Assign(FHeader);
+    Result.Verified := FVerified;
+  except
+    Result.Free;
+    raise;
+  end;
 end;
 
 constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);
@@ -314,20 +332,6 @@ end;
 function TJWTClaims.GetSubject: string;
 begin
   Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SUBJECT, FJSON).AsString;
-end;
-
-procedure TJWTClaims.SetAsJSON(const AClaims: string);
-var
-  LJSON: TJSONObject;
-begin
-  LJSON := FJSON.ParseJSONValue(AClaims) as TJSONObject;
-  SetAsJSON(LJSON);
-end;
-
-procedure TJWTClaims.SetAsJSON(AClaims: TJSONObject);
-begin
-  FJSON.Free;
-  FJSON := AClaims;
 end;
 
 procedure TJWTClaims.SetAudience(const AValue: string);

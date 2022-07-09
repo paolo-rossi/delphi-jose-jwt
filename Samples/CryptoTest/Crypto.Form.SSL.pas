@@ -105,7 +105,7 @@ var
   nJOSE, eJOSE: TJOSEBytes;
   nArr, eArr: TArray<Byte>;
 
-  r: PRSA;
+  rsa: PRSA;
   bp: pBIO;
   Len: Integer;
 
@@ -130,15 +130,18 @@ begin
   IdSSLOpenSSLHeaders.Load;
   JoseSSL.Load;
 
-  r := RSA_new;
+  rsa := RSA_new;
 
-  r.n := JoseSSL.BN_bin2bn(@nArr, Length(nArr), nil);
-  r.e := JoseSSL.BN_bin2bn(@nArr, Length(nArr), nil);
+  // rsa.n: modulus
+  rsa.n := JoseSSL.BN_bin2bn(@nArr, Length(nArr), nil);
+  // rsa.e: exponent
+  rsa.e := JoseSSL.BN_bin2bn(@eArr, Length(eArr), nil);
 
   bp := BIO_new(BIO_s_mem);
 
-  PEM_write_bio_RSAPublicKey(bp, r);
+  PEM_write_bio_RSAPublicKey(bp, rsa);
 
+  //PEM_write_bio_PUBKEY()
   Len := BIO_pending(bp);
 
   SetLength(buf, Len);
@@ -149,7 +152,7 @@ begin
   Memo1.Lines.Add(xbuf);
 
   BIO_free(bp);
-  RSA_free(r);
+  RSA_free(rsa);
 end;
 
 procedure TfrmCryptoSSL.btnECDSASignClick(Sender: TObject);

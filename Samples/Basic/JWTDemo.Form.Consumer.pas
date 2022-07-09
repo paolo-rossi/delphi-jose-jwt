@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -28,7 +28,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   System.Rtti, System.Generics.Collections, Vcl.ImgList, System.Actions, Vcl.ActnList,
-  System.ImageList,
+  System.ImageList, Vcl.Mask,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWE,
@@ -38,8 +38,9 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.Builder,
   JOSE.Hashing.HMAC,
+  JOSE.Encoding.Base64,
   JOSE.Consumer,
-  JOSE.Encoding.Base64;
+  JOSE.Producer;
 
 type
   TfrmConsumer = class(TForm)

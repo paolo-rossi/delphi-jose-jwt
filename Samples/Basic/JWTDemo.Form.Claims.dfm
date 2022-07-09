@@ -10,13 +10,11 @@ object frmClaims: TfrmClaims
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   DesignSize = (
     952
     560)
-  PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
@@ -105,8 +103,8 @@ object frmClaims: TfrmClaims
       Top = 84
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 1
     end
@@ -115,8 +113,8 @@ object frmClaims: TfrmClaims
       Top = 172
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 2
     end
     object edtExpiresDate: TDateTimePicker
@@ -124,8 +122,8 @@ object frmClaims: TfrmClaims
       Top = 130
       Width = 106
       Height = 21
-      Date = 42757.710233020840000000
-      Time = 42757.710233020840000000
+      Date = 42757.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 3
     end
     object chkIssuer: TCheckBox
@@ -171,8 +169,8 @@ object frmClaims: TfrmClaims
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 8
     end
     object edtExpiresTime: TDateTimePicker
@@ -180,8 +178,8 @@ object frmClaims: TfrmClaims
       Top = 130
       Width = 74
       Height = 21
-      Date = 42207.427592592590000000
-      Time = 42207.427592592590000000
+      Date = 42207.000000000000000000
+      Time = 0.427592592590372100
       Kind = dtkTime
       TabOrder = 9
     end
@@ -190,8 +188,8 @@ object frmClaims: TfrmClaims
       Top = 172
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 10
     end
@@ -307,6 +305,7 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 20
+      Text = ''
     end
     object edtPayload: TLabeledEdit
       Left = 12
@@ -323,6 +322,7 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 21
+      Text = ''
     end
     object edtSignature: TLabeledEdit
       Left = 12
@@ -339,6 +339,7 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 22
+      Text = ''
     end
     object edtAppIssuer: TLabeledEdit
       Left = 14

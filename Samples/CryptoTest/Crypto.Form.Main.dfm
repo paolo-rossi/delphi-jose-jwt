@@ -1,7 +1,7 @@
 object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'Crypto Test'
+  Caption = 'Crypto Playground'
   ClientHeight = 629
   ClientWidth = 973
   Color = clBtnFace
@@ -10,9 +10,7 @@ object frmMain: TfrmMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
-  PixelsPerInch = 96
   TextHeight = 13
   object pgcMain: TPageControl
     Left = 0

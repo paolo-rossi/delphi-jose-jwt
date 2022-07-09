@@ -66,6 +66,9 @@ If you need the OpenSSL library on the server, you can download the package dire
 |  `jti`       | ✔️               |
 |  `typ`       | ✔️               |
 
+#### Easy to use classes for compact token productiom
+- Easy to use `TJOSEProducer` and `TJOSEProducerBuilder` (alias `TJOSEProcess`) classes to build a new compact token with many options
+
 #### Easy to use classes for custom validation
 
 - Easy to use `TJOSEConsumer` and `TJOSEConsumerBuilder` classes to validate token with a fine granularity
@@ -140,20 +143,38 @@ $ boss install github.com/paolo-rossi/delphi-jose-jwt
 ### Creating a token
 To create a token, simply create an instance of the `TJWT` class and set the properties (claims).
 
-### Uses
+#### Using TJOSE utility class
+The easiest way to build a JWT token (compact representation) is to use the `IJOSEProducer` interface:
 
-Declare:
+```delphi
+uses
+  JOSE.Producer;
+
+var
+  LResult: string;
+begin
+  LResult := TJOSEProcess.New
+    .SetIssuer('Delphi JOSE Library')
+    .SetIssuedAt(Now)
+    .SetExpiration(Now + 1)
+    .SetAlgorithm(LAlg)
+    .SetKey(TJOSEAlgorithmId.HS256)
+    .Build
+    .GetCompactToken
+  ;
+
+  memoCompact.Lines.Add(LResult);
+end;
+```
+
+#### Using TJOSE utility class
+Another way to serialize, deserialize, verify a token is to use the `TJOSE`utility class:
 
 ```delphi
 uses
   JOSE.Core.JWT,
   JOSE.Core.Builder;
-```
 
-#### Using TJOSE utility class
-The easiest way to serialize, deserialize, verify a token is to use the `TJOSE`utility class:
-
-```delphi
 var
   LToken: TJWT;
   LCompactToken: string;

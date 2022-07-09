@@ -10,11 +10,9 @@ object frmOpenSSL: TfrmOpenSSL
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   DesignSize = (
     987
     725)
-  PixelsPerInch = 96
   TextHeight = 13
   object pnlSignatureRSA: TPanel
     Left = 8

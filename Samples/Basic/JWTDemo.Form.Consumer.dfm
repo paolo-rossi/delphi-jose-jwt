@@ -10,10 +10,8 @@ object frmConsumer: TfrmConsumer
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
@@ -82,8 +80,8 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 1
     end
@@ -92,8 +90,8 @@ object frmConsumer: TfrmConsumer
       Top = 172
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 2
     end
     object edtExpiresDate: TDateTimePicker
@@ -101,8 +99,8 @@ object frmConsumer: TfrmConsumer
       Top = 130
       Width = 106
       Height = 21
-      Date = 42757.710233020840000000
-      Time = 42757.710233020840000000
+      Date = 42757.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 3
     end
     object chkIssuer: TCheckBox
@@ -148,8 +146,8 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 8
     end
     object edtExpiresTime: TDateTimePicker
@@ -157,8 +155,8 @@ object frmConsumer: TfrmConsumer
       Top = 130
       Width = 74
       Height = 21
-      Date = 42207.427592592590000000
-      Time = 42207.427592592590000000
+      Date = 42207.000000000000000000
+      Time = 0.427592592590372100
       Kind = dtkTime
       TabOrder = 9
     end
@@ -167,8 +165,8 @@ object frmConsumer: TfrmConsumer
       Top = 172
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 10
     end
@@ -284,6 +282,7 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 20
+      Text = ''
     end
     object edtPayload: TLabeledEdit
       Left = 12
@@ -300,6 +299,7 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 21
+      Text = ''
     end
     object edtSignature: TLabeledEdit
       Left = 12
@@ -316,6 +316,7 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 22
+      Text = ''
     end
   end
   object grpConsumer: TGroupBox
@@ -394,6 +395,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Height = 13
       EditLabel.Caption = 'Subject'
       TabOrder = 6
+      Text = ''
     end
     object chkConsumerSubject: TCheckBox
       Left = 133
@@ -412,6 +414,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Height = 13
       EditLabel.Caption = 'Audience'
       TabOrder = 8
+      Text = ''
     end
     object chkConsumerAudience: TCheckBox
       Left = 133
@@ -468,8 +471,8 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 14
     end
     object chkConsumerIssuedAt: TCheckBox
@@ -523,8 +526,8 @@ object frmConsumer: TfrmConsumer
       Top = 82
       Width = 74
       Height = 23
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 20
     end

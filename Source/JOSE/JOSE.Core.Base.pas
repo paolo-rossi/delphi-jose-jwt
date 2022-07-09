@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015-2022 Paolo Rossi                                         }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -31,6 +31,7 @@ interface
 
 uses
   System.SysUtils,
+  System.JSON,
   System.Generics.Collections,
   JOSE.Types.Arrays,
   JOSE.Types.Bytes,
@@ -103,6 +104,9 @@ type
     destructor Destroy; override;
 
     procedure Clear;
+    procedure Assign(AValue: TJOSEBase);
+    procedure SetNewJSON(AJSON: TJSONObject); overload;
+    procedure SetNewJSON(const AJSONStr: string); overload;
     function Clone: TJSONObject;
 
     property JSON: TJSONObject read FJSON write FJSON;
@@ -117,7 +121,6 @@ implementation
 
 uses
   System.DateUtils,
-  System.JSON,
   JOSE.Encoding.Base64;
 
 {$IF CompilerVersion >= 28}
@@ -143,6 +146,12 @@ begin
 end;
 
 { TJOSEBase }
+
+procedure TJOSEBase.Assign(AValue: TJOSEBase);
+begin
+  FJSON.Free;
+  FJSON := AValue.Clone;
+end;
 
 procedure TJOSEBase.Clear;
 begin
@@ -182,6 +191,20 @@ var
 begin
   LJSONStr := TBase64.Decode(Value);
   FJSON.Parse(LJSONStr, 0)
+end;
+
+procedure TJOSEBase.SetNewJSON(const AJSONStr: string);
+var
+  LJSON: TJSONObject;
+begin
+  LJSON := FJSON.ParseJSONValue(AJSONStr) as TJSONObject;
+  SetNewJSON(LJSON);
+end;
+
+procedure TJOSEBase.SetNewJSON(AJSON: TJSONObject);
+begin
+  FJSON.Free;
+  FJSON := AJSON;
 end;
 
 procedure TJOSEBase.SetURLEncoded(const Value: TJOSEBytes);
