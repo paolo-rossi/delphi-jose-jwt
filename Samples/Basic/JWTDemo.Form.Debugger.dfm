@@ -10,13 +10,11 @@ object frmDebugger: TfrmDebugger
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   DesignSize = (
     838
     695)
-  PixelsPerInch = 96
   TextHeight = 13
   object shpStatus: TShape
     Left = 8
@@ -196,7 +194,6 @@ object frmDebugger: TfrmDebugger
     ScrollBars = ssVertical
     TabOrder = 0
     WantReturns = False
-    Zoom = 100
   end
   object pnlPayload: TPanel
     Left = 507
@@ -535,7 +532,7 @@ object frmDebugger: TfrmDebugger
       Color = clBtnFace
       Ctl3D = True
       Font.Charset = ANSI_CHARSET
-      Font.Color = clTeal
+      Font.Color = 15841536
       Font.Height = -16
       Font.Name = 'Consolas'
       Font.Style = [fsBold]

@@ -98,7 +98,6 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 5
-    ExplicitHeight = 190
   end
   object cbbAlgorithm: TComboBox
     Left = 8

@@ -235,15 +235,23 @@ begin
     0: LAlg := TJOSEAlgorithmId.HS256;
     1: LAlg := TJOSEAlgorithmId.HS384;
     2: LAlg := TJOSEAlgorithmId.HS512;
-    else LAlg := TJOSEAlgorithmId.HS256;
+  else LAlg := TJOSEAlgorithmId.HS256;
   end;
 
   LResult := TJOSEProcess.New
+    .SetAlgorithm(LAlg)
+    .SetKeyID('uniqueidforthistoken')
+    .SetHeaderParam('id', 123)
+
     .SetIssuer('Delphi JOSE Library')
     .SetIssuedAt(Now)
     .SetExpiration(Now + 1)
-    .SetAlgorithm(LAlg)
+
+    .SetCustomClaim('author', 'Paolo Rossi')
+    .SetCustomClaim('year', 2022)
+
     .SetKey(edtSecret.Text)
+
     .Build
     .GetCompactToken
   ;
