@@ -56,6 +56,9 @@ type
     function GetKeyID: string;
     procedure SetKeyID(const Value: string);
   public
+    procedure SetHeaderParam(const AName: string; const AValue: TValue);
+    procedure SetHeaderParamOfType<T>(const AName: string; const AValue: T);
+
     property Algorithm: string read GetAlgorithm write SetAlgorithm;
     property HeaderType: string read GetHeaderType write SetHeaderType;
     property KeyID: string read GetKeyID write SetKeyID;
@@ -440,6 +443,16 @@ end;
 procedure TJWTHeader.SetAlgorithm(const Value: string);
 begin
   TJSONUtils.SetJSONValueFrom<string>(THeaderNames.ALGORITHM, Value, FJSON);
+end;
+
+procedure TJWTHeader.SetHeaderParam(const AName: string; const AValue: TValue);
+begin
+  TJSONUtils.SetJSONRttiValue(AName, AValue, FJSON);
+end;
+
+procedure TJWTHeader.SetHeaderParamOfType<T>(const AName: string; const AValue: T);
+begin
+  AddPairOfType<T>(AName, AValue);
 end;
 
 procedure TJWTHeader.SetHeaderType(Value: string);
