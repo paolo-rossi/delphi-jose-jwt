@@ -60,6 +60,18 @@ type
 
   IJOSEProducerBuilder = interface
   ['{95A11892-71F8-4509-A4E0-EA5EEE446B83}']
+
+
+    /// <summary>
+    ///   Header Claims
+    /// </summary>
+    function SetAlgorithm(AAlgorithm: TJOSEAlgorithmId): IJOSEProducerBuilder;
+    function SetKeyID(const AValue: string): IJOSEProducerBuilder;
+    function SetHeaderParam(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
+
+    /// <summary>
+    ///   Payload Claims
+    /// </summary>
     function SetAudience(const AValue: string): IJOSEProducerBuilder; overload;
     function SetAudience(const AValue: TArray<string>): IJOSEProducerBuilder; overload;
     function SetExpiration(AValue: TDateTime): IJOSEProducerBuilder;
@@ -70,10 +82,11 @@ type
     function SetSubject(const AValue: string): IJOSEProducerBuilder;
     function SetCustomClaim(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
 
+    /// <summary>
+    ///   Signing Keys
+    /// </summary>
     function SetKey(const AKey: TJOSEBytes): IJOSEProducerBuilder;
     function SetKeyPair(const APublicKey, APrivateKey: TJOSEBytes): IJOSEProducerBuilder;
-
-    function SetAlgorithm(AAlgorithm: TJOSEAlgorithmId): IJOSEProducerBuilder;
 
     function Build(): IJOSEProducer;
   end;
@@ -91,6 +104,10 @@ type
     class function New(): IJOSEProducerBuilder;
     destructor Destroy; override;
 
+    function SetAlgorithm(AAlgorithm: TJOSEAlgorithmId): IJOSEProducerBuilder;
+    function SetKeyID(const AValue: string): IJOSEProducerBuilder;
+    function SetHeaderParam(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
+
     function SetAudience(const AValue: string): IJOSEProducerBuilder; overload;
     function SetAudience(const AValue: TArray<string>): IJOSEProducerBuilder; overload;
     function SetExpiration(AValue: TDateTime): IJOSEProducerBuilder;
@@ -103,8 +120,6 @@ type
 
     function SetKey(const AKey: TJOSEBytes): IJOSEProducerBuilder;
     function SetKeyPair(const APublicKey, APrivateKey: TJOSEBytes): IJOSEProducerBuilder;
-
-    function SetAlgorithm(AAlgorithm: TJOSEAlgorithmId): IJOSEProducerBuilder;
 
     function Build(): IJOSEProducer;
   end;
@@ -232,6 +247,12 @@ begin
   Result := Self;
 end;
 
+function TJOSEProducerBuilder.SetHeaderParam(const AName: string; const AValue: TValue): IJOSEProducerBuilder;
+begin
+  GetJWT.Header.SetHeaderParam(AName, AValue);
+  Result := Self;
+end;
+
 function TJOSEProducerBuilder.SetIssuedAt(AValue: TDateTime): IJOSEProducerBuilder;
 begin
   GetJWT.Claims.IssuedAt := AValue;
@@ -253,6 +274,12 @@ end;
 function TJOSEProducerBuilder.SetKey(const AKey: TJOSEBytes): IJOSEProducerBuilder;
 begin
   GetKeys.SetSymmetricKey(AKey);
+  Result := Self;
+end;
+
+function TJOSEProducerBuilder.SetKeyID(const AValue: string): IJOSEProducerBuilder;
+begin
+  GetJWT.Header.KeyID := AValue;
   Result := Self;
 end;
 
