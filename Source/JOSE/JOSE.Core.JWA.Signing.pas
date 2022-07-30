@@ -62,7 +62,7 @@ type
 
   TUnsecureNoneAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
   private
-    const CANNOT_HAVE_KEY = 'Unsecured JWS (%s=%s) must not use a key';
+    const CANNOT_HAVE_KEY = 'Unsecure JWS (alg=None) must not use a key';
     procedure ValidateKey(const AKey: TJOSEBytes);
   public
     constructor Create;
@@ -242,8 +242,7 @@ end;
 procedure TUnsecureNoneAlgorithm.ValidateKey(const AKey: TJOSEBytes);
 begin
   if not AKey.IsEmpty then
-    raise EJOSEException.Create(Format(CANNOT_HAVE_KEY,
-      [THeaderNames.ALGORITHM, TJOSEAlgorithmId.None.AsString]));
+    raise EJOSEException.Create(CANNOT_HAVE_KEY);
 end;
 
 procedure TUnsecureNoneAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);

@@ -37,6 +37,7 @@ uses
   System.Rtti,
   System.JSON,
   System.Generics.Collections,
+
   JOSE.Types.JSON,
   JOSE.Types.Bytes,
   JOSE.Core.Base,
@@ -45,9 +46,19 @@ uses
 
 type
   /// <summary>
+  ///   Standard Header Parameters Names
+  /// </summary>
+  THeaderNames = class
+  public const
+    HEADER_TYPE = 'typ';
+    ALGORITHM = 'alg';
+    KEY_ID = 'kid';
+  end;
+
+  /// <summary>
   ///   Header part of the JWT
   /// </summary>
-  TJWTHeader = class sealed(TJOSEBase)
+  TJWTHeader = class(TJOSEBase)
   private
     function GetAlgorithm: string;
     function GetHeaderType: string;
@@ -56,6 +67,9 @@ type
     function GetKeyID: string;
     procedure SetKeyID(const Value: string);
   public
+    constructor Create; overload; virtual;
+    constructor Create(const AType: string); overload; virtual;
+
     procedure SetHeaderParam(const AName: string; const AValue: TValue);
     procedure SetHeaderParamOfType<T>(const AName: string; const AValue: T);
 
@@ -64,6 +78,11 @@ type
     property KeyID: string read GetKeyID write SetKeyID;
   end;
 
+  TJWTHeaderClass = class of TJWTHeader;
+
+  /// <summary>
+  ///   Reserved (Standard) Claim Names
+  /// </summary>
   TReservedClaimNames = class
   public const
     AUDIENCE   = 'aud';
@@ -149,16 +168,19 @@ type
   public
     constructor Create; overload;
     constructor Create(AClaimsClass: TJWTClaimsClass); overload;
+    constructor Create(AHeaderClass: TJWTHeaderClass; AClaimsClass: TJWTClaimsClass); overload;
     destructor Destroy; override;
 
     function Clone: TJWT;
     procedure Clear;
 
+    function HeaderClass: TJWTHeaderClass;
     function ClaimClass: TJWTClaimsClass;
 
     function GetClaimsAs<T: TJWTClaims>: T; deprecated;
     function ClaimsAs<T: TJWTClaims>: T;
-
+    function HeaderAs<T: TJWTHeader>: T;
+  public
     property Header: TJWTHeader read FHeader;
     property Claims: TJWTClaims read FClaims;
     property Verified: Boolean read FVerified write FVerified;
@@ -169,6 +191,29 @@ implementation
 uses
   JOSE.Encoding.Base64;
 
+constructor TJWT.Create;
+begin
+  Create(TJWTHeader, TJWTClaims);
+end;
+
+constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);
+begin
+  Create(TJWTHeader, AClaimsClass);
+end;
+
+constructor TJWT.Create(AHeaderClass: TJWTHeaderClass; AClaimsClass: TJWTClaimsClass);
+begin
+  FHeader := AHeaderClass.Create;
+  FClaims := AClaimsClass.Create;
+end;
+
+destructor TJWT.Destroy;
+begin
+  FClaims.Free;
+  FHeader.Free;
+  inherited;
+end;
+
 function TJWT.ClaimClass: TJWTClaimsClass;
 begin
   Result := TJWTClaimsClass(FClaims.ClassType);
@@ -177,6 +222,16 @@ end;
 function TJWT.GetClaimsAs<T>: T;
 begin
   Result := FClaims as T;
+end;
+
+function TJWT.HeaderAs<T>: T;
+begin
+  Result := FHeader as T;
+end;
+
+function TJWT.HeaderClass: TJWTHeaderClass;
+begin
+  Result := TJWTHeaderClass(FHeader.ClassType);
 end;
 
 function TJWT.ClaimsAs<T>: T;
@@ -193,34 +248,15 @@ end;
 
 function TJWT.Clone: TJWT;
 begin
-  Result := TJWT.Create(Self.ClaimClass);
+  Result := TJWT.Create(Self.HeaderClass, Self.ClaimClass);
   try
-    Result.Claims.Assign(FClaims);
     Result.Header.Assign(FHeader);
+    Result.Claims.Assign(FClaims);
     Result.Verified := FVerified;
   except
     Result.Free;
     raise;
   end;
-end;
-
-constructor TJWT.Create(AClaimsClass: TJWTClaimsClass);
-begin
-  FHeader := TJWTHeader.Create;
-  FHeader.HeaderType := 'JWT';
-  FClaims := AClaimsClass.Create;
-end;
-
-constructor TJWT.Create;
-begin
-  Create(TJWTClaims);
-end;
-
-destructor TJWT.Destroy;
-begin
-  FHeader.Free;
-  FClaims.Free;
-  inherited;
 end;
 
 { TJWTClaims }
@@ -424,6 +460,17 @@ begin
 end;
 
 { TJWTHeader }
+
+constructor TJWTHeader.Create;
+begin
+  Create('JWT');
+end;
+
+constructor TJWTHeader.Create(const AType: string);
+begin
+  inherited Create;
+  HeaderType := AType;
+end;
 
 function TJWTHeader.GetAlgorithm: string;
 begin

@@ -82,13 +82,6 @@ type
     property AsISO8601: string read GetAsISO8601;
   end;
 
-  THeaderNames = class
-  public const
-    HEADER_TYPE = 'typ';
-    ALGORITHM = 'alg';
-    KEY_ID = 'kid';
-  end;
-
   TJOSEBase = class
   private
     function GetEncoded: TJOSEBytes;
