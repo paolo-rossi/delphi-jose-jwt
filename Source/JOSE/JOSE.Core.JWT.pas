@@ -204,7 +204,10 @@ end;
 constructor TJWT.Create(AHeaderClass: TJWTHeaderClass; AClaimsClass: TJWTClaimsClass);
 begin
   FHeader := AHeaderClass.Create;
-  FClaims := AClaimsClass.Create;
+  if AClaimsClass = nil then
+    FClaims := TJWTClaims.Create
+  else
+    FClaims := AClaimsClass.Create;
 end;
 
 destructor TJWT.Destroy;
