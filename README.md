@@ -8,6 +8,17 @@
   </a>
 </p>
 
+## What is Delphi JOSE and JWT Library
+
+![Top language](https://img.shields.io/github/languages/top/paolo-rossi/delphi-jose-jwt)
+[![GitHub license](https://img.shields.io/github/license/paolo-rossi/delphi-jose-jwt)](https://github.com/paolo-rossi/delphi-jose-jwt/blob/master/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues/paolo-rossi/delphi-jose-jwt)](https://github.com/paolo-rossi/delphi-jose-jwt/issues)
+[![GitHub PR](https://img.shields.io/github/issues-pr/paolo-rossi/delphi-jose-jwt)](https://github.com/paolo-rossi/delphi-jose-jwt/pulls)
+[![GitHub release](https://img.shields.io/github/release/paolo-rossi/delphi-jose-jwt)](https://github.com/paolo-rossi/delphi-jose-jwt/release)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/paolo-rossi/delphi-jose-jwt)
+![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
+![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
+
 [Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
