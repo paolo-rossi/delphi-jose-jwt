@@ -36,7 +36,7 @@
 #### HMAC using SHA algorithm
 Prior to Delphi 10 Seattle the the HMAC-SHA algorithm uses OpenSSL through the Indy library, so in order to generate the token you should have the OpenSSL DLLs in your server system.
 
-In Delphi 10 Seattle or newer Delphi versions the HMAC algorithm is also is the System.Hash unit so OpenSSL is not needed.
+In Delphi 10 Seattle or newer Delphi versions the HMAC algorithm is also in the System.Hash unit so OpenSSL is not needed.
 
 #### HMAC using RSA or ECDSA algorithm
 The HMAC-RSA(ECDSA) algorithm uses necessarily OpenSSL so if you plan to use these algorithms to sign your token you have to download and deploy OpenSSL (on the server).
