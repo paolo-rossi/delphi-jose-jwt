@@ -54,6 +54,7 @@ type
 
     class function Empty: TJOSEBytes; static;
     class function RandomBytes(ANumberOfBytes: Integer): TJOSEBytes; static;
+    class function Swap(const Value: TJOSEBytes): TJOSEBytes; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -221,6 +222,13 @@ end;
 procedure TJOSEBytes.SetAsString(const Value: string);
 begin
   FPayload := TEncoding.UTF8.GetBytes(Value);
+end;
+
+class function TJOSEBytes.Swap(const Value: TJOSEBytes): TJOSEBytes;
+begin
+  SetLength(Result.FPayload, Value.Size);
+  for var i := 0 to Value.Size -1 do
+    Result.FPayload[Value.Size -1 -i] := Value.FPayload[i];
 end;
 
 { TBytesUtils }
