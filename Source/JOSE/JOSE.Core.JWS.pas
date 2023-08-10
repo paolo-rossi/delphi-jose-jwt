@@ -78,6 +78,7 @@ type
 
     function Sign: TJOSEBytes; overload;
     function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes; overload;
+    function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId; const APayload: TJOSEBytes): TJOSEBytes; overload;
 
     function VerifySignature: Boolean; overload;
     function VerifySignature(AKey: TJWK; const ACompactToken: TJOSEBytes): Boolean; overload;
@@ -236,6 +237,16 @@ function TJWS.Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes;
 begin
   SetKey(AKey);
   SetHeaderAlgorithm(AAlgId);
+  Payload := ToJSON(FToken.Claims.JSON);
+
+  Result := Sign();
+end;
+
+function TJWS.Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId; const APayload: TJOSEBytes): TJOSEBytes;
+begin
+  SetKey(AKey);
+  SetHeaderAlgorithm(AAlgId);
+  Payload := APayload;
 
   Result := Sign();
 end;
@@ -252,7 +263,7 @@ begin
     LAlg.ValidateSigningKey(FKey);
 
   Header := TBase64.URLEncode(ToJSON(FToken.Header.JSON));
-  Payload := TBase64.URLEncode(ToJSON(FToken.Claims.JSON));
+  Payload := TBase64.URLEncode(Payload);
   Signature := LAlg.Sign(FKey, SigningInput);
 
   Result := Signature;
