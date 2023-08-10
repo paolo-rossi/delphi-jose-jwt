@@ -49,7 +49,8 @@ type
 
   THMAC = class
   public
-    class function Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
+    class function Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes; overload;
+    class function Sign(const AInput, AKey: TBytes; AKeyLength: Integer): TBytes; overload;
   end;
 
 implementation
@@ -93,6 +94,16 @@ begin
 end;
 {$IFEND}
 
+class function THMAC.Sign(const AInput, AKey: TBytes; AKeyLength: Integer): TBytes;
+begin
+  case AKeyLength of
+    256: Result := Sign(AInput, AKey, THMACAlgorithm.SHA256);
+    384: Result := Sign(AInput, AKey, THMACAlgorithm.SHA384);
+    512: Result := Sign(AInput, AKey, THMACAlgorithm.SHA512);
+    else
+      Result := Sign(AInput, AKey, THMACAlgorithm.SHA256);
+  end;
+end;
 
 { THMACAlgorithmHelper }
 
