@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -33,7 +33,7 @@ uses
 begin
   try
     TSampleJWTConsole.CompileSampleToken;
-    Writeln('Press any key...');
+    Writeln('Press Enter...');
     Readln;
   except
     on E: Exception do
