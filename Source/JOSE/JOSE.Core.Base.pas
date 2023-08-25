@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2022 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -116,7 +116,7 @@ uses
   System.DateUtils,
   JOSE.Encoding.Base64;
 
-{$IF CompilerVersion >= 28}
+{$IF CompilerVersion >= 28}  // Delphi XE7
 function ToJSON(Value: TJSONAncestor): string;
 begin
   Result := Value.ToJson;

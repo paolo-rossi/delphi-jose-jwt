@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -65,7 +65,7 @@ type
     function GetCompactToken: TJOSEBytes; override;
     procedure SetCompactToken(const Value: TJOSEBytes); override;
   public
-    class function CheckCompactToken(const Value: TJOSEBytes): Boolean; static;
+    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean; static;
   public
     constructor Create(AToken: TJWT); override;
 
@@ -94,22 +94,24 @@ implementation
 uses
   System.Types,
   System.StrUtils,
+  JOSE.Types.JSON,
   JOSE.Signing.Base,
   JOSE.Encoding.Base64,
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
 
-class function TJWS.CheckCompactToken(const Value: TJOSEBytes): Boolean;
+class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 var
   LRes: TStringDynArray;
   LIndex: Integer;
+  LPart: TJOSEBytes;
 begin
   Result := True;
 
-  if Value.IsEmpty then
+  if AValue.IsEmpty then
     Exit(False);
 
-  LRes := SplitString(Value, PART_SEPARATOR);
+  LRes := SplitString(AValue, PART_SEPARATOR);
   if not (Length(LRes) = COMPACT_PARTS) then
     Exit(False);
 
@@ -118,6 +120,26 @@ begin
     if LRes[LIndex].IsEmpty then
       Exit(False);
   end;
+
+  LPart := TBase64.TryURLDecode(LRes[0]);
+  if LPart.IsEmpty then
+    Exit(False);
+
+  if not TJOSEBytes.IsValidString(LPart) then
+    Exit(False);
+
+  if not TJSONUtils.IsValidJSON(LPart) then
+    Exit(False);
+
+  LPart := TBase64.TryURLDecode(LRes[1]);
+  if LPart.IsEmpty then
+    Exit(False);
+
+  if not TJOSEBytes.IsValidString(LPart) then
+    Exit(False);
+
+  if not TJSONUtils.IsValidJSON(LPart) then
+    Exit(False);
 end;
 
 constructor TJWS.Create(AToken: TJWT);

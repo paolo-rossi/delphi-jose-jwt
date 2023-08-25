@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -50,6 +50,7 @@ type
 
   TJSONUtils = class
   public
+    class function IsValidJSON(const AValue: string): Boolean;
     class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
@@ -158,6 +159,19 @@ begin
     Result := TJSONNumber(LJSONValue).AsInt64
   else
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
+end;
+
+class function TJSONUtils.IsValidJSON(const AValue: string): Boolean;
+var
+  LValue: TJSONValue;
+begin
+  try
+    LValue := TJSONObject.ParseJSONValue(AValue);
+    Result := Assigned(LValue);
+    LValue.Free;
+  except
+    Result := False;
+  end;
 end;
 
 class procedure TJSONUtils.RemoveJSONNode(const AName: string; AJSON: TJSONObject);

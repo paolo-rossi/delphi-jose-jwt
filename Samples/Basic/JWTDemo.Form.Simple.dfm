@@ -74,7 +74,7 @@ object frmSimple: TfrmSimple
   object memoJSON: TMemo
     Left = 157
     Top = 74
-    Width = 758
+    Width = 754
     Height = 215
     Anchors = [akLeft, akTop, akRight]
     Font.Charset = ANSI_CHARSET
@@ -84,11 +84,12 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 4
+    ExplicitWidth = 750
   end
   object memoCompact: TMemo
     Left = 8
     Top = 320
-    Width = 907
+    Width = 903
     Height = 203
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
@@ -98,6 +99,8 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 5
+    ExplicitWidth = 899
+    ExplicitHeight = 202
   end
   object cbbAlgorithm: TComboBox
     Left = 8
@@ -116,7 +119,7 @@ object frmSimple: TfrmSimple
   object edtSecret: TLabeledEdit
     Left = 157
     Top = 26
-    Width = 758
+    Width = 754
     Height = 21
     Anchors = [akLeft, akTop, akRight]
     EditLabel.Width = 72
@@ -125,6 +128,7 @@ object frmSimple: TfrmSimple
     TabOrder = 7
     Text = 'mysecretkey256bitwide(32characters)'
     OnChange = edtSecretChange
+    ExplicitWidth = 750
   end
   object btnDeserializeTJOSE: TButton
     Left = 8
@@ -152,5 +156,14 @@ object frmSimple: TfrmSimple
     Caption = 'Build using Producer'
     TabOrder = 10
     OnClick = btnBuildProducerClick
+  end
+  object btnCheckCompact: TButton
+    Left = 157
+    Top = 295
+    Width = 108
+    Height = 19
+    Caption = 'Check Compact'
+    TabOrder = 11
+    OnClick = btnCheckCompactClick
   end
 end

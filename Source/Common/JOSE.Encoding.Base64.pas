@@ -38,8 +38,11 @@ type
   TBase64 = class
     class function Encode(const ASource: TJOSEBytes): TJOSEBytes; overload;
     class function Decode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+
     class function URLEncode(const ASource: TJOSEBytes): TJOSEBytes; overload;
     class function URLDecode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
   end;
 
 implementation
@@ -177,6 +180,24 @@ begin
   {$ELSE}
   Result := EncodeBase64(ASource.AsBytes);
   {$IFEND}
+end;
+
+class function TBase64.TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  try
+    Result := Decode(ASource);
+  except
+    Result.Clear;
+  end;
+end;
+
+class function TBase64.TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  try
+    Result := URLDecode(ASource);
+  except
+    Result.Clear;
+  end;
 end;
 
 class function TBase64.URLDecode(const ASource: TJOSEBytes): TJOSEBytes;

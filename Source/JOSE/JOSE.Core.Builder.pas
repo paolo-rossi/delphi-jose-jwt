@@ -42,6 +42,8 @@ type
   private
     class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
+    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean; static;
+
     class function Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
     class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     class function Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
@@ -67,6 +69,11 @@ uses
   System.StrUtils;
 
 { TJOSE }
+
+class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
+begin
+  Result := TJWS.CheckCompactToken(AValue);
+end;
 
 class function TJOSE.DeserializeCompact(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes): TJWT;
 var

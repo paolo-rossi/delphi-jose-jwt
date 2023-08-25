@@ -50,6 +50,7 @@ type
     btnDeserializeTJOSE: TButton;
     btnVerifyClasses: TButton;
     btnBuildProducer: TButton;
+    btnCheckCompact: TButton;
     procedure btnBuildClassesClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
     procedure btnBuildTJOSEClick(Sender: TObject);
@@ -57,6 +58,7 @@ type
     procedure btnDeserializeTJOSEClick(Sender: TObject);
     procedure btnVerifyClassesClick(Sender: TObject);
     procedure btnBuildProducerClick(Sender: TObject);
+    procedure btnCheckCompactClick(Sender: TObject);
     procedure edtSecretChange(Sender: TObject);
   private
     const SECRET_CAPTION = 'Secret (%dbit)';
@@ -257,6 +259,14 @@ begin
   ;
 
   memoCompact.Lines.Add(LResult);
+end;
+
+procedure TfrmSimple.btnCheckCompactClick(Sender: TObject);
+begin
+  if TJOSE.CheckCompactToken(memoCompact.Lines.Text) then
+    ShowMessage('Valid Compact Visualization')
+  else
+    ShowMessage('Invalid Compact Visualization')
 end;
 
 procedure TfrmSimple.DeserializeToken;
