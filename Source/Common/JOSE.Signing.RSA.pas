@@ -189,15 +189,25 @@ end;
 class function TRSA.LoadPublicKey(const AKey: TBytes): PRSA;
 var
   LBio: PBIO;
+  LPubKey: TBytes;
 begin
   // Load Public RSA Key into RSA object
   LBio := BIO_new(BIO_s_mem);
   try
-    BIO_write(LBio, @AKey[0], Length(AKey));
-    if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
-      Result := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
-    else
+    if CompareMem(@PEM_X509_CERTIFICATE[0], @AKey[0], Length(PEM_X509_CERTIFICATE)) then
+    begin
+      LPubKey := Self.PublicKeyFromCertificate(AKey);
+      BIO_write(LBio, @LPubKey[0], Length(LPubKey));
       Result := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    end else
+    begin
+      BIO_write(LBio, @AKey[0], Length(AKey));
+      if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+        Result := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
+      else
+        Result := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    end;
+
     if Result = nil then
       raise ESignException.Create('[RSA] Unable to load public key: ' + JOSESSL.GetLastError);
   finally
@@ -276,17 +286,27 @@ class function TRSA.VerifyPublicKey(const AKey: TBytes): Boolean;
 var
   LBio: PBIO;
   LRsa: PRSA;
+  LPubKey: TBytes;
 begin
   LoadOpenSSL;
 
   // Load Public RSA Key
   LBio := BIO_new(BIO_s_mem);
   try
-    BIO_write(LBio, @AKey[0], Length(AKey));
-    if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
-      LRsa := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
-    else
+    if CompareMem(@PEM_X509_CERTIFICATE[0], @AKey[0], Length(PEM_X509_CERTIFICATE)) then
+    begin
+      LPubKey := Self.PublicKeyFromCertificate(AKey);
+      BIO_write(LBio, @LPubKey[0], Length(LPubKey));
       LRsa := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    end else
+    begin
+      BIO_write(LBio, @AKey[0], Length(AKey));
+      if CompareMem(@PEM_PUBKEY_PKCS1[0], @AKey[0], Length(PEM_PUBKEY_PKCS1)) then
+        LRsa := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil)
+      else
+        LRsa := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
+    end;
+
     Result := (LRsa <> nil);
     if Result then
       RSA_Free(LRsa);
