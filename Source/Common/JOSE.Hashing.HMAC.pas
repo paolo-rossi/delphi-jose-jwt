@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Hashing.HMAC;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses

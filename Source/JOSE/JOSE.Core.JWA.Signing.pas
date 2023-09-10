@@ -28,7 +28,7 @@
 /// </seealso>
 unit JOSE.Core.JWA.Signing;
 
-{$I JOSE.inc}
+{$I ..\JOSE.inc}
 
 interface
 

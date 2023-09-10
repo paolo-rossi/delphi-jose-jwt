@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2022 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -29,6 +29,8 @@
 ///   JWK RFC Document
 /// </seealso>
 unit JOSE.Core.JWK;
+
+{$I ..\JOSE.inc}
 
 interface
 

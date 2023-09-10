@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Types.JSON;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
@@ -51,6 +53,9 @@ type
   TJSONUtils = class
   public
     class function IsValidJSON(const AValue: string): Boolean;
+    class function IsJSONBool(AJSON: TJSONValue): Boolean;
+    class function GetJSONBool(AJSON: TJSONValue): Boolean;
+
     class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
@@ -79,6 +84,23 @@ begin
   Result := Assigned(AJSON.GetValue(AName));
 end;
 
+class function TJSONUtils.GetJSONBool(AJSON: TJSONValue): Boolean;
+begin
+{$IFDEF HAS_JSON_BOOL}
+  if AJSON is TJSONBool then
+    Result := (AJSON as TJSONBool).AsBoolean
+  else
+    raise EJSONConversionException.Create('The JSON value is not boolean');
+{$ELSE}
+  if AJSON is TJSONTrue then
+    Result := True
+  else if AJSON is TJSONFalse then
+    Result := False
+  else
+    raise EJSONConversionException.Create('The JSON value is not boolean');
+{$ENDIF}
+end;
+
 class function TJSONUtils.GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
 var
   LJSONValue: TJSONValue;
@@ -86,15 +108,15 @@ begin
   LJSONValue := AJSON.GetValue(AName);
 
   if not Assigned(LJSONValue) then
-    Result := TValue.Empty
-  else if LJSONValue is TJSONTrue then
-    Result := True
-  else if LJSONValue is TJSONFalse then
-    Result := False
-  else if LJSONValue is TJSONNumber then
-    Result := TJSONNumber(LJSONValue).AsDouble
-  else
-    Result := LJSONValue.Value;
+    Exit(TValue.Empty);
+
+  if IsJSONBool(LJSONValue) then
+    Exit(GetJSONBool(LJSONValue));
+
+  if LJSONValue is TJSONNumber then
+    Exit(TJSONNumber(LJSONValue).AsDouble);
+
+  Result := LJSONValue.Value;
 end;
 
 class function TJSONUtils.GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
@@ -159,6 +181,18 @@ begin
     Result := TJSONNumber(LJSONValue).AsInt64
   else
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
+end;
+
+class function TJSONUtils.IsJSONBool(AJSON: TJSONValue): Boolean;
+begin
+{$IFDEF HAS_JSON_BOOL}
+  if AJSON is TJSONBool then
+    Exit(True);
+{$ELSE}
+  if (AJSON is TJSONTrue) or (AJSON is TJSONFalse) then
+    Exit(True);
+{$ENDIF}
+  Result := False;
 end;
 
 class function TJSONUtils.IsValidJSON(const AValue: string): Boolean;

@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWT;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses

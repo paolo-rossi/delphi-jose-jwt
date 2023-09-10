@@ -28,7 +28,7 @@
 /// </seealso>
 unit JOSE.Core.JWS;
 
-{$I JOSE.inc}
+{$I ..\JOSE.inc}
 
 interface
 

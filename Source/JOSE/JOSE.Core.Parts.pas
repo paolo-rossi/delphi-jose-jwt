@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Core.Parts;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses

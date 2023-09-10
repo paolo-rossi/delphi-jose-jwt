@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Core.Base;
 
+{$I ..\JOSE.inc}
+
 interface
 
 {$SCOPEDENUMS ON}

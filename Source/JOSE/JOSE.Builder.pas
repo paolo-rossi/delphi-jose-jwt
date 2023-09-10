@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2021 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -24,6 +24,8 @@
 ///   Utility class to encode and decode a JWT
 /// </summary>
 unit JOSE.Builder;
+
+{$I ..\JOSE.inc}
 
 interface
 

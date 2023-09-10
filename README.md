@@ -89,7 +89,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 
 | _Algorithms_ | _Supported_      | 
 | -------------| -----------      |
-|  `None`      | ✔️ don't use! 💀 |
+|  `None`      | ✔️ don't use it! 💀 |
 |  `HS256`     | ✔️               |
 |  `HS384`     | ✔️               |
 |  `HS512`     | ✔️               |
