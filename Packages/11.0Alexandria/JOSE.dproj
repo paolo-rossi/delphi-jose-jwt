@@ -53,7 +53,6 @@
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_OutputNeverBuildDcps>true</DCC_OutputNeverBuildDcps>
-        <DllSuffix>280</DllSuffix>
         <DCC_Description>Delphi JOSE JWT Library</DCC_Description>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <RuntimeOnlyPackage>true</RuntimeOnlyPackage>
