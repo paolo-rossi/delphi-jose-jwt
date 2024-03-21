@@ -51,6 +51,8 @@ type
   TJSONArray = System.JSON.TJSONArray;
 
   TJSONUtils = class
+  strict private
+    class function GetJSONRttiValue(AValue: TValue): TJSONValue;
   public
     class function IsValidJSON(const AValue: string): Boolean;
     class function IsJSONBool(AJSON: TJSONValue): Boolean;
@@ -78,6 +80,61 @@ uses
   System.TypInfo;
 
 { TJSONUtils }
+
+class function TJSONUtils.GetJSONRttiValue(AValue: TValue): TJSONValue;
+begin
+  Result := nil;
+
+  case AValue.Kind of
+    tkChar,
+    tkString,
+    tkWChar,
+    tkLString,
+    tkWString,
+    tkUString:
+    begin
+      Result := TJSONString.Create(AValue.AsType<string>);
+    end;
+
+    tkEnumeration:
+    begin
+      if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
+      begin
+        if AValue.AsType<Boolean> then
+          Result := TJSONTrue.Create
+        else
+          Result := TJSONFalse.Create;
+      end;
+    end;
+
+    tkInteger,
+    tkInt64,
+    tkFloat:
+    begin
+      if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
+         SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
+         SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
+        Result := TJSONNumber.Create(DateTimeToUnix(AValue.AsType<TDateTime>, False))
+      else
+        if AValue.Kind = tkFloat then
+          Result := TJSONNumber.Create(AValue.AsType<Double>)
+      else
+      if AValue.Kind = tkInt64 then
+          Result := TJSONNumber.Create(AValue.AsType<Int64>)
+      else
+        Result := TJSONNumber.Create(AValue.AsType<Integer>)
+    end;
+
+    tkDynArray:
+    begin
+      var lArray: TArray<TValue> := AValue.AsType<TArray<TValue>>;
+
+      Result := TJSONArray.Create();
+      for var i: Integer := 0 to Length(lArray) - 1 do
+        TJSONArray(Result).AddElement(GetJSONRttiValue(lArray[i]));
+    end;
+  end;
+end;
 
 class function TJSONUtils.CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
 begin
@@ -254,46 +311,7 @@ var
 begin
   LValue := nil;
 
-  case AValue.Kind of
-    tkChar,
-    tkString,
-    tkWChar,
-    tkLString,
-    tkWString,
-    tkUString:
-    begin
-      LValue := TJSONString.Create(AValue.AsType<string>);
-    end;
-
-    tkEnumeration:
-    begin
-      if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
-      begin
-        if AValue.AsType<Boolean> then
-          LValue := TJSONTrue.Create
-        else
-          LValue := TJSONFalse.Create;
-      end;
-    end;
-
-    tkInteger,
-    tkInt64,
-    tkFloat:
-    begin
-      if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
-        LValue := TJSONNumber.Create(DateTimeToUnix(AValue.AsType<TDateTime>, False))
-      else
-        if AValue.Kind = tkFloat then
-          LValue := TJSONNumber.Create(AValue.AsType<Double>)
-      else
-	    if AValue.Kind = tkInt64 then
-          LValue := TJSONNumber.Create(AValue.AsType<Int64>)
-      else
-        LValue := TJSONNumber.Create(AValue.AsType<Integer>)
-    end;
-  end;
+  LValue := GetJSONRttiValue(AValue);
 
   if not Assigned(LValue) then
     Exit;
