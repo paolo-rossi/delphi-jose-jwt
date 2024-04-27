@@ -10,11 +10,9 @@ object frmMain: TfrmMain
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   DesignSize = (
     685
     530)
-  PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
     Left = 16
@@ -93,6 +91,8 @@ object frmMain: TfrmMain
     Font.Style = []
     ParentFont = False
     TabOrder = 2
+    ExplicitWidth = 653
+    ExplicitHeight = 225
   end
   object edtIssuer: TLabeledEdit
     Left = 400
@@ -103,14 +103,15 @@ object frmMain: TfrmMain
     EditLabel.Height = 13
     EditLabel.Caption = 'Issuer'
     TabOrder = 3
+    Text = ''
   end
   object edtIssuedAtTime: TDateTimePicker
     Left = 512
     Top = 70
     Width = 74
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
     Kind = dtkTime
     TabOrder = 4
   end
@@ -119,8 +120,8 @@ object frmMain: TfrmMain
     Top = 156
     Width = 106
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
     TabOrder = 5
   end
   object edtExpiresDate: TDateTimePicker
@@ -128,8 +129,8 @@ object frmMain: TfrmMain
     Top = 113
     Width = 106
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
     TabOrder = 6
   end
   object chkIssuer: TCheckBox
@@ -172,42 +173,34 @@ object frmMain: TfrmMain
     State = cbChecked
     TabOrder = 10
   end
-  object Button1: TButton
-    Left = 400
-    Top = 234
-    Width = 113
-    Height = 25
-    Caption = 'Build Custom JWS'
-    TabOrder = 11
-  end
   object edtIssuedAtDate: TDateTimePicker
     Left = 400
     Top = 70
     Width = 106
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
-    TabOrder = 12
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
+    TabOrder = 11
   end
   object edtExpiresTime: TDateTimePicker
     Left = 512
     Top = 113
     Width = 74
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
     Kind = dtkTime
-    TabOrder = 13
+    TabOrder = 12
   end
   object edtNotBeforeTime: TDateTimePicker
     Left = 512
     Top = 156
     Width = 74
     Height = 21
-    Date = 42207.710233020840000000
-    Time = 42207.710233020840000000
+    Date = 42207.000000000000000000
+    Time = 0.710233020843588700
     Kind = dtkTime
-    TabOrder = 14
+    TabOrder = 13
   end
   object cbbAlgorithm: TComboBox
     Left = 400
@@ -216,11 +209,20 @@ object frmMain: TfrmMain
     Height = 21
     Style = csDropDownList
     ItemIndex = 0
-    TabOrder = 15
+    TabOrder = 14
     Text = 'HMAC SHA256'
     Items.Strings = (
       'HMAC SHA256'
       'HMAC SHA384'
       'HMAC SHA512')
+  end
+  object btnCheckCustom: TButton
+    Left = 135
+    Top = 234
+    Width = 121
+    Height = 25
+    Caption = 'Check Custom Claim'
+    TabOrder = 15
+    OnClick = btnCheckCustomClick
   end
 end
