@@ -129,12 +129,12 @@ type
     function GetHasNotBefore: Boolean;
     function GetHasSubject: Boolean;
 
-    function ClaimExists(const AClaimName: string): Boolean;
     function GetAudienceArray: TArray<string>;
     procedure SetAudienceArray(const AValue: TArray<string>);
   public
     constructor Create; virtual;
 
+    function ClaimExists(const AClaimName: string): Boolean;
     procedure SetClaim(const AName: string; const AValue: TValue);
     procedure SetClaimOfType<T>(const AName: string; const AValue: T);
     function GenerateJWTId(ANumberOfBytes: Integer = 16): string;
