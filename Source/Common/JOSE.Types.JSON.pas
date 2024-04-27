@@ -82,6 +82,9 @@ uses
 { TJSONUtils }
 
 class function TJSONUtils.GetJSONRttiValue(AValue: TValue): TJSONValue;
+var
+  LVal: TValue;
+  LArray: TArray<TValue>;
 begin
   Result := nil;
 
@@ -127,11 +130,10 @@ begin
 
     tkDynArray:
     begin
-      var lArray: TArray<TValue> := AValue.AsType<TArray<TValue>>;
-
+      LArray := AValue.AsType<TArray<TValue>>;
       Result := TJSONArray.Create();
-      for var i: Integer := 0 to Length(lArray) - 1 do
-        TJSONArray(Result).AddElement(GetJSONRttiValue(lArray[i]));
+      for LVal in LArray do
+        TJSONArray(Result).AddElement(GetJSONRttiValue(LVal));
     end;
   end;
 end;
@@ -309,10 +311,7 @@ class procedure TJSONUtils.SetJSONRttiValue(const AName: string; const AValue: T
 var
   LValue: TJSONValue;
 begin
-  LValue := nil;
-
   LValue := GetJSONRttiValue(AValue);
-
   if not Assigned(LValue) then
     Exit;
 
@@ -320,4 +319,3 @@ begin
 end;
 
 end.
-
