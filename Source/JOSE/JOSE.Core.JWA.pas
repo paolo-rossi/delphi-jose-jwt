@@ -50,7 +50,9 @@ type
     HS256, HS384, HS512,
     RS256, RS384, RS512,
     ES256, ES256K, ES384, ES512,
-    PS256, PS384, PS512
+    PS256, PS384, PS512,
+    RSA1_5,
+    A256CBC_HS512
   );
   TJOSEAlgorithmIdHelper = record helper for TJOSEAlgorithmId
   private
@@ -130,6 +132,10 @@ begin
     TJOSEAlgorithmId.PS256: Result := 'PS256';
     TJOSEAlgorithmId.PS384: Result := 'PS384';
     TJOSEAlgorithmId.PS512: Result := 'PS512';
+
+    TJOSEAlgorithmId.A256CBC_HS512: Result := 'A256CBC-HS512';
+
+    TJOSEAlgorithmId.RSA1_5: Result := 'RSA1_5';
   end;
 end;
 
@@ -153,6 +159,8 @@ begin
     TJOSEAlgorithmId.PS256: Result := 256;
     TJOSEAlgorithmId.PS384: Result := 384;
     TJOSEAlgorithmId.PS512: Result := 512;
+
+    TJOSEAlgorithmId.A256CBC_HS512: Result := 512;
   end;
 end;
 
@@ -190,6 +198,12 @@ begin
     Self := TJOSEAlgorithmId.PS384
   else if AValue = 'PS512' then
     Self := TJOSEAlgorithmId.PS512
+
+  else if AValue = 'A256CBC-HS512' then
+    Self := TJOSEAlgorithmId.A256CBC_HS512
+
+  else if AValue = 'RSA1_5' then
+    Self := TJOSEAlgorithmId.RSA1_5
 
   else
     Self := TJOSEAlgorithmId.Unknown;

@@ -31,7 +31,12 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.Base,
   JOSE.Core.Parts,
-  JOSE.Core.JWT;
+  JOSE.Core.JWA,
+  JOSE.Core.JWA.Factory,
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Encoding.Base64,
+  JOSE.Encryption.RSA;
 
 type
   /// <summary>
@@ -43,12 +48,21 @@ type
   TJWE = class(TJOSEParts)
   private
     const COMPACT_PARTS = 5;
+  private
+    function GetPart(Index: Integer): TJOSEBytes;
+    procedure SetPart(Index: Integer; const Value: TJOSEBytes);
   public
     constructor Create(AToken: TJWT); override;
-    //class function Encrypt(AKey: TJWK; AAlg: TJWAEnum): string;
+    function Encrypt(AKey: TJWK; AAlg, AEncryptionAlg: TJOSEAlgorithmId): string;
     //class function Decrypt(AKey: TJWK; AInput: TBytes): Boolean;
-  end;
+    function GetCompactToken: TJOSEBytes; override;
 
+    property Header: TJOSEBytes index 0 read GetPart write SetPart;
+    property EncryptedKey: TJOSEBytes index 1 read GetPart write SetPart;
+    property IV: TJOSEBytes index 2 read GetPart write SetPart;
+    property CipherText: TJOSEBytes index 3 read GetPart write SetPart;
+    property AuthenticationTag: TJOSEBytes index 4 read GetPart write SetPart;
+  end;
 implementation
 
 { TJWEParts }
@@ -61,6 +75,47 @@ begin
 
   for LIndex := 0 to COMPACT_PARTS - 1 do
     FParts.Add(TJOSEBytes.Empty);
+end;
+
+function TJWE.GetPart(Index: Integer): TJOSEBytes;
+begin
+  if (Index >= 0) and (Index < COMPACT_PARTS) then
+    Result := FParts[Index]
+  else
+    Result := nil;
+end;
+
+procedure TJWE.SetPart(Index: Integer; const Value: TJOSEBytes);
+begin
+  if (Index >= 0) and (Index < COMPACT_PARTS) then
+    FParts[Index] := Value;
+end;
+
+function TJWE.Encrypt(AKey: TJWK; AAlg, AEncryptionAlg: TJOSEAlgorithmId): string;
+begin
+
+  // Set headers
+  SetHeaderAlgorithm(AAlg);
+  FToken.Header.SetHeaderParamOfType<string>('enc', AEncryptionAlg.AsString);
+
+  Header := TBase64.URLEncode(ToJSON(FToken.Header.JSON));
+
+  var CEK := TJOSEBytes.RandomBytes(AEncryptionAlg.Length div 8);
+  EncryptedKey := TBase64.URLEncode(TRSAEncryption.EncryptWithPublicCertificate(AKey.Key, CEK));
+
+  var Payload : TJOSEBytes := ToJSON(FToken.Claims.JSON);
+  var Parts := TJOSEAlgorithmRegistryFactory.Instance.EncryptionAlgorithmRegistry.GetAlgorithm(AEncryptionAlg.AsString).Encrypt(Payload, Header, CEK, nil);
+  IV := TBase64.URLEncode(Parts.Iv);
+  CipherText := TBase64.URLEncode(Parts.Ciphertext);
+  AuthenticationTag := TBase64.URLEncode(Parts.AuthenticationTag);
+
+  Result := GetCompactToken;
+
+end;
+
+function TJWE.GetCompactToken: TJOSEBytes;
+begin
+  Result := Header + PART_SEPARATOR + EncryptedKey + PART_SEPARATOR + IV + PART_SEPARATOR + CipherText + PART_SEPARATOR + AuthenticationTag;
 end;
 
 end.
