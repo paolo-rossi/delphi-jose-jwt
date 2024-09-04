@@ -291,8 +291,8 @@ begin
   SetLength(Result, LSigLength);
   //FillChar(buffer, 32*2, 0);
 
-  JoseSSL.BN_bn2bin(LNumR, Pointer(Integer(Result) + (LSigLength div 2) - LRLength));
-  JoseSSL.BN_bn2bin(LNumS, Pointer(Integer(Result) + LSigLength-LSLength));
+  JoseSSL.BN_bn2bin(LNumR, Pointer(NativeInt(Result) + (LSigLength div 2) - LRLength));
+  JoseSSL.BN_bn2bin(LNumS, Pointer(NativeInt(Result) + LSigLength - LSLength));
 end;
 
 function TfrmCryptoECDSA.Verify(const AInput, ASignature, AKeyOrCertificate:
