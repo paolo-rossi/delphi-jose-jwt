@@ -146,6 +146,8 @@ begin
 
   FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('alg');
 
+  FEncryptionAlgorithmRegistry.RegisterAlgorithm(TJOSEEncryptionAlgorithm.A256CBC_HS512);
+
   FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('alg');
 end;
 
