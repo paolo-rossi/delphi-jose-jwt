@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,21 +25,26 @@
 /// </summary>
 unit JOSE.Encoding.Base64;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
   System.SysUtils,
   {$IF CompilerVersion >= 28}
   System.NetEncoding,
-  {$ENDIF}
+  {$IFEND}
   JOSE.Types.Bytes;
 
 type
   TBase64 = class
     class function Encode(const ASource: TJOSEBytes): TJOSEBytes; overload;
     class function Decode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+
     class function URLEncode(const ASource: TJOSEBytes): TJOSEBytes; overload;
     class function URLDecode(const ASource: TJOSEBytes): TJOSEBytes; overload;
+    class function TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
   end;
 
 implementation
@@ -157,7 +162,7 @@ begin
       EncodePacket(LPacket, Length(AInput) mod 3, PChar(@Result[J]));
   end;
 end;
-{$ENDIF}
+{$IFEND}
 
 { TBase64 }
 
@@ -167,7 +172,7 @@ begin
   Result := TNetEncoding.Base64.Decode(ASource.AsBytes);
   {$ELSE}
   Result := DecodeBase64(ASource.AsString);
-  {$ENDIF}
+  {$IFEND}
 end;
 
 class function TBase64.Encode(const ASource: TJOSEBytes): TJOSEBytes;
@@ -176,7 +181,25 @@ begin
   Result := TNetEncoding.Base64.Encode(ASource.AsBytes);
   {$ELSE}
   Result := EncodeBase64(ASource.AsBytes);
-  {$ENDIF}
+  {$IFEND}
+end;
+
+class function TBase64.TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  try
+    Result := Decode(ASource);
+  except
+    Result.Clear;
+  end;
+end;
+
+class function TBase64.TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  try
+    Result := URLDecode(ASource);
+  except
+    Result.Clear;
+  end;
 end;
 
 class function TBase64.URLDecode(const ASource: TJOSEBytes): TJOSEBytes;

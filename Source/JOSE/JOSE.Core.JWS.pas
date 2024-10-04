@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWS;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
@@ -41,6 +43,10 @@ uses
   JOSE.Core.JWA.Signing;
 
 type
+  /// <summary>
+  ///   The TJWS class is used to produce and consume JSON Web Signature (JWS) as defined
+  ///   in RFC 7515. <br />
+  /// </summary>
   TJWS = class(TJOSEParts)
   private
     const COMPACT_PARTS = 3;
@@ -59,11 +65,16 @@ type
     function GetCompactToken: TJOSEBytes; override;
     procedure SetCompactToken(const Value: TJOSEBytes); override;
   public
+    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean; static;
+  public
     constructor Create(AToken: TJWT); override;
 
     procedure SetKey(const AKey: TBytes); overload;
     procedure SetKey(const AKey: TJOSEBytes); overload;
     procedure SetKey(const AKey: TJWK); overload;
+{$IFDEF RSA_SIGNING}
+    procedure SetKeyFromCert(const ACert: TJOSEBytes); overload;
+{$ENDIF}
 
     function Sign: TJOSEBytes; overload;
     function Sign(AKey: TJWK; AAlgId: TJOSEAlgorithmId): TJOSEBytes; overload;
@@ -83,9 +94,53 @@ implementation
 uses
   System.Types,
   System.StrUtils,
+  JOSE.Types.JSON,
+  JOSE.Signing.Base,
   JOSE.Encoding.Base64,
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
+
+class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
+var
+  LRes: TStringDynArray;
+  LIndex: Integer;
+  LPart: TJOSEBytes;
+begin
+  Result := True;
+
+  if AValue.IsEmpty then
+    Exit(False);
+
+  LRes := SplitString(AValue, PART_SEPARATOR);
+  if not (Length(LRes) = COMPACT_PARTS) then
+    Exit(False);
+
+  for LIndex := 0 to Length(LRes) - 1 do
+  begin
+    if LRes[LIndex].IsEmpty then
+      Exit(False);
+  end;
+
+  LPart := TBase64.TryURLDecode(LRes[0]);
+  if LPart.IsEmpty then
+    Exit(False);
+
+  if not TJOSEBytes.IsValidString(LPart) then
+    Exit(False);
+
+  if not TJSONUtils.IsValidJSON(LPart) then
+    Exit(False);
+
+  LPart := TBase64.TryURLDecode(LRes[1]);
+  if LPart.IsEmpty then
+    Exit(False);
+
+  if not TJOSEBytes.IsValidString(LPart) then
+    Exit(False);
+
+  if not TJSONUtils.IsValidJSON(LPart) then
+    Exit(False);
+end;
 
 constructor TJWS.Create(AToken: TJWT);
 var
@@ -108,7 +163,12 @@ begin
       [THeaderNames.ALGORITHM]);
 
   Result := TJOSEAlgorithmRegistryFactory.Instance
-    .SigningAlgorithmRegistry.GetAlgorithm(LAlgId);
+    .SigningAlgorithmRegistry
+    .GetAlgorithm(LAlgId);
+
+  if Result = nil then
+    raise EJOSEException.CreateFmt('Signing algorithm (%s) is not supported.',
+      [LAlgId]);
 end;
 
 function TJWS.GetCompactToken: TJOSEBytes;
@@ -140,6 +200,9 @@ procedure TJWS.SetCompactToken(const Value: TJOSEBytes);
 var
   LRes: TStringDynArray;
 begin
+  if Value.IsEmpty then
+    raise EJOSEException.Create('The JWS Compact Serialization is empty');
+
   LRes := SplitString(Value, PART_SEPARATOR);
   if Length(LRes) = COMPACT_PARTS then
   begin
@@ -173,6 +236,13 @@ procedure TJWS.SetKey(const AKey: TJWK);
 begin
   FKey := AKey.Key;
 end;
+
+{$IFDEF RSA_SIGNING}
+procedure TJWS.SetKeyFromCert(const ACert: TJOSEBytes);
+begin
+  FKey.AsBytes := TSigningBase.PublicKeyFromCertificate(ACert.AsBytes);
+end;
+{$ENDIF}
 
 procedure TJWS.SetPayload(const Value: TJOSEBytes);
 begin

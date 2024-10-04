@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -26,7 +26,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls, System.ImageList,
   System.Rtti, System.Generics.Collections, Vcl.ImgList, System.Actions, Vcl.ActnList,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
@@ -36,9 +36,9 @@ uses
   JOSE.Types.JSON,
   JOSE.Types.Bytes,
   JOSE.Core.Builder,
-  JOSE.Hashing.HMAC,
   JOSE.Consumer,
-  JOSE.Encoding.Base64, System.ImageList;
+  JOSE.Hashing.HMAC,
+  JOSE.Encoding.Base64, Vcl.Mask;
 
 type
   TMyClaims = class(TJWTClaims)
@@ -78,10 +78,6 @@ type
     chkSubject: TCheckBox;
     edtAudience: TLabeledEdit;
     chkAudience: TCheckBox;
-    actListMain: TActionList;
-    actBuildJWS: TAction;
-    ImageList1: TImageList;
-    actBuildJWTConsumer: TAction;
     btnCustomJWS: TButton;
     edtJWTId: TLabeledEdit;
     chkJWTId: TCheckBox;
@@ -89,8 +85,12 @@ type
     edtHeader: TLabeledEdit;
     edtPayload: TLabeledEdit;
     edtSignature: TLabeledEdit;
-    actBuildJWTCustomConsumer: TAction;
     memoJSON: TMemo;
+    bvlClaims: TBevel;
+    edtAppIssuer: TLabeledEdit;
+    edtAppSite: TLabeledEdit;
+    edtEmail: TLabeledEdit;
+    lblClaims: TLabel;
     procedure actBuildJWSExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -100,16 +100,18 @@ type
       'eyJzdWIiOiJQYW9sbyIsImlhdCI6NTEzMTgxNzcxOX0.' +
       'KhWaLAR2_VUaID1hjwDwy6p7FEYCIVkFhGAetvtfBQw';
   private
-    FJWT: TJWT;
+    FToken: TJWT;
+
     FNow: TDateTime;
     FCompact: TJOSEBytes;
     FCompactHeader: string;
     FCompactPayload: string;
     FCompactSignature: string;
 
-    function BuildJWT: TJOSEBytes;
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
+  protected
+    function BuildJWT(AClaimsClass: TJWTClaimsClass): TJOSEBytes;
   public
     property Compact: TJOSEBytes read FCompact write SetCompact;
   end;
@@ -128,43 +130,12 @@ uses
 { TfrmClaims }
 
 procedure TfrmClaims.actBuildJWSExecute(Sender: TObject);
-var
-  LToken: TJWT;
-  LSigner: TJWS;
-  LKey: TJWK;
 begin
-  LToken := TJWT.Create(TMyClaims);
-  try
-    LToken.Claims.Issuer := 'Delphi JOSE Library';
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 1;
+  Compact := BuildJWT(TMyClaims);
 
-    // Custom Claims
-    (LToken.Claims as TMyClaims).AppIssuer := 'WiRL REST Library';
-    (LToken.Claims as TMyClaims).AppSite := 'https://github.com/delphi-blocks/WiRL';
-    (LToken.Claims as TMyClaims).Email := 'my@mail.com';
-    // End Custom Claims
-
-    LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create(edtSecret.Text);
-    try
-      LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
-
-      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
-
-      edtHeader.Text := LSigner.Header;
-      edtPayload.Text := LSigner.Payload;
-      edtSignature.Text := LSigner.Signature;
-
-      memoLog.Lines.Add('Compact Token: ' + LSigner.CompactToken);
-    finally
-      LKey.Free;
-      LSigner.Free;
-    end;
-  finally
-    LToken.Free;
-  end;
+  edtHeader.Text := FCompactHeader;
+  edtPayload.Text := FCompactPayload;
+  edtSignature.Text := FCompactSignature;
 end;
 
 procedure TfrmClaims.FormCreate(Sender: TObject);
@@ -172,52 +143,58 @@ begin
   SetNow;
 end;
 
-function TfrmClaims.BuildJWT: TJOSEBytes;
+function TfrmClaims.BuildJWT(AClaimsClass: TJWTClaimsClass): TJOSEBytes;
 var
-  LJWT: TJWT;
   LAlg: TJOSEAlgorithmId;
+  LCustomClaims: TMyClaims;
 begin
-  LJWT := TJWT.Create;
-  try
-    SetNow;
+  if Assigned(FToken) then
+    FToken.Free;
 
-    if chkIssuer.Checked then
-      LJWT.Claims.Issuer := edtIssuer.Text;
+  FToken := TJWT.Create(AClaimsClass);
 
-    if chkSubject.Checked then
-      LJWT.Claims.Subject := edtSubject.Text;
+  SetNow;
 
-    if chkAudience.Checked then
-      LJWT.Claims.Audience := edtAudience.Text;
+  if chkIssuer.Checked then
+    FToken.Claims.Issuer := edtIssuer.Text;
 
-    if chkJWTId.Checked then
-      LJWT.Claims.JWTId := edtJWTId.Text;
+  if chkSubject.Checked then
+    FToken.Claims.Subject := edtSubject.Text;
 
-    if chkIssuedAt.Checked then
-      LJWT.Claims.IssuedAt := edtIssuedAtDate.Date + edtIssuedAtTime.Time;
+  if chkAudience.Checked then
+    FToken.Claims.Audience := edtAudience.Text;
 
-    if chkExpires.Checked then
-      LJWT.Claims.Expiration := edtExpiresDate.Date + edtExpiresTime.Time;
+  if chkJWTId.Checked then
+    FToken.Claims.JWTId := edtJWTId.Text;
 
-    if chkNotBefore.Checked then
-      LJWT.Claims.NotBefore := edtNotBeforeDate.Date + edtNotBeforeTime.Time;
+  if chkIssuedAt.Checked then
+    FToken.Claims.IssuedAt := edtIssuedAtDate.Date + edtIssuedAtTime.Time;
 
-    case cbbAlgorithm.ItemIndex of
-      0: LAlg := TJOSEAlgorithmId.HS256;
-      1: LAlg := TJOSEAlgorithmId.HS384;
-      2: LAlg := TJOSEAlgorithmId.HS512;
-      else LAlg := TJOSEAlgorithmId.HS256;
-    end;
+  if chkExpires.Checked then
+    FToken.Claims.Expiration := edtExpiresDate.Date + edtExpiresTime.Time;
 
-    Result := TJOSE.SerializeCompact(edtSecret.Text,  LAlg, LJWT);
-  finally
-    LJWT.Free;
+  if chkNotBefore.Checked then
+    FToken.Claims.NotBefore := edtNotBeforeDate.Date + edtNotBeforeTime.Time;
+
+  case cbbAlgorithm.ItemIndex of
+    0: LAlg := TJOSEAlgorithmId.HS256;
+    1: LAlg := TJOSEAlgorithmId.HS384;
+    2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
   end;
+
+  // Custom claims
+  LCustomClaims := FToken.ClaimsAs<TMyClaims>;
+  LCustomClaims.AppIssuer := edtAppIssuer.Text;
+  LCustomClaims.AppSite := edtAppSite.Text;
+  LCustomClaims.Email := edtEmail.Text;
+
+  Result := TJOSE.SerializeCompact(edtSecret.Text, LAlg, FToken);
 end;
 
 procedure TfrmClaims.FormDestroy(Sender: TObject);
 begin
-  FJWT.Free;
+  FToken.Free;
 end;
 
 procedure TfrmClaims.SetCompact(const Value: TJOSEBytes);
@@ -248,6 +225,8 @@ begin
   edtNotBeforeDate.Date := IncMinute(FNow, -10);
   edtNotBeforeTime.Time := IncMinute(FNow, -10);
 end;
+
+{ TMyClaims }
 
 function TMyClaims.GetAppIssuer: string;
 begin

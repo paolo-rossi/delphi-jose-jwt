@@ -1,0 +1,9 @@
+{
+	"name": "delphi-jose-jwt",
+	"description": "Delphi implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.",
+	"version": "3.3",
+	"homepage": "https://github.com/paolo-rossi/delphi-jose-jwt",
+	"mainsrc": "./Source/",
+	"projects": [],
+	"dependencies": {}
+}

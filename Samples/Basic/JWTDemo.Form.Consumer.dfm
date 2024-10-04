@@ -10,10 +10,8 @@ object frmConsumer: TfrmConsumer
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
@@ -38,28 +36,28 @@ object frmConsumer: TfrmConsumer
     Height = 377
     Caption = 'JWS Builder '
     TabOrder = 1
-    object Label3: TLabel
+    object lblIssuedAt: TLabel
       Left = 214
       Top = 68
       Width = 46
       Height = 13
       Caption = 'Issued At'
     end
-    object Label4: TLabel
+    object lblExpirationTime: TLabel
       Left = 214
       Top = 114
       Width = 73
       Height = 13
       Caption = 'Expiration Time'
     end
-    object Label5: TLabel
+    object lblNotBefore: TLabel
       Left = 214
       Top = 156
       Width = 52
       Height = 13
       Caption = 'Not Before'
     end
-    object Label6: TLabel
+    object lblHashAlgorithm: TLabel
       Left = 215
       Top = 26
       Width = 72
@@ -82,8 +80,8 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 1
     end
@@ -92,8 +90,8 @@ object frmConsumer: TfrmConsumer
       Top = 172
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 2
     end
     object edtExpiresDate: TDateTimePicker
@@ -101,8 +99,8 @@ object frmConsumer: TfrmConsumer
       Top = 130
       Width = 106
       Height = 21
-      Date = 42757.710233020840000000
-      Time = 42757.710233020840000000
+      Date = 42757.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 3
     end
     object chkIssuer: TCheckBox
@@ -148,8 +146,8 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 8
     end
     object edtExpiresTime: TDateTimePicker
@@ -157,8 +155,8 @@ object frmConsumer: TfrmConsumer
       Top = 130
       Width = 74
       Height = 21
-      Date = 42207.427592592590000000
-      Time = 42207.427592592590000000
+      Date = 42207.000000000000000000
+      Time = 0.427592592590372100
       Kind = dtkTime
       TabOrder = 9
     end
@@ -167,8 +165,8 @@ object frmConsumer: TfrmConsumer
       Top = 172
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 10
     end
@@ -234,7 +232,7 @@ object frmConsumer: TfrmConsumer
       Width = 245
       Height = 28
       Action = actBuildJWS
-      Images = ImageList1
+      Images = imgListMain
       TabOrder = 16
     end
     object edtJWTId: TLabeledEdit
@@ -284,6 +282,7 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 20
+      Text = ''
     end
     object edtPayload: TLabeledEdit
       Left = 12
@@ -300,6 +299,7 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 21
+      Text = ''
     end
     object edtSignature: TLabeledEdit
       Left = 12
@@ -316,16 +316,17 @@ object frmConsumer: TfrmConsumer
       Font.Style = []
       ParentFont = False
       TabOrder = 22
+      Text = ''
     end
   end
-  object GroupBox1: TGroupBox
+  object grpConsumer: TGroupBox
     Left = 479
     Top = 8
     Width = 465
     Height = 377
     Caption = 'JWS Consumer '
     TabOrder = 2
-    object Label1: TLabel
+    object lblEvaluationTime: TLabel
       Left = 209
       Top = 68
       Width = 98
@@ -394,6 +395,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Height = 13
       EditLabel.Caption = 'Subject'
       TabOrder = 6
+      Text = ''
     end
     object chkConsumerSubject: TCheckBox
       Left = 133
@@ -412,6 +414,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Height = 13
       EditLabel.Caption = 'Audience'
       TabOrder = 8
+      Text = ''
     end
     object chkConsumerAudience: TCheckBox
       Left = 133
@@ -468,19 +471,9 @@ object frmConsumer: TfrmConsumer
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 14
-    end
-    object edtConsumerEvaluationTime: TDateTimePicker
-      Left = 321
-      Top = 84
-      Width = 74
-      Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
-      Kind = dtkTime
-      TabOrder = 15
     end
     object chkConsumerIssuedAt: TCheckBox
       Left = 209
@@ -488,7 +481,7 @@ object frmConsumer: TfrmConsumer
       Width = 69
       Height = 17
       Caption = 'Issued At'
-      TabOrder = 16
+      TabOrder = 15
     end
     object chkConsumerExpires: TCheckBox
       Left = 294
@@ -496,7 +489,7 @@ object frmConsumer: TfrmConsumer
       Width = 58
       Height = 17
       Caption = 'Expires'
-      TabOrder = 17
+      TabOrder = 16
     end
     object chkConsumerNotBefore: TCheckBox
       Left = 358
@@ -504,7 +497,7 @@ object frmConsumer: TfrmConsumer
       Width = 80
       Height = 17
       Caption = 'Not Before'
-      TabOrder = 18
+      TabOrder = 17
     end
     object edtSkewTime: TLabeledEdit
       Left = 10
@@ -514,7 +507,7 @@ object frmConsumer: TfrmConsumer
       EditLabel.Width = 100
       EditLabel.Height = 13
       EditLabel.Caption = 'Skew Time (seconds)'
-      TabOrder = 19
+      TabOrder = 18
       Text = '20'
     end
     object edtMaxFutureValidity: TLabeledEdit
@@ -525,12 +518,22 @@ object frmConsumer: TfrmConsumer
       EditLabel.Width = 140
       EditLabel.Height = 13
       EditLabel.Caption = 'Max Future Validity (minutes)'
-      TabOrder = 20
+      TabOrder = 19
       Text = '30'
+    end
+    object edtConsumerEvaluationTime: TDateTimePicker
+      Left = 321
+      Top = 82
+      Width = 74
+      Height = 23
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
+      Kind = dtkTime
+      TabOrder = 20
     end
   end
   object actListMain: TActionList
-    Images = ImageList1
+    Images = imgListMain
     Left = 336
     Top = 352
     object actBuildJWS: TAction
@@ -550,7 +553,7 @@ object frmConsumer: TfrmConsumer
       OnUpdate = actBuildJWTCustomConsumerUpdate
     end
   end
-  object ImageList1: TImageList
+  object imgListMain: TImageList
     ColorDepth = cd32Bit
     DrawingStyle = dsTransparent
     Height = 24

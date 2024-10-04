@@ -2,7 +2,7 @@ object frmClaims: TfrmClaims
   Left = 0
   Top = 0
   Caption = 'frmClaims'
-  ClientHeight = 487
+  ClientHeight = 560
   ClientWidth = 952
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -10,17 +10,15 @@ object frmClaims: TfrmClaims
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   DesignSize = (
     952
-    487)
-  PixelsPerInch = 96
+    560)
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
-    Top = 391
+    Top = 464
     Width = 952
     Height = 96
     Align = alBottom
@@ -39,7 +37,7 @@ object frmClaims: TfrmClaims
     Left = 8
     Top = 8
     Width = 465
-    Height = 377
+    Height = 449
     Caption = 'JWS Builder '
     TabOrder = 1
     object Label3: TLabel
@@ -70,6 +68,25 @@ object frmClaims: TfrmClaims
       Height = 13
       Caption = 'Hash Algorithm'
     end
+    object bvlClaims: TBevel
+      Left = 12
+      Top = 203
+      Width = 443
+      Height = 2
+    end
+    object lblClaims: TLabel
+      Left = 174
+      Top = 207
+      Width = 92
+      Height = 16
+      Caption = 'Custom Claims'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -13
+      Font.Name = 'Tahoma'
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
     object edtIssuer: TLabeledEdit
       Left = 12
       Top = 42
@@ -86,8 +103,8 @@ object frmClaims: TfrmClaims
       Top = 84
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 1
     end
@@ -96,8 +113,8 @@ object frmClaims: TfrmClaims
       Top = 172
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 2
     end
     object edtExpiresDate: TDateTimePicker
@@ -105,8 +122,8 @@ object frmClaims: TfrmClaims
       Top = 130
       Width = 106
       Height = 21
-      Date = 42757.710233020840000000
-      Time = 42757.710233020840000000
+      Date = 42757.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 3
     end
     object chkIssuer: TCheckBox
@@ -152,8 +169,8 @@ object frmClaims: TfrmClaims
       Top = 84
       Width = 106
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       TabOrder = 8
     end
     object edtExpiresTime: TDateTimePicker
@@ -161,8 +178,8 @@ object frmClaims: TfrmClaims
       Top = 130
       Width = 74
       Height = 21
-      Date = 42207.427592592590000000
-      Time = 42207.427592592590000000
+      Date = 42207.000000000000000000
+      Time = 0.427592592590372100
       Kind = dtkTime
       TabOrder = 9
     end
@@ -171,8 +188,8 @@ object frmClaims: TfrmClaims
       Top = 172
       Width = 74
       Height = 21
-      Date = 42207.710233020840000000
-      Time = 42207.710233020840000000
+      Date = 42207.000000000000000000
+      Time = 0.710233020843588700
       Kind = dtkTime
       TabOrder = 10
     end
@@ -234,12 +251,12 @@ object frmClaims: TfrmClaims
     end
     object btnCustomJWS: TButton
       Left = 110
-      Top = 212
+      Top = 283
       Width = 245
       Height = 28
-      Action = actBuildJWS
-      Images = ImageList1
+      Caption = 'Build JWS'
       TabOrder = 16
+      OnClick = actBuildJWSExecute
     end
     object edtJWTId: TLabeledEdit
       Left = 12
@@ -275,7 +292,7 @@ object frmClaims: TfrmClaims
     end
     object edtHeader: TLabeledEdit
       Left = 12
-      Top = 266
+      Top = 337
       Width = 445
       Height = 21
       EditLabel.Width = 80
@@ -288,10 +305,11 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 20
+      Text = ''
     end
     object edtPayload: TLabeledEdit
       Left = 12
-      Top = 306
+      Top = 377
       Width = 445
       Height = 21
       EditLabel.Width = 83
@@ -304,10 +322,11 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 21
+      Text = ''
     end
     object edtSignature: TLabeledEdit
       Left = 12
-      Top = 346
+      Top = 417
       Width = 445
       Height = 21
       EditLabel.Width = 91
@@ -320,13 +339,47 @@ object frmClaims: TfrmClaims
       Font.Style = []
       ParentFont = False
       TabOrder = 22
+      Text = ''
+    end
+    object edtAppIssuer: TLabeledEdit
+      Left = 14
+      Top = 245
+      Width = 115
+      Height = 21
+      EditLabel.Width = 52
+      EditLabel.Height = 13
+      EditLabel.Caption = 'App Issuer'
+      TabOrder = 23
+      Text = 'WiRL REST Library'
+    end
+    object edtAppSite: TLabeledEdit
+      Left = 135
+      Top = 245
+      Width = 201
+      Height = 21
+      EditLabel.Width = 40
+      EditLabel.Height = 13
+      EditLabel.Caption = 'App Site'
+      TabOrder = 24
+      Text = 'https://github.com/delphi-blocks/WiRL'
+    end
+    object edtEmail: TLabeledEdit
+      Left = 342
+      Top = 245
+      Width = 115
+      Height = 21
+      EditLabel.Width = 24
+      EditLabel.Height = 13
+      EditLabel.Caption = 'Email'
+      TabOrder = 25
+      Text = 'my@mail.com'
     end
   end
   object memoJSON: TMemo
     Left = 488
     Top = 15
     Width = 456
-    Height = 370
+    Height = 443
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -336,30 +389,5 @@ object frmClaims: TfrmClaims
     ParentFont = False
     ScrollBars = ssVertical
     TabOrder = 2
-  end
-  object actListMain: TActionList
-    Images = ImageList1
-    Left = 336
-    Top = 352
-    object actBuildJWS: TAction
-      Caption = 'Build JWS'
-      OnExecute = actBuildJWSExecute
-    end
-    object actBuildJWTConsumer: TAction
-      Caption = 'Build Fixed Consumer'
-      ImageIndex = 9
-    end
-    object actBuildJWTCustomConsumer: TAction
-      Caption = 'Build Custom Consumer'
-      ImageIndex = 14
-    end
-  end
-  object ImageList1: TImageList
-    ColorDepth = cd32Bit
-    DrawingStyle = dsTransparent
-    Height = 24
-    Width = 24
-    Left = 392
-    Top = 352
   end
 end

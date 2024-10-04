@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Context;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
@@ -39,6 +41,9 @@ uses
   JOSE.Core.JWE;
 
 type
+  /// <summary>
+  ///   JOSE Context (for the Consumer)
+  /// </summary>
   TJOSEContext = class
   private
     FCompactToken: TJOSEBytes;
@@ -52,6 +57,8 @@ type
 
     function GetJOSEObject: TJOSEParts; overload;
     function GetJOSEObject<T: TJOSEParts>: T; overload;
+
+    function GetHeader: TJWTHeader;
 
     function GetClaims: TJWTClaims; overload;
     function GetClaims<T: TJWTClaims>: T; overload;
@@ -74,6 +81,7 @@ begin
     FromCompactToken;
   except
     FreeAndNil(FJWT);
+    raise;
   end;
 end;
 
@@ -104,8 +112,9 @@ begin
     begin
       raise EJOSEException.Create('Compact Serialization appears to be a JWE Token wich is not (yet) supported');
     end;
-    else
-      raise EJOSEException.Create('Malformed Compact Serialization');
+
+  else
+    raise EJOSEException.Create('Malformed Compact Serialization');
   end;
 end;
 
@@ -117,6 +126,11 @@ end;
 function TJOSEContext.GetClaims<T>: T;
 begin
   Result := FJWT.Claims as T;
+end;
+
+function TJOSEContext.GetHeader: TJWTHeader;
+begin
+  Result := FJWT.Header;
 end;
 
 function TJOSEContext.GetJOSEObject: TJOSEParts;

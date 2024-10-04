@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -24,6 +24,8 @@
 ///   Handy TArray<T> replacement
 /// </summary>
 unit JOSE.Types.Arrays;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -148,8 +150,6 @@ begin
 end;
 
 class operator TJOSEArray<T>.Add(const A, B: TJOSEArray<T>): TJOSEArray<T>;
-var
-  LSizeSource: NativeInt;
 begin
   Result := A;
   if B.Size = 0 then

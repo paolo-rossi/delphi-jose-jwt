@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,11 +25,12 @@
 /// </summary>
 unit JOSE.Types.Bytes;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
-  System.SysUtils,
-  System.Classes;
+  System.SysUtils, System.Classes;
 
 type
   TJOSEBytes = record
@@ -55,6 +56,7 @@ type
 
     class function Empty: TJOSEBytes; static;
     class function RandomBytes(ANumberOfBytes: Integer): TJOSEBytes; static;
+    class function IsValidString(const AValue: TJOSEBytes): Boolean; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -127,18 +129,32 @@ begin
 end;
 
 function TJOSEBytes.Contains(const AByte: Byte): Boolean;
+var
+  LIndex: Integer;
 begin
   Result := False;
+  for LIndex := 0 to Length(FPayload) - 1 do
+    if FPayload[LIndex] = AByte then
+      Exit(True);
 end;
 
 function TJOSEBytes.Contains(const ABytes: TBytes): Boolean;
+var
+  LIndex: Integer;
 begin
   Result := False;
+  if (Length(ABytes) > Length(FPayload)) or (Length(ABytes) = 0) then
+    Exit;
+
+  for LIndex := 0 to Length(FPayload) - 1 do
+    if FPayload[LIndex] = ABytes[0] then
+      if CompareMem(@FPayload[LIndex], @ABytes[0], Length(ABytes)) then
+        Exit(True);
 end;
 
 function TJOSEBytes.Contains(const ABytes: TJOSEBytes): Boolean;
 begin
-  Result := False;
+  Result := Contains(ABytes.AsBytes);
 end;
 
 class function TJOSEBytes.Empty: TJOSEBytes;
@@ -184,6 +200,18 @@ end;
 function TJOSEBytes.IsEmpty: Boolean;
 begin
   Result := Size = 0;
+end;
+
+class function TJOSEBytes.IsValidString(const AValue: TJOSEBytes): Boolean;
+var
+  LStr: string;
+begin
+  try
+    LStr := AValue.AsString;
+  except
+    Exit(False);
+  end;
+  Result := True;
 end;
 
 class function TJOSEBytes.RandomBytes(ANumberOfBytes: Integer): TJOSEBytes;

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -27,6 +27,8 @@
 ///   JWA RFC Document
 /// </seealso>
 unit JOSE.Core.JWA.Factory;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -129,6 +131,17 @@ begin
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha256)
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha384)
     .RegisterAlgorithm(THmacUsingShaAlgorithm.HmacSha512)
+
+{$IFDEF RSA_SIGNING}
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA256)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA384)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA512)
+
+    .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA256)
+    .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA256K)
+    .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA384)
+    .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA512)
+{$ENDIF}
   ;
 
   FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('alg');

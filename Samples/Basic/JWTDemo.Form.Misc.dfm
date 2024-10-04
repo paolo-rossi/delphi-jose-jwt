@@ -10,10 +10,8 @@ object frmMisc: TfrmMisc
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  PixelsPerInch = 96
   TextHeight = 13
   object memoLog: TMemo
     Left = 0
@@ -22,8 +20,6 @@ object frmMisc: TfrmMisc
     Height = 232
     Align = alBottom
     TabOrder = 0
-    ExplicitTop = 216
-    ExplicitWidth = 635
   end
   object btnTestJSON: TButton
     Left = 8

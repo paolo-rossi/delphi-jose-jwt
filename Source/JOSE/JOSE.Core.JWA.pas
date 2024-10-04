@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -28,6 +28,8 @@
 /// </seealso>
 unit JOSE.Core.JWA;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
@@ -40,20 +42,27 @@ type
   {$SCOPEDENUMS ON}
   TJOSEKeyCategory = (None, Symmetric, Asymmetric);
 
+  /// <summary>
+  ///   Enumeration for the JOSE algorithms
+  /// </summary>
   TJOSEAlgorithmId = (
     Unknown, None,
     HS256, HS384, HS512,
     RS256, RS384, RS512,
-    ES256, ES384, ES512,
+    ES256, ES256K, ES384, ES512,
     PS256, PS384, PS512
   );
   TJOSEAlgorithmIdHelper = record helper for TJOSEAlgorithmId
   private
     function GetAsString: string;
-    procedure SetAsString(const Value: string);
+    procedure SetAsString(const AValue: string);
+    function GetLength: Integer;
   public
+    property Length: Integer read GetLength;
     property AsString: string read GetAsString write SetAsString;
   end;
+
+  TJOSEAlgorithms = set of TJOSEAlgorithmId;
 
   IJOSEAlgorithm = interface
   ['{1BA290C7-D139-4CD8-86FE-7F80B9826007}']
@@ -66,6 +75,9 @@ type
   ['{2A2FBF37-8267-4DA3-AA11-7E1C3ED235DD}']
   end;
 
+  /// <summary>
+  ///   Defines the JW* algorithm
+  /// </summary>
   TJOSEAlgorithm = class(TInterfacedObject, IJOSEAlgorithm)
     FAlgorithmIdentifier: TJOSEAlgorithmId;
     FKeyCategory: TJOSEKeyCategory;
@@ -111,6 +123,7 @@ begin
     TJOSEAlgorithmId.RS512: Result := 'RS512';
 
     TJOSEAlgorithmId.ES256: Result := 'ES256';
+    TJOSEAlgorithmId.ES256K: Result := 'ES256K';
     TJOSEAlgorithmId.ES384: Result := 'ES384';
     TJOSEAlgorithmId.ES512: Result := 'ES512';
 
@@ -120,37 +133,62 @@ begin
   end;
 end;
 
-procedure TJOSEAlgorithmIdHelper.SetAsString(const Value: string);
+function TJOSEAlgorithmIdHelper.GetLength: Integer;
 begin
-  if Value = 'none' then
+  Result := 0;
+  case Self of
+    TJOSEAlgorithmId.HS256: Result := 256;
+    TJOSEAlgorithmId.HS384: Result := 384;
+    TJOSEAlgorithmId.HS512: Result := 512;
+
+    TJOSEAlgorithmId.RS256: Result := 256;
+    TJOSEAlgorithmId.RS384: Result := 384;
+    TJOSEAlgorithmId.RS512: Result := 512;
+
+    TJOSEAlgorithmId.ES256: Result := 256;
+    TJOSEAlgorithmId.ES256K: Result := 256;
+    TJOSEAlgorithmId.ES384: Result := 384;
+    TJOSEAlgorithmId.ES512: Result := 512;
+
+    TJOSEAlgorithmId.PS256: Result := 256;
+    TJOSEAlgorithmId.PS384: Result := 384;
+    TJOSEAlgorithmId.PS512: Result := 512;
+  end;
+end;
+
+procedure TJOSEAlgorithmIdHelper.SetAsString(const AValue: string);
+begin
+  if AValue = 'none' then
     Self := TJOSEAlgorithmId.None
 
-  else if Value = 'HS256' then
+  else if AValue = 'HS256' then
     Self := TJOSEAlgorithmId.HS256
-  else if Value = 'HS384' then
+  else if AValue = 'HS384' then
     Self := TJOSEAlgorithmId.HS384
-  else if Value = 'HS512' then
+  else if AValue = 'HS512' then
     Self := TJOSEAlgorithmId.HS512
 
-  else if Value = 'RS256' then
+  else if AValue = 'RS256' then
     Self := TJOSEAlgorithmId.RS256
-  else if Value = 'RS384' then
+  else if AValue = 'RS384' then
     Self := TJOSEAlgorithmId.RS384
-  else if Value = 'RS512' then
+  else if AValue = 'RS512' then
     Self := TJOSEAlgorithmId.RS512
 
-  else if Value = 'ES256' then
+  else if AValue = 'ES256' then
     Self := TJOSEAlgorithmId.ES256
-  else if Value = 'ES384' then
+  else if AValue = 'ES256K' then
+    Self := TJOSEAlgorithmId.ES256K
+  else if AValue = 'ES384' then
     Self := TJOSEAlgorithmId.ES384
-  else if Value = 'ES512' then
+  else if AValue = 'ES512' then
     Self := TJOSEAlgorithmId.ES512
 
-  else if Value = 'PS256' then
+  else if AValue = 'PS256' then
     Self := TJOSEAlgorithmId.PS256
-  else if Value = 'PS384' then
+  else if AValue = 'PS384' then
     Self := TJOSEAlgorithmId.PS384
-  else if Value = 'PS512' then
+  else if AValue = 'PS512' then
     Self := TJOSEAlgorithmId.PS512
 
   else

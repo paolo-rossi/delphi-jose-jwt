@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -26,38 +26,49 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls,
 
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWK,
   JOSE.Core.JWA,
-  JOSE.Types.JSON, Vcl.ExtCtrls;
+  JOSE.Types.JSON, Vcl.Mask;
 
 type
   TfrmSimple = class(TForm)
-    lbl1: TLabel;
-    lbl2: TLabel;
-    btnBuild: TButton;
-    btnTJOSEBuild: TButton;
-    btnTJOSEVerify: TButton;
+    lblJSON: TLabel;
+    lblCompact: TLabel;
+    btnBuildClasses: TButton;
+    btnBuildTJOSE: TButton;
+    btnVerifyTJOSE: TButton;
     btnTestClaims: TButton;
     memoJSON: TMemo;
     memoCompact: TMemo;
-    Label6: TLabel;
+    lblAlgorithm: TLabel;
     cbbAlgorithm: TComboBox;
     edtSecret: TLabeledEdit;
-    procedure btnBuildClick(Sender: TObject);
+    btnDeserializeTJOSE: TButton;
+    btnVerifyClasses: TButton;
+    btnBuildProducer: TButton;
+    btnCheckCompact: TButton;
+    procedure btnBuildClassesClick(Sender: TObject);
     procedure btnTestClaimsClick(Sender: TObject);
-    procedure btnTJOSEBuildClick(Sender: TObject);
-    procedure btnTJOSEVerifyClick(Sender: TObject);
+    procedure btnBuildTJOSEClick(Sender: TObject);
+    procedure btnVerifyTJOSEClick(Sender: TObject);
+    procedure btnDeserializeTJOSEClick(Sender: TObject);
+    procedure btnVerifyClassesClick(Sender: TObject);
+    procedure btnBuildProducerClick(Sender: TObject);
+    procedure btnCheckCompactClick(Sender: TObject);
     procedure edtSecretChange(Sender: TObject);
   private
     const SECRET_CAPTION = 'Secret (%dbit)';
   private
     FCompact: string;
-    procedure BuildJWT;
-    procedure VerifyJWT;
+    procedure BuildToken;
+    procedure BuildTokenComplete;
+    function VerifyToken: Boolean;
+    function VerifyTokenComplete: Boolean;
+    procedure DeserializeToken;
   public
     { Public declarations }
   end;
@@ -65,13 +76,109 @@ type
 implementation
 
 uses
-  System.Rtti,
+  System.Rtti, System.JSON,
+  JOSE.Producer,
   JOSE.Types.Bytes,
   JOSE.Core.Builder;
 
 {$R *.dfm}
 
-procedure TfrmSimple.btnBuildClick(Sender: TObject);
+procedure TfrmSimple.btnBuildClassesClick(Sender: TObject);
+begin
+  BuildTokenComplete;
+end;
+
+procedure TfrmSimple.btnTestClaimsClick(Sender: TObject);
+var
+  LToken: TJWT;
+begin
+  // Unpack and verify the token
+  LToken := TJOSE.Verify(edtSecret.Text, FCompact);
+
+  if Assigned(LToken) then
+  begin
+    try
+      if LToken.Verified then
+      begin
+        // Claims validation (for more see the JOSE.Consumer unit)
+
+        if LToken.Claims.Subject <> 'Paolo Rossi' then
+          memoJSON.Lines.Add('Subject [sub] claim value doesn''t match expected value');
+
+        if LToken.Claims.Expiration > Now then
+          memoJSON.Lines.Add('Expiration time passed: ' + DateTimeToStr(LToken.Claims.Expiration));
+
+      end;
+    finally
+      LToken.Free;
+    end;
+  end;
+end;
+
+procedure TfrmSimple.btnBuildTJOSEClick(Sender: TObject);
+begin
+  BuildToken;
+end;
+
+procedure TfrmSimple.btnVerifyTJOSEClick(Sender: TObject);
+begin
+  if VerifyToken then
+    memoJSON.Lines.Add('Token signature is verified')
+  else
+    memoJSON.Lines.Add('Token signature is not verified')
+end;
+
+procedure TfrmSimple.BuildToken;
+var
+  LToken: TJWT;
+  LAlg: TJOSEAlgorithmId;
+begin
+  // Create a JWT Object
+  LToken := TJWT.Create;
+  try
+    // Token claims
+
+    LToken.Claims.Subject := 'Paolo Rossi';
+    LToken.Claims.IssuedAt := Now;
+    LToken.Claims.Expiration := Now + 1;
+    LToken.Claims.Issuer := 'Delphi JOSE Library';
+
+    // Signing algorithm
+    case cbbAlgorithm.ItemIndex of
+      0: LAlg := TJOSEAlgorithmId.HS256;
+      1: LAlg := TJOSEAlgorithmId.HS384;
+      2: LAlg := TJOSEAlgorithmId.HS512;
+    else LAlg := TJOSEAlgorithmId.HS256;
+    end;
+
+    // Signing and compact format creation.
+    FCompact := TJOSE.SerializeCompact(edtSecret.Text, LAlg, LToken);
+
+    // Token in compact representation
+    memoCompact.Lines.Add(FCompact);
+
+    // Header and Claims JSON representation
+    memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+    memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TfrmSimple.btnDeserializeTJOSEClick(Sender: TObject);
+begin
+  DeserializeToken;
+end;
+
+procedure TfrmSimple.btnVerifyClassesClick(Sender: TObject);
+begin
+  if VerifyTokenComplete then
+    memoJSON.Lines.Add('Token signature is verified')
+  else
+    memoJSON.Lines.Add('Token signature is not verified')
+end;
+
+procedure TfrmSimple.BuildTokenComplete;
 var
   LToken: TJWT;
   LSigner: TJWS;
@@ -93,21 +200,26 @@ begin
     end;
 
     LSigner := TJWS.Create(LToken);
-    LKey := TJWK.Create(edtSecret.Text);
     try
-      // With this option you can have keys < algorithm length
-      LSigner.SkipKeyValidation := True;
-      LSigner.Sign(LKey, LAlg);
+      LKey := TJWK.Create(edtSecret.Text);
+      try
+        // With this option you can have keys < algorithm length
+        LSigner.SkipKeyValidation := True;
 
-      memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
-      memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+        LSigner.Sign(LKey, LAlg);
+        FCompact := LSigner.CompactToken;
 
-      memoCompact.Lines.Add('Header: ' + LSigner.Header);
-      memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
-      memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
-      memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+        memoJSON.Lines.Add('Header: ' + TJSONUtils.ToJSON(LToken.Header.JSON));
+        memoJSON.Lines.Add('Claims: ' + TJSONUtils.ToJSON(LToken.Claims.JSON));
+
+        memoCompact.Lines.Add('Header: ' + LSigner.Header);
+        memoCompact.Lines.Add('Payload: ' + LSigner.Payload);
+        memoCompact.Lines.Add('Signature: ' + LSigner.Signature);
+        memoCompact.Lines.Add('Compact Token: ' + LSigner.CompactToken);
+      finally
+        LKey.Free;
+      end;
     finally
-      LKey.Free;
       LSigner.Free;
     end;
   finally
@@ -115,59 +227,57 @@ begin
   end;
 end;
 
-procedure TfrmSimple.btnTestClaimsClick(Sender: TObject);
+procedure TfrmSimple.btnBuildProducerClick(Sender: TObject);
 var
-  LToken: TJWT;
-begin
-  // Create a JWT Object
-  LToken := TJWT.Create;
-  try
-    LToken.Claims.IssuedAt := Now;
-    memoJSON.Lines.Add('IssuedAt: ' + DateTimeToStr(LToken.Claims.IssuedAt));
-  finally
-    LToken.Free;
-  end;
-end;
-
-procedure TfrmSimple.btnTJOSEBuildClick(Sender: TObject);
-begin
-  BuildJWT;
-end;
-
-procedure TfrmSimple.btnTJOSEVerifyClick(Sender: TObject);
-begin
-  VerifyJWT;
-end;
-
-procedure TfrmSimple.BuildJWT;
-var
-  LToken: TJWT;
   LAlg: TJOSEAlgorithmId;
+  LResult: string;
 begin
-  // Create a JWT Object
-  LToken := TJWT.Create(TJWTClaims);
+  // Signing algorithm
+  case cbbAlgorithm.ItemIndex of
+    0: LAlg := TJOSEAlgorithmId.HS256;
+    1: LAlg := TJOSEAlgorithmId.HS384;
+    2: LAlg := TJOSEAlgorithmId.HS512;
+  else LAlg := TJOSEAlgorithmId.HS256;
+  end;
+
+  LResult := TJOSEProcess.New
+    .SetAlgorithm(LAlg)
+    .SetKeyID('uniqueidforthistoken')
+    .SetHeaderParam('id', 123)
+
+    .SetIssuer('Delphi JOSE Library')
+    .SetIssuedAt(Now)
+    .SetExpiration(Now + 1)
+
+    .SetCustomClaim('author', 'Paolo Rossi')
+    .SetCustomClaim('year', 2022)
+
+    .SetKey(edtSecret.Text)
+
+    .Build
+    .GetCompactToken
+  ;
+
+  memoCompact.Lines.Add(LResult);
+end;
+
+procedure TfrmSimple.btnCheckCompactClick(Sender: TObject);
+begin
+  if TJOSE.CheckCompactToken(memoCompact.Lines.Text) then
+    ShowMessage('Valid Compact Visualization')
+  else
+    ShowMessage('Invalid Compact Visualization')
+end;
+
+procedure TfrmSimple.DeserializeToken;
+var
+  LToken: TJWT;
+begin
+  // Unpack and verify the token
+  LToken := TJOSE.DeserializeCompact(edtSecret.Text, FCompact);
   try
-    // Token claims
-    LToken.Claims.IssuedAt := Now;
-    LToken.Claims.Expiration := Now + 1;
-    LToken.Claims.Issuer := 'Delphi JOSE Library';
-
-    // Signing algorithm
-    case cbbAlgorithm.ItemIndex of
-      0: LAlg := TJOSEAlgorithmId.HS256;
-      1: LAlg := TJOSEAlgorithmId.HS384;
-      2: LAlg := TJOSEAlgorithmId.HS512;
-    else LAlg := TJOSEAlgorithmId.HS256;
-    end;
-
-    // Signing and compact format creation.
-    FCompact :=TJOSE.SerializeCompact(edtSecret.Text, LAlg, LToken);
-
-    memoCompact.Lines.Add(FCompact);
-
-    // Header and Claims JSON representation
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Header.JSON));
-    memoJSON.Lines.Add(TJSONUtils.ToJSON(LToken.Claims.JSON));
+    if Assigned(LToken) then
+      memoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
   finally
     LToken.Free;
   end;
@@ -178,26 +288,48 @@ begin
   edtSecret.EditLabel.Caption := Format(SECRET_CAPTION, [Length(edtSecret.Text) * 8]);
 end;
 
-procedure TfrmSimple.VerifyJWT;
+function TfrmSimple.VerifyToken: Boolean;
 var
-  LKey: TJWK;
   LToken: TJWT;
 begin
-  LKey := TJWK.Create(edtSecret.Text);
+  Result := False;
 
   // Unpack and verify the token
-  LToken := TJOSE.Verify(LKey, FCompact);
+  LToken := TJOSE.Verify(edtSecret.Text, FCompact);
 
   if Assigned(LToken) then
   begin
     try
-      if LToken.Verified then
-        memoJSON.Lines.Add('Token signature is verified')
-      else
-        memoJSON.Lines.Add('Token signature is not verified')
+      Result := LToken.Verified;
     finally
       LToken.Free;
     end;
+  end;
+end;
+
+function TfrmSimple.VerifyTokenComplete: Boolean;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LSigner: TJWS;
+begin
+  LKey := TJWK.Create(edtSecret.Text);
+  try
+    LToken := TJWT.Create;
+    try
+      LSigner := TJWS.Create(LToken);
+      try
+        LSigner.SetKey(LKey);
+        LSigner.CompactToken := FCompact;
+        Result := LSigner.VerifySignature;
+      finally
+        LSigner.Free;
+      end;
+    finally
+      LToken.Free;
+    end;
+  finally
+    LKey.Free;
   end;
 end;
 

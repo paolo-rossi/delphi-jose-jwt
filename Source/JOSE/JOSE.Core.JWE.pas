@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -20,13 +20,9 @@
 {                                                                              }
 {******************************************************************************}
 
-/// <summary>
-///   JSON Web Encryption (JWE) RFC implementation (initial)
-/// </summary>
-/// <seealso href="https://tools.ietf.org/html/rfc7516">
-///   JWE RFC Document
-/// </seealso>
 unit JOSE.Core.JWE;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -38,6 +34,12 @@ uses
   JOSE.Core.JWT;
 
 type
+  /// <summary>
+  ///   JSON Web Encryption (JWE) RFC implementation (initial)
+  /// </summary>
+  /// <seealso href="https://tools.ietf.org/html/rfc7516">
+  ///   JWE RFC Document
+  /// </seealso>
   TJWE = class(TJOSEParts)
   private
     const COMPACT_PARTS = 5;

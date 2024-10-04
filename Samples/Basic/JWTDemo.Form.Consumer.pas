@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -28,7 +28,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, Vcl.ExtCtrls,
   System.Rtti, System.Generics.Collections, Vcl.ImgList, System.Actions, Vcl.ActnList,
-  System.ImageList,
+  System.ImageList, Vcl.Mask,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWE,
@@ -38,17 +38,18 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.Builder,
   JOSE.Hashing.HMAC,
+  JOSE.Encoding.Base64,
   JOSE.Consumer,
-  JOSE.Encoding.Base64;
+  JOSE.Producer;
 
 type
   TfrmConsumer = class(TForm)
     memoLog: TMemo;
     grpClaims: TGroupBox;
-    Label3: TLabel;
-    Label4: TLabel;
-    Label5: TLabel;
-    Label6: TLabel;
+    lblIssuedAt: TLabel;
+    lblExpirationTime: TLabel;
+    lblNotBefore: TLabel;
+    lblHashAlgorithm: TLabel;
     edtIssuer: TLabeledEdit;
     edtIssuedAtTime: TDateTimePicker;
     edtNotBeforeDate: TDateTimePicker;
@@ -67,7 +68,7 @@ type
     chkAudience: TCheckBox;
     actListMain: TActionList;
     actBuildJWS: TAction;
-    ImageList1: TImageList;
+    imgListMain: TImageList;
     actBuildJWTConsumer: TAction;
     btnCustomJWS: TButton;
     edtJWTId: TLabeledEdit;
@@ -76,7 +77,7 @@ type
     edtHeader: TLabeledEdit;
     edtPayload: TLabeledEdit;
     edtSignature: TLabeledEdit;
-    GroupBox1: TGroupBox;
+    grpConsumer: TGroupBox;
     btnConsumerBuild: TButton;
     actBuildJWTCustomConsumer: TAction;
     btnBuildJWTCustomConsumer: TButton;
@@ -92,14 +93,14 @@ type
     chkConsumerIssuer: TCheckBox;
     edtConsumerJWTId: TLabeledEdit;
     chkConsumerJWTId: TCheckBox;
-    Label1: TLabel;
+    lblEvaluationTime: TLabel;
     edtConsumerEvaluationDate: TDateTimePicker;
-    edtConsumerEvaluationTime: TDateTimePicker;
     chkConsumerIssuedAt: TCheckBox;
     chkConsumerExpires: TCheckBox;
     chkConsumerNotBefore: TCheckBox;
     edtSkewTime: TLabeledEdit;
     edtMaxFutureValidity: TLabeledEdit;
+    edtConsumerEvaluationTime: TDateTimePicker;
     procedure actBuildJWSExecute(Sender: TObject);
     procedure actBuildJWTConsumerExecute(Sender: TObject);
     procedure actBuildJWTConsumerUpdate(Sender: TObject);
@@ -123,9 +124,10 @@ type
     function BuildJWT: TJOSEBytes;
     procedure SetNow;
     procedure SetCompact(const Value: TJOSEBytes);
-    procedure ProcessConsumer(AConsumer: TJOSEConsumer);
+    procedure ProcessConsumer(AConsumer: IJOSEConsumer);
+    function GetCompact: TJOSEBytes;
   public
-    property Compact: TJOSEBytes read FCompact write SetCompact;
+    property Compact: TJOSEBytes read GetCompact write SetCompact;
   end;
 
 
@@ -160,23 +162,34 @@ begin
 
   ProcessConsumer(TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
+
     // JWS-related validation
     .SetVerificationKey(edtConsumerSecret.Text)
     .SetSkipVerificationKeyValidation
     .SetDisableRequireSignature
+
     // string-based claims validation
     .SetExpectedSubject('paolo-rossi')
     .SetExpectedAudience(True, LAud)
+
     // Time-related claims validation
     .SetRequireIssuedAt
     .SetRequireExpirationTime
     .SetEvaluationTime(IncSecond(FNow, 26))
     .SetAllowedClockSkew(20, TJOSETimeUnit.Seconds)
     .SetMaxFutureValidity(20, TJOSETimeUnit.Minutes)
+
     // Build the consumer object
     .Build()
   );
 
+  if memoLog.Lines.Count = 0 then
+    memoLog.Lines.Add('JWT Validated!')
+  else
+  begin
+    memoLog.Lines.Add(sLineBreak + '==========================================');
+    memoLog.Lines.Add('Errors in the validation process!');
+  end
 end;
 
 procedure TfrmConsumer.actBuildJWTConsumerUpdate(Sender: TObject);
@@ -224,19 +237,25 @@ begin
   if chkConsumerExpires.Checked then
     LBuilder.SetRequireExpirationTime;
 
-  // Not Before claim validation
+  // NotBefore claim validation
   if chkConsumerNotBefore.Checked then
     LBuilder.SetRequireNotBefore;
 
   LBuilder.SetEvaluationTime(edtConsumerEvaluationDate.Date + edtConsumerEvaluationTime.Time);
 
-  LBuilder.SetAllowedClockSkew(20, TJOSETimeUnit.Seconds);
-  LBuilder.SetMaxFutureValidity(20, TJOSETimeUnit.Minutes);
+  LBuilder.SetAllowedClockSkew(StrToInt(edtSkewTime.Text), TJOSETimeUnit.Seconds);
+  LBuilder.SetMaxFutureValidity(StrToInt(edtMaxFutureValidity.Text), TJOSETimeUnit.Minutes);
 
   // Build the consumer object
   memoLog.Lines.Clear;
   ProcessConsumer(LBuilder.Build());
-  memoLog.Lines.Add('JWT Validated!')
+  if memoLog.Lines.Count = 0 then
+    memoLog.Lines.Add('JWT Validated!')
+  else
+  begin
+    memoLog.Lines.Add(sLineBreak + '==========================================');
+    memoLog.Lines.Add('Errors in the validation process!');
+  end
 end;
 
 procedure TfrmConsumer.actBuildJWTCustomConsumerUpdate(Sender: TObject);
@@ -256,7 +275,6 @@ var
 begin
   LJWT := TJWT.Create;
   try
-    SetNow;
 
     if chkIssuer.Checked then
       LJWT.Claims.Issuer := edtIssuer.Text;
@@ -297,7 +315,12 @@ begin
   FJWT.Free;
 end;
 
-procedure TfrmConsumer.ProcessConsumer(AConsumer: TJOSEConsumer);
+function TfrmConsumer.GetCompact: TJOSEBytes;
+begin
+  Result := edtHeader.Text + '.' + edtPayload.Text + '.' + edtSignature.Text;
+end;
+
+procedure TfrmConsumer.ProcessConsumer(AConsumer: IJOSEConsumer);
 begin
   if Assigned(AConsumer) then
   try
@@ -306,7 +329,6 @@ begin
     on E: Exception do
       memoLog.Lines.Add(E.Message);
   end;
-  AConsumer.Free;
 end;
 
 procedure TfrmConsumer.SetCompact(const Value: TJOSEBytes);
@@ -331,14 +353,14 @@ begin
   edtIssuedAtDate.Date := FNow;
   edtIssuedAtTime.Time := FNow;
 
-  edtExpiresDate.Date := IncSecond(FNow, 5);
-  edtExpiresTime.Time := IncSecond(FNow, 5);
+  edtExpiresDate.Date := IncSecond(FNow, 30);
+  edtExpiresTime.Time := IncSecond(FNow, 30);
 
   edtNotBeforeDate.Date := IncMinute(FNow, -10);
   edtNotBeforeTime.Time := IncMinute(FNow, -10);
 
   edtConsumerEvaluationDate.Date := FNow;
-  edtConsumerEvaluationDate.Time := FNow;
+  edtConsumerEvaluationTime.Time := FNow;
 end;
 
 

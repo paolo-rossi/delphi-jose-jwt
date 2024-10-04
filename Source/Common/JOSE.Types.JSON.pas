@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -24,6 +24,8 @@
 ///   Utility unit to deal with the JSON Delphi classes
 /// </summary>
 unit JOSE.Types.JSON;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -49,9 +51,13 @@ type
   TJSONArray = System.JSON.TJSONArray;
 
   TJSONUtils = class
-  private
-    class procedure SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
+  strict private
+    class function GetJSONRttiValue(AValue: TValue): TJSONValue;
   public
+    class function IsValidJSON(const AValue: string): Boolean;
+    class function IsJSONBool(AJSON: TJSONValue): Boolean;
+    class function GetJSONBool(AJSON: TJSONValue): Boolean;
+
     class function ToJSON(AJSONValue: TJSONValue): string; static;
     class function CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
     class function GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
@@ -61,7 +67,10 @@ type
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 
+    class procedure SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject); overload;
+    class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
     class procedure SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
+
     class procedure RemoveJSONNode(const AName: string; AJSON: TJSONObject);
   end;
 
@@ -72,9 +81,83 @@ uses
 
 { TJSONUtils }
 
+class function TJSONUtils.GetJSONRttiValue(AValue: TValue): TJSONValue;
+var
+  LVal: TValue;
+  LArray: TArray<TValue>;
+begin
+  Result := nil;
+
+  case AValue.Kind of
+    tkChar,
+    tkString,
+    tkWChar,
+    tkLString,
+    tkWString,
+    tkUString:
+    begin
+      Result := TJSONString.Create(AValue.AsType<string>);
+    end;
+
+    tkEnumeration:
+    begin
+      if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
+      begin
+        if AValue.AsType<Boolean> then
+          Result := TJSONTrue.Create
+        else
+          Result := TJSONFalse.Create;
+      end;
+    end;
+
+    tkInteger,
+    tkInt64,
+    tkFloat:
+    begin
+      if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
+         SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
+         SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
+        Result := TJSONNumber.Create(DateTimeToUnix(AValue.AsType<TDateTime>, False))
+      else
+        if AValue.Kind = tkFloat then
+          Result := TJSONNumber.Create(AValue.AsType<Double>)
+      else
+      if AValue.Kind = tkInt64 then
+          Result := TJSONNumber.Create(AValue.AsType<Int64>)
+      else
+        Result := TJSONNumber.Create(AValue.AsType<Integer>)
+    end;
+
+    tkDynArray:
+    begin
+      LArray := AValue.AsType<TArray<TValue>>;
+      Result := TJSONArray.Create();
+      for LVal in LArray do
+        TJSONArray(Result).AddElement(GetJSONRttiValue(LVal));
+    end;
+  end;
+end;
+
 class function TJSONUtils.CheckPair(const AName: string; AJSON: TJSONObject): Boolean;
 begin
   Result := Assigned(AJSON.GetValue(AName));
+end;
+
+class function TJSONUtils.GetJSONBool(AJSON: TJSONValue): Boolean;
+begin
+{$IFDEF HAS_JSON_BOOL}
+  if AJSON is TJSONBool then
+    Result := (AJSON as TJSONBool).AsBoolean
+  else
+    raise EJSONConversionException.Create('The JSON value is not boolean');
+{$ELSE}
+  if AJSON is TJSONTrue then
+    Result := True
+  else if AJSON is TJSONFalse then
+    Result := False
+  else
+    raise EJSONConversionException.Create('The JSON value is not boolean');
+{$ENDIF}
 end;
 
 class function TJSONUtils.GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
@@ -84,15 +167,15 @@ begin
   LJSONValue := AJSON.GetValue(AName);
 
   if not Assigned(LJSONValue) then
-    Result := TValue.Empty
-  else if LJSONValue is TJSONTrue then
-    Result := True
-  else if LJSONValue is TJSONFalse then
-    Result := False
-  else if LJSONValue is TJSONNumber then
-    Result := TJSONNumber(LJSONValue).AsDouble
-  else
-    Result := LJSONValue.Value;
+    Exit(TValue.Empty);
+
+  if IsJSONBool(LJSONValue) then
+    Exit(GetJSONBool(LJSONValue));
+
+  if LJSONValue is TJSONNumber then
+    Exit(TJSONNumber(LJSONValue).AsDouble);
+
+  Result := LJSONValue.Value;
 end;
 
 class function TJSONUtils.GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
@@ -159,6 +242,31 @@ begin
     raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
 end;
 
+class function TJSONUtils.IsJSONBool(AJSON: TJSONValue): Boolean;
+begin
+{$IFDEF HAS_JSON_BOOL}
+  if AJSON is TJSONBool then
+    Exit(True);
+{$ELSE}
+  if (AJSON is TJSONTrue) or (AJSON is TJSONFalse) then
+    Exit(True);
+{$ENDIF}
+  Result := False;
+end;
+
+class function TJSONUtils.IsValidJSON(const AValue: string): Boolean;
+var
+  LValue: TJSONValue;
+begin
+  try
+    LValue := TJSONObject.ParseJSONValue(AValue);
+    Result := Assigned(LValue);
+    LValue.Free;
+  except
+    Result := False;
+  end;
+end;
+
 class procedure TJSONUtils.RemoveJSONNode(const AName: string; AJSON: TJSONObject);
 var
   LPair: TJSONPair;
@@ -168,9 +276,26 @@ begin
     LPair.Free;
 end;
 
+class procedure TJSONUtils.SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject);
+var
+  LPair: TJSONPair;
+begin
+  LPair := AJSON.Get(AName);
+  if Assigned(LPair) then
+  begin
+    // Replace the JSON Value (the previous is freed by the TJSONPair object)
+    LPair.JsonValue := AValue;
+  end
+  else
+  begin
+    LPair := TJSONPair.Create(AName, AValue);
+    AJSON.AddPair(LPair);
+  end;
+end;
+
 class procedure TJSONUtils.SetJSONValueFrom<T>(const AName: string; const AValue: T; AJSON: TJSONObject);
 begin
-  SetJSONValue(AName, TValue.From<T>(AValue), AJSON);
+  SetJSONRttiValue(AName, TValue.From<T>(AValue), AJSON);
 end;
 
 class function TJSONUtils.ToJSON(AJSONValue: TJSONValue): string;
@@ -182,67 +307,15 @@ begin
   Result := TEncoding.Default.GetString(LBytes);
 end;
 
-class procedure TJSONUtils.SetJSONValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
+class procedure TJSONUtils.SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
 var
-  LPair: TJSONPair;
   LValue: TJSONValue;
 begin
-  LValue := nil;
-
-  case AValue.Kind of
-    tkChar,
-    tkString,
-    tkWChar,
-    tkLString,
-    tkWString,
-    tkUString:
-    begin
-      LValue := TJSONString.Create(AValue.AsType<string>);
-    end;
-
-    tkEnumeration:
-    begin
-      if AValue.TypeInfo^.NameFld.ToString = 'Boolean' then
-      begin
-        if AValue.AsType<Boolean> then
-          LValue := TJSONTrue.Create
-        else
-          LValue := TJSONFalse.Create;
-      end;
-    end;
-
-    tkInteger,
-    tkInt64,
-    tkFloat:
-    begin
-      if SameText(AValue.TypeInfo^.NameFld.ToString, 'TDateTime') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TDate') or
-         SameText(AValue.TypeInfo^.NameFld.ToString, 'TTime') then
-        LValue := TJSONNumber.Create(DateTimeToUnix(AValue.AsType<TDateTime>, False))
-      else
-        if AValue.Kind = tkFloat then
-          LValue := TJSONNumber.Create(AValue.AsType<Double>)
-        else
-          LValue := TJSONNumber.Create(AValue.AsType<Integer>)
-    end;
-  end;
-
+  LValue := GetJSONRttiValue(AValue);
   if not Assigned(LValue) then
     Exit;
 
-  LPair := AJSON.Get(AName);
-  if Assigned(LPair) then
-  begin
-    // Replace the JSON Value (the previous is freed by the TJSONPair object)
-    LPair.JsonValue := LValue;
-  end
-  else
-  begin
-    LPair := TJSONPair.Create(AName, LValue);
-    AJSON.AddPair(LPair);
-  end;
-
+  SetJSONValue(AName, LValue, AJSON);
 end;
 
 end.
-

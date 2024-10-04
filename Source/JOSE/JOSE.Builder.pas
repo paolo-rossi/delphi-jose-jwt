@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -23,7 +23,9 @@
 /// <summary>
 ///   Utility class to encode and decode a JWT
 /// </summary>
-unit JOSE.Core.Builder;
+unit JOSE.Builder;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -38,117 +40,10 @@ uses
   JOSE.Core.JWS,
   JOSE.Core.JWE;
 
-type
-  TJOSE = class
-  private
-    class function DeserialzeVerify(AKey: TJWK; ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
-  public
-    class function Sign(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TJOSEBytes;
-    class function Verify(AKey: TJWK; ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT;
-
-    class function SerializeCompact(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TJOSEBytes;
-    class function DeserializeCompact(const ACompactToken: TJOSEBytes): TJWT;
-
-    class function SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
-  end;
-
-
 implementation
 
 uses
   System.Types,
   System.StrUtils;
-
-{ TJOSE }
-
-class function TJOSE.DeserializeCompact(const ACompactToken: TJOSEBytes): TJWT;
-begin
-  Result := DeserialzeVerify(nil, ACompactToken, True, TJWTClaims);
-end;
-
-class function TJOSE.DeserialzeVerify(AKey: TJWK; ACompactToken: TJOSEBytes;
-  AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
-var
-  LRes: TStringDynArray;
-  LSigner: TJWS;
-begin
-  Result := nil;
-  LRes := SplitString(ACompactToken, PART_SEPARATOR);
-
-  case Length(LRes) of
-    3:
-    begin
-      Result := TJWT.Create(AClaimsClass);
-      try
-        LSigner := TJWS.Create(Result);
-        try
-          if AVerify then
-            LSigner.Verify(AKey, ACompactToken)
-          else
-            LSigner.CompactToken := ACompactToken;
-        finally
-          LSigner.Free;
-        end;
-      except
-        FreeAndNil(Result);
-      end;
-    end;
-    5:
-    begin
-      raise EJOSEException.Create('Compact Serialization appears to be a JWE Token wich is not (yet) supported');
-    end;
-    else
-      raise EJOSEException.Create('Malformed Compact Serialization');
-  end
-end;
-
-class function TJOSE.SerializeCompact(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TJOSEBytes;
-var
-  LSigner: TJWS;
-begin
-  LSigner := TJWS.Create(AToken);
-  try
-    LSigner.Sign(AKey, AAlg);
-    Result := LSigner.CompactToken;
-  finally
-    LSigner.Free;
-  end;
-end;
-
-class function TJOSE.Sign(AKey: TJWK; AAlg: TJWAEnum; AToken: TJWT): TJOSEBytes;
-var
-  LSigner: TJWS;
-begin
-  LSigner := TJWS.Create(AToken);
-  try
-    Result := LSigner.Sign(AKey, AAlg);
-  finally
-    LSigner.Free;
-  end;
-end;
-
-class function TJOSE.SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
-var
-  LSigner: TJWS;
-  LKey: TJWK;
-begin
-  LSigner := TJWS.Create(AToken);
-  LKey := TJWK.Create(AKey);
-  try
-    LSigner.Sign(LKey, HS256);
-    Result := LSigner.CompactToken;
-  finally
-    LKey.Free;
-    LSigner.Free;
-  end;
-end;
-
-class function TJOSE.Verify(AKey: TJWK; ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
-begin
-  if not Assigned(AClaimsClass) then
-    AClaimsClass := TJWTClaims;
-
-  Result := DeserialzeVerify(AKey, ACompactToken, True, AClaimsClass);
-end;
 
 end.

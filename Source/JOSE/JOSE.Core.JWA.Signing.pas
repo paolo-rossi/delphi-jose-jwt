@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -28,12 +28,16 @@
 /// </seealso>
 unit JOSE.Core.JWA.Signing;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
   System.SysUtils,
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
+  JOSE.Signing.RSA,
+  JOSE.Signing.ECDSA,
   JOSE.Core.Base,
   JOSE.Core.Parts,
   JOSE.Core.JWA,
@@ -58,7 +62,7 @@ type
 
   TUnsecureNoneAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
   private
-    const CANNOT_HAVE_KEY = 'Unsecured JWS (%s=%s) must not use a key';
+    const CANNOT_HAVE_KEY = 'Unsecure JWS (alg=None) must not use a key';
     procedure ValidateKey(const AKey: TJOSEBytes);
   public
     constructor Create;
@@ -86,6 +90,45 @@ type
     procedure ValidateVerificationKey(const AKey: TJOSEBytes);
   end;
 
+{$IFDEF RSA_SIGNING}
+
+  TRSAUsingSHAAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
+  private
+    FKeyMinLength: Integer;
+  protected
+    FRSAAlgorithm: TRSAAlgorithm;
+    constructor Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+  public
+    class function RSA256: IJOSESigningAlgorithm;
+    class function RSA384: IJOSESigningAlgorithm;
+    class function RSA512: IJOSESigningAlgorithm;
+
+    function VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+    function Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+    procedure ValidateSigningKey(const AKey: TJOSEBytes);
+    procedure ValidateVerificationKey(const AKey: TJOSEBytes);
+  end;
+
+  TECDSAUsingSHAAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
+  private
+    FKeyMinLength: Integer;
+  protected
+    FECDSAAlgorithm: TECDSAAlgorithm;
+    constructor Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+  public
+    class function ECDSA256: IJOSESigningAlgorithm;
+    class function ECDSA256K: IJOSESigningAlgorithm;
+    class function ECDSA384: IJOSESigningAlgorithm;
+    class function ECDSA512: IJOSESigningAlgorithm;
+
+    function VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+    function Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+    procedure ValidateSigningKey(const AKey: TJOSEBytes);
+    procedure ValidateVerificationKey(const AKey: TJOSEBytes);
+  end;
+
+{$ENDIF}
+
 implementation
 
 uses
@@ -93,8 +136,7 @@ uses
   System.StrUtils,
   JOSE.Encoding.Base64;
 
-constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId;
-    AKeyMinLength: Integer);
+constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
 begin
   FAlgorithmIdentifier := AAlgorithmId;
 
@@ -200,8 +242,7 @@ end;
 procedure TUnsecureNoneAlgorithm.ValidateKey(const AKey: TJOSEBytes);
 begin
   if not AKey.IsEmpty then
-    raise EJOSEException.Create(Format(CANNOT_HAVE_KEY,
-      [THeaderNames.ALGORITHM, TJOSEAlgorithmId.None.AsString]));
+    raise EJOSEException.Create(CANNOT_HAVE_KEY);
 end;
 
 procedure TUnsecureNoneAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
@@ -214,11 +255,152 @@ begin
   ValidateKey(AKey);
 end;
 
-function TUnsecureNoneAlgorithm.VerifySignature(const AKey, AInput,
-  ASignature: TJOSEBytes): Boolean;
+function TUnsecureNoneAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
 begin
   ValidateKey(AKey);
   Result := ASignature.IsEmpty;
 end;
+
+{$IFDEF RSA_SIGNING}
+
+{ TRSAAlgorithm }
+
+constructor TRSAUsingSHAAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+begin
+  FAlgorithmIdentifier := AAlgorithmId;
+
+  case AAlgorithmId of
+    TJOSEAlgorithmId.RS256: FRSAAlgorithm := TRSAAlgorithm.RS256;
+    TJOSEAlgorithmId.RS384: FRSAAlgorithm := TRSAAlgorithm.RS384;
+    TJOSEAlgorithmId.RS512: FRSAAlgorithm := TRSAAlgorithm.RS512;
+  end;
+  FKeyCategory := TJOSEKeyCategory.Asymmetric;
+  FKeyType := 'pem';
+  FKeyMinLength := AKeyMinLength;
+end;
+
+class function TRSAUsingSHAAlgorithm.RSA256: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.RS256, 256);
+end;
+
+class function TRSAUsingSHAAlgorithm.RSA384: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.RS384, 384);
+end;
+
+class function TRSAUsingSHAAlgorithm.RSA512: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.RS512, 512);
+end;
+
+function TRSAUsingSHAAlgorithm.Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+var
+  LSign: TJOSEBytes;
+begin
+  LSign := TRSA.Sign(AInput, AKey, FRSAAlgorithm);
+  Result := TBase64.URLEncode(LSign.AsBytes);
+end;
+
+procedure TRSAUsingSHAAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TRSA.VerifyPrivateKey(AKey) then
+    raise EJOSEException.Create('Key is not RSA key in PEM format');
+end;
+
+procedure TRSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TRSA.VerifyPublicKey(AKey) then
+    raise EJOSEException.Create('Key is not RSA key in PEM format');
+end;
+
+function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+var
+  LDecodedSignature: TJOSEBytes;
+begin
+  ValidateVerificationKey(AKey);
+  LDecodedSignature := TBase64.URLDecode(ASignature);
+  Result := TRSA.Verify(AInput, LDecodedSignature, AKey, FRSAAlgorithm);
+end;
+
+{ TECDSAUsingSHAAlgorithm }
+
+constructor TECDSAUsingSHAAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
+begin
+  FAlgorithmIdentifier := AAlgorithmId;
+
+  case AAlgorithmId of
+    TJOSEAlgorithmId.ES256: FECDSAAlgorithm := TECDSAAlgorithm.ES256;
+    TJOSEAlgorithmId.ES256K: FECDSAAlgorithm := TECDSAAlgorithm.ES256K;
+    TJOSEAlgorithmId.ES384: FECDSAAlgorithm := TECDSAAlgorithm.ES384;
+    TJOSEAlgorithmId.ES512: FECDSAAlgorithm := TECDSAAlgorithm.ES512;
+  end;
+  FKeyCategory := TJOSEKeyCategory.Asymmetric;
+  FKeyType := 'pem';
+  FKeyMinLength := AKeyMinLength;
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA256: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES256, 256);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA256K: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES256K, 256);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA384: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES384, 384);
+end;
+
+class function TECDSAUsingSHAAlgorithm.ECDSA512: IJOSESigningAlgorithm;
+begin
+  Result := TECDSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.ES512, 512);
+end;
+
+function TECDSAUsingSHAAlgorithm.Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
+var
+  LSign: TJOSEBytes;
+begin
+  LSign := TECDSA.Sign(AInput, AKey, FECDSAAlgorithm);
+  Result := TBase64.URLEncode(LSign.AsBytes);
+end;
+
+procedure TECDSAUsingSHAAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TECDSA.VerifyPrivateKey(AKey) then
+    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+end;
+
+procedure TECDSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
+begin
+  if AKey.IsEmpty then
+    raise EJOSEException.Create('Key is null');
+
+  if not TECDSA.VerifyPublicKey(AKey) then
+    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+end;
+
+function TECDSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
+var
+  LDecodedSignature: TJOSEBytes;
+begin
+  ValidateVerificationKey(AKey);
+  LDecodedSignature := TBase64.URLDecode(ASignature);
+  Result := TECDSA.Verify(AInput, LDecodedSignature, AKey, FECDSAAlgorithm);
+end;
+
+{$ENDIF}
 
 end.

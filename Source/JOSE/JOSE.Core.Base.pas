@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,12 +25,15 @@
 /// </summary>
 unit JOSE.Core.Base;
 
+{$I ..\JOSE.inc}
+
 interface
 
 {$SCOPEDENUMS ON}
 
 uses
   System.SysUtils,
+  System.JSON,
   System.Generics.Collections,
   JOSE.Types.Arrays,
   JOSE.Types.Bytes,
@@ -64,6 +67,7 @@ type
     function GetAsMilliSeconds: Int64;
     function GetAsSeconds: Int64;
     procedure SetAsSeconds(const AValue: Int64);
+    function GetAsISO8601: string;
   public
     constructor Create(AValue: TDateTime);
     class function FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate; static;
@@ -77,12 +81,7 @@ type
     property AsSeconds: Int64 read GetAsSeconds write SetAsSeconds;
     property AsMilliSeconds: Int64 read GetAsMilliSeconds;
     property AsDateTime: TDateTime read FValue write FValue;
-  end;
-
-  THeaderNames = class
-  public const
-    HEADER_TYPE = 'typ';
-    ALGORITHM = 'alg';
+    property AsISO8601: string read GetAsISO8601;
   end;
 
   TJOSEBase = class
@@ -99,6 +98,10 @@ type
     constructor Create;
     destructor Destroy; override;
 
+    procedure Clear;
+    procedure Assign(AValue: TJOSEBase);
+    procedure SetNewJSON(AJSON: TJSONObject); overload;
+    procedure SetNewJSON(const AJSONStr: string); overload;
     function Clone: TJSONObject;
 
     property JSON: TJSONObject read FJSON write FJSON;
@@ -113,10 +116,9 @@ implementation
 
 uses
   System.DateUtils,
-  System.JSON,
   JOSE.Encoding.Base64;
 
-{$IF CompilerVersion >= 28}
+{$IF CompilerVersion >= 28}  // Delphi XE7
 function ToJSON(Value: TJSONAncestor): string;
 begin
   Result := Value.ToJson;
@@ -131,7 +133,7 @@ begin
   LLen := Value.ToBytes(LBytes, 0);
   Result := TEncoding.UTF8.GetString(LBytes, 0, LLen);
 end;
-{$ENDIF}
+{$IFEND}
 
 function JSONDate(ADate: TDateTime): Int64;
 begin
@@ -139,6 +141,18 @@ begin
 end;
 
 { TJOSEBase }
+
+procedure TJOSEBase.Assign(AValue: TJOSEBase);
+begin
+  FJSON.Free;
+  FJSON := AValue.Clone;
+end;
+
+procedure TJOSEBase.Clear;
+begin
+  FJSON.Free;
+  FJSON := TJSONObject.Create;
+end;
 
 function TJOSEBase.Clone: TJSONObject;
 begin
@@ -172,6 +186,20 @@ var
 begin
   LJSONStr := TBase64.Decode(Value);
   FJSON.Parse(LJSONStr, 0)
+end;
+
+procedure TJOSEBase.SetNewJSON(const AJSONStr: string);
+var
+  LJSON: TJSONObject;
+begin
+  LJSON := FJSON.ParseJSONValue(AJSONStr) as TJSONObject;
+  SetNewJSON(LJSON);
+end;
+
+procedure TJOSEBase.SetNewJSON(AJSON: TJSONObject);
+begin
+  FJSON.Free;
+  FJSON := AJSON;
 end;
 
 procedure TJOSEBase.SetURLEncoded(const Value: TJOSEBytes);
@@ -214,6 +242,11 @@ end;
 class function TJOSENumericDate.FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate;
 begin
   Result := TJOSENumericDate.Create(UnixToDateTime(ASecondsFromEpoch, False));
+end;
+
+function TJOSENumericDate.GetAsISO8601: string;
+begin
+  Result := DateToISO8601(FValue);
 end;
 
 function TJOSENumericDate.GetAsMilliSeconds: Int64;

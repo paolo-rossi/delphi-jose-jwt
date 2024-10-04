@@ -1,0 +1,89 @@
+{******************************************************************************}
+{                                                                              }
+{  Delphi JOSE Library                                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
+{  https://github.com/paolo-rossi/delphi-jose-jwt                              }
+{                                                                              }
+{******************************************************************************}
+{                                                                              }
+{  Licensed under the Apache License, Version 2.0 (the "License");             }
+{  you may not use this file except in compliance with the License.            }
+{  You may obtain a copy of the License at                                     }
+{                                                                              }
+{      http://www.apache.org/licenses/LICENSE-2.0                              }
+{                                                                              }
+{  Unless required by applicable law or agreed to in writing, software         }
+{  distributed under the License is distributed on an "AS IS" BASIS,           }
+{  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    }
+{  See the License for the specific language governing permissions and         }
+{  limitations under the License.                                              }
+{                                                                              }
+{******************************************************************************}
+
+package JOSE;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Delphi JOSE JWT Library'}
+{$LIBSUFFIX AUTO}
+{$RUNONLY}
+{$IMPLICITBUILD OFF}
+
+requires
+  rtl,
+  IndySystem,
+  IndyProtocols,
+  IndyCore;
+
+contains
+  JOSE.OpenSSL.Headers in '..\..\Source\Common\JOSE.OpenSSL.Headers.pas',
+  JOSE.Encoding.Base64 in '..\..\Source\Common\JOSE.Encoding.Base64.pas',
+  JOSE.Hashing.HMAC in '..\..\Source\Common\JOSE.Hashing.HMAC.pas',
+  JOSE.Signing.Base in '..\..\Source\Common\JOSE.Signing.Base.pas',
+  JOSE.Signing.RSA in '..\..\Source\Common\JOSE.Signing.RSA.pas',
+  JOSE.Signing.ECDSA in '..\..\Source\Common\JOSE.Signing.ECDSA.pas',
+  JOSE.Types.Arrays in '..\..\Source\Common\JOSE.Types.Arrays.pas',
+  JOSE.Types.Bytes in '..\..\Source\Common\JOSE.Types.Bytes.pas',
+  JOSE.Types.Utils in '..\..\Source\Common\JOSE.Types.Utils.pas',
+  JOSE.Types.JSON in '..\..\Source\Common\JOSE.Types.JSON.pas',
+  JOSE.Core.Base in '..\..\Source\JOSE\JOSE.Core.Base.pas',
+  JOSE.Core.Builder in '..\..\Source\JOSE\JOSE.Core.Builder.pas',
+  JOSE.Core.JWA.Compression in '..\..\Source\JOSE\JOSE.Core.JWA.Compression.pas',
+  JOSE.Core.JWA.Encryption in '..\..\Source\JOSE\JOSE.Core.JWA.Encryption.pas',
+  JOSE.Core.JWA.Factory in '..\..\Source\JOSE\JOSE.Core.JWA.Factory.pas',
+  JOSE.Core.JWA in '..\..\Source\JOSE\JOSE.Core.JWA.pas',
+  JOSE.Core.JWA.Signing in '..\..\Source\JOSE\JOSE.Core.JWA.Signing.pas',
+  JOSE.Core.JWE in '..\..\Source\JOSE\JOSE.Core.JWE.pas',
+  JOSE.Core.JWK in '..\..\Source\JOSE\JOSE.Core.JWK.pas',
+  JOSE.Core.JWS in '..\..\Source\JOSE\JOSE.Core.JWS.pas',
+  JOSE.Core.JWT in '..\..\Source\JOSE\JOSE.Core.JWT.pas',
+  JOSE.Core.Parts in '..\..\Source\JOSE\JOSE.Core.Parts.pas',
+  JOSE.Context in '..\..\Source\JOSE\JOSE.Context.pas',
+  JOSE.Builder in '..\..\Source\JOSE\JOSE.Builder.pas',
+  JOSE.Consumer in '..\..\Source\JOSE\JOSE.Consumer.pas',
+  JOSE.Consumer.Validators in '..\..\Source\JOSE\JOSE.Consumer.Validators.pas';
+
+end.

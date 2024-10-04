@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -25,6 +25,8 @@
 /// </summary>
 unit JOSE.Core.Parts;
 
+{$I ..\JOSE.inc}
+
 interface
 
 uses
@@ -35,6 +37,9 @@ uses
   JOSE.Core.JWT;
 
 type
+  /// <summary>
+  ///   Base class that describes the token parts.
+  /// </summary>
   TJOSEParts = class
   protected
     FParts: TList<TJOSEBytes>;
@@ -44,6 +49,7 @@ type
     procedure SetCompactToken(const Value: TJOSEBytes); virtual; abstract;
 
     function GetHeaderAlgorithm: string;
+    function GetHeaderAlgorithmId: TJOSEAlgorithmId;
   public
     constructor Create(AToken: TJWT); virtual;
     destructor Destroy; override;
@@ -55,6 +61,7 @@ type
     procedure Empty;
     property CompactToken: TJOSEBytes read GetCompactToken write SetCompactToken;
     property HeaderAlgorithm: string read GetHeaderAlgorithm;
+    property HeaderAlgorithmId: TJOSEAlgorithmId read GetHeaderAlgorithmId;
     property SkipKeyValidation: Boolean read FSkipKeyValidation write FSkipKeyValidation;
   end;
 
@@ -90,6 +97,11 @@ end;
 function TJOSEParts.GetHeaderAlgorithm: string;
 begin
   Result := FToken.Header.Algorithm;
+end;
+
+function TJOSEParts.GetHeaderAlgorithmId: TJOSEAlgorithmId;
+begin
+  Result.AsString := FToken.Header.Algorithm;
 end;
 
 procedure TJOSEParts.SetHeaderAlgorithm(AAlg: TJOSEAlgorithmId);

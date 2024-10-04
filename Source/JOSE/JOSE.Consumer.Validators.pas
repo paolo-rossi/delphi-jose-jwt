@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -24,6 +24,8 @@
 ///   Utility class to encode and decode a JWT
 /// </summary>
 unit JOSE.Consumer.Validators;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -65,29 +67,15 @@ type
   end;
 
   TJOSEClaimsValidators = class
-    class function DateClaimsValidator(
-      ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
+    class function DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 
-    class function audValidator(AAudience: TJOSEStringArray;
-      ARequired: Boolean = True): TJOSEValidator;
-
-    class function issValidator(AIssuer: string;
-      ARequired: Boolean = True): TJOSEValidator; overload;
-
-    class function issValidator(AIssuers: TJOSEStringArray;
-      ARequired: Boolean = True): TJOSEValidator; overload;
-
-    class function subValidator(const ASubject: string;
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function subValidator(
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function jtiValidator(const AJwtId: string;
-      ARequired: Boolean): TJOSEValidator; overload;
-
-    class function jtiValidator(
-      ARequired: Boolean): TJOSEValidator; overload;
+    class function audValidator(AAudience: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator;
+    class function issValidator(AIssuer: string; ARequired: Boolean = True): TJOSEValidator; overload;
+    class function issValidator(AIssuers: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator; overload;
+    class function subValidator(const ASubject: string; ARequired: Boolean): TJOSEValidator; overload;
+    class function subValidator(ARequired: Boolean): TJOSEValidator; overload;
+    class function jtiValidator(const AJwtId: string; ARequired: Boolean): TJOSEValidator; overload;
+    class function jtiValidator(ARequired: Boolean): TJOSEValidator; overload;
   end;
 
 
@@ -132,8 +120,7 @@ end;
 
 { TJOSEClaimsValidators }
 
-class function TJOSEClaimsValidators.audValidator(AAudience: TJOSEStringArray;
-  ARequired: Boolean = True): TJOSEValidator;
+class function TJOSEClaimsValidators.audValidator(AAudience: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -167,18 +154,17 @@ begin
 
         Result := Result + ' Expected ';
 
-        if Length(LClaims.AudienceArray) = 1 then
-          Result := Result + '[' + LClaims.Audience + ']'
+        if AAudience.Size = 1 then
+          Result := Result + '[' + AAudience.ToString + ']'
         else
-          Result := Result + 'one of [' + LClaims.Audience + ']';
+          Result := Result + 'one of [' + AAudience.ToString + ']';
 
         Result := Result +  ' as aud value.';
       end;
     end
 end;
 
-class function TJOSEClaimsValidators.DateClaimsValidator(
-  ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
+class function TJOSEClaimsValidators.DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 var
   LDeltaInSeconds: Int64;
 begin
@@ -208,18 +194,18 @@ begin
       begin
         if ADateParams.EvaluationTime.IsAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(
-            'The JWT is no longer valid - the evaluation time [%d] is on or after the Expiration Time [exp=%d] claim value %s',
-            [ADateParams.EvaluationTime.AsSeconds, JSONDate(LClaims.Expiration), ADateParams.SkewMessage])
+            'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value %s',
+            [ADateParams.EvaluationTime.AsISO8601, DateToISO8601(LClaims.Expiration, False), ADateParams.SkewMessage])
           );
 
         if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the IssuedAt (iat=%d) claim value',
-            [LExpiration.AsSeconds, LIssuedAt.AsSeconds])
+          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the IssuedAt (iat=%s) claim value',
+            [LExpiration.AsISO8601, LIssuedAt.AsISO8601])
           );
 
         if LClaims.HasNotBefore and LExpiration.IsBefore(LNotBefore, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%d) claim value cannot be before the NotBefore (nbf=%d) claim value',
-            [LExpiration.AsSeconds, LNotBefore.AsSeconds])
+          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value',
+            [LExpiration.AsISO8601, LNotBefore.AsISO8601])
           );
 
         if ADateParams.MaxFutureValidityInMinutes > 0 then
@@ -230,23 +216,22 @@ begin
             ADateParams.EvaluationTime.AsSeconds;
 
           if LDeltaInSeconds > (ADateParams.MaxFutureValidityInMinutes * 60) then
-            Exit(Format('The Expiration Time [exp=%d] claim value cannot be more than [%d] minutes in the future relative to the evaluation time %[d] %s',
-              [LExpiration.AsSeconds, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsSeconds, ADateParams.SkewMessage])
+            Exit(Format('The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s] %s',
+              [LExpiration.AsISO8601, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsISO8601, ADateParams.SkewMessage])
             );
         end;
       end;
 
       if LClaims.HasNotBefore then
         if (ADateParams.EvaluationTime.AsSeconds + ADateParams.AllowedClockSkewSeconds) < LNotBefore.AsSeconds then
-          Exit(Format('The JWT is not yet valid as the evaluation time [%d] is before the NotBefore [nbf=%d] claim time %s',
-            [ADateParams.EvaluationTime.AsSeconds, LNotBefore.AsSeconds, ADateParams.SkewMessage])
+          Exit(Format('The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time %s',
+            [ADateParams.EvaluationTime.AsISO8601, LNotBefore.AsISO8601, ADateParams.SkewMessage])
           );
     end;
   ;
 end;
 
-class function TJOSEClaimsValidators.issValidator(AIssuer: string;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.issValidator(AIssuer: string; ARequired: Boolean): TJOSEValidator;
 var
   LIssuers: TJOSEStringArray;
 begin
@@ -258,8 +243,7 @@ begin
   Result := issValidator(LIssuers, ARequired);
 end;
 
-class function TJOSEClaimsValidators.issValidator(AIssuers: TJOSEStringArray;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.issValidator(AIssuers: TJOSEStringArray; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -280,8 +264,7 @@ begin
   ;
 end;
 
-class function TJOSEClaimsValidators.jtiValidator(const AJwtId: string;
-  ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.jtiValidator(const AJwtId: string; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
@@ -307,8 +290,7 @@ begin
   Result :=  TJOSEClaimsValidators.jtiValidator('', ARequired);
 end;
 
-class function TJOSEClaimsValidators.subValidator(const ASubject: string;
-    ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.subValidator(const ASubject: string; ARequired: Boolean): TJOSEValidator;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string

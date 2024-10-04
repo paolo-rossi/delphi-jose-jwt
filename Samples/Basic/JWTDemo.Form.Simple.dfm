@@ -2,7 +2,7 @@ object frmSimple: TfrmSimple
   Left = 0
   Top = 0
   Caption = 'frmSimple'
-  ClientHeight = 488
+  ClientHeight = 531
   ClientWidth = 923
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -10,63 +10,61 @@ object frmSimple: TfrmSimple
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  OldCreateOrder = False
   DesignSize = (
     923
-    488)
-  PixelsPerInch = 96
+    531)
   TextHeight = 13
-  object lbl1: TLabel
+  object lblJSON: TLabel
     Left = 157
     Top = 55
     Width = 91
     Height = 13
     Caption = 'JSON Visualization:'
   end
-  object lbl2: TLabel
+  object lblCompact: TLabel
     Left = 8
-    Top = 293
+    Top = 301
     Width = 107
     Height = 13
     Caption = 'Compact Visualization:'
   end
-  object Label6: TLabel
+  object lblAlgorithm: TLabel
     Left = 8
     Top = 8
     Width = 72
     Height = 13
     Caption = 'Hash Algorithm'
   end
-  object btnBuild: TButton
+  object btnBuildClasses: TButton
     Left = 8
-    Top = 135
+    Top = 104
     Width = 135
     Height = 25
-    Caption = 'Build JWS (JWT && JWK)'
+    Caption = 'Build JWS using classes'
     TabOrder = 0
-    OnClick = btnBuildClick
+    OnClick = btnBuildClassesClick
   end
-  object btnTJOSEBuild: TButton
+  object btnBuildTJOSE: TButton
     Left = 8
     Top = 73
     Width = 135
     Height = 25
     Caption = 'Build JWS using TJOSE'
     TabOrder = 1
-    OnClick = btnTJOSEBuildClick
+    OnClick = btnBuildTJOSEClick
   end
-  object btnTJOSEVerify: TButton
+  object btnVerifyTJOSE: TButton
     Left = 8
-    Top = 104
+    Top = 171
     Width = 135
     Height = 25
     Caption = 'Verify JWS using TJOSE'
     TabOrder = 2
-    OnClick = btnTJOSEVerifyClick
+    OnClick = btnVerifyTJOSEClick
   end
   object btnTestClaims: TButton
     Left = 8
-    Top = 182
+    Top = 264
     Width = 135
     Height = 25
     Caption = 'Test Date Claims'
@@ -76,8 +74,8 @@ object frmSimple: TfrmSimple
   object memoJSON: TMemo
     Left = 157
     Top = 74
-    Width = 758
-    Height = 207
+    Width = 754
+    Height = 215
     Anchors = [akLeft, akTop, akRight]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -86,13 +84,13 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 4
-    ExplicitWidth = 662
+    ExplicitWidth = 750
   end
   object memoCompact: TMemo
     Left = 8
-    Top = 312
-    Width = 907
-    Height = 168
+    Top = 320
+    Width = 903
+    Height = 203
     Anchors = [akLeft, akTop, akRight, akBottom]
     Font.Charset = ANSI_CHARSET
     Font.Color = clWindowText
@@ -101,8 +99,8 @@ object frmSimple: TfrmSimple
     Font.Style = []
     ParentFont = False
     TabOrder = 5
-    ExplicitWidth = 810
-    ExplicitHeight = 213
+    ExplicitWidth = 899
+    ExplicitHeight = 202
   end
   object cbbAlgorithm: TComboBox
     Left = 8
@@ -121,7 +119,7 @@ object frmSimple: TfrmSimple
   object edtSecret: TLabeledEdit
     Left = 157
     Top = 26
-    Width = 758
+    Width = 754
     Height = 21
     Anchors = [akLeft, akTop, akRight]
     EditLabel.Width = 72
@@ -130,6 +128,42 @@ object frmSimple: TfrmSimple
     TabOrder = 7
     Text = 'mysecretkey256bitwide(32characters)'
     OnChange = edtSecretChange
-    ExplicitWidth = 661
+    ExplicitWidth = 750
+  end
+  object btnDeserializeTJOSE: TButton
+    Left = 8
+    Top = 233
+    Width = 135
+    Height = 25
+    Caption = 'Deserialize using TJOSE'
+    TabOrder = 8
+    OnClick = btnDeserializeTJOSEClick
+  end
+  object btnVerifyClasses: TButton
+    Left = 8
+    Top = 202
+    Width = 135
+    Height = 25
+    Caption = 'Verify JWS using classes'
+    TabOrder = 9
+    OnClick = btnVerifyClassesClick
+  end
+  object btnBuildProducer: TButton
+    Left = 8
+    Top = 135
+    Width = 135
+    Height = 25
+    Caption = 'Build using Producer'
+    TabOrder = 10
+    OnClick = btnBuildProducerClick
+  end
+  object btnCheckCompact: TButton
+    Left = 157
+    Top = 295
+    Width = 108
+    Height = 19
+    Caption = 'Check Compact'
+    TabOrder = 11
+    OnClick = btnCheckCompactClick
   end
 end

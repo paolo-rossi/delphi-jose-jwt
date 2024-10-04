@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -24,6 +24,8 @@
 ///   HMAC utility class
 /// </summary>
 unit JOSE.Hashing.HMAC;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -76,7 +78,7 @@ begin
   LSigner := nil;
 
   if not IdSSLOpenSSL.LoadOpenSSLLibrary then
-    raise Exception.Create('Error Message');
+    raise Exception.Create('Error Loading OpenSSL libraries');
 
   case AAlg of
     SHA256: LSigner := TIdHMACSHA256.Create;
@@ -100,7 +102,7 @@ procedure THMACAlgorithmHelper.FromString(const AValue: string);
 begin
   if AValue = 'SHA256' then
     Self := SHA256
-  else if AValue = 'SHA388' then
+  else if AValue = 'SHA384' then
     Self := SHA384
   else if AValue = 'SHA512' then
     Self := SHA512

@@ -1,7 +1,7 @@
 {******************************************************************************}
 {                                                                              }
 {  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015-2017 Paolo Rossi                                         }
+{  Copyright (c) 2015 Paolo Rossi                                              }
 {  https://github.com/paolo-rossi/delphi-jose-jwt                              }
 {                                                                              }
 {******************************************************************************}
@@ -19,11 +19,9 @@
 {  limitations under the License.                                              }
 {                                                                              }
 {******************************************************************************}
-
-/// <summary>
-///   Utility class to encode and decode a JWT
-/// </summary>
 unit JOSE.Core.Builder;
+
+{$I ..\JOSE.inc}
 
 interface
 
@@ -39,20 +37,32 @@ uses
   JOSE.Core.JWE;
 
 type
+  /// <summary>
+  ///   Utility class to encode and decode a JWT
+  /// </summary>
   TJOSE = class
   private
-    class function DeserializeVerify(AKey: TJWK; ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
+    class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes; AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
-    class function Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
-    class function Verify(AKey: TJWK; ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT;
+    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean; static;
 
+    class function Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
+    class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    class function Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+
+    class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT; ASkipValidation: Boolean): TJOSEBytes; overload;
     class function SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes; overload;
     class function SerializeCompact(AKey: TJOSEBytes; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes; overload;
-    class function DeserializeCompact(const ACompactToken: TJOSEBytes): TJWT;
+
+    class function DeserializeCompact(AKey: TJWK; const ACompactToken: TJOSEBytes): TJWT; overload;
+    class function DeserializeCompact(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes): TJWT; overload;
+
+    class function DeserializeOnly(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
 
     class function SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+    class function SHA284CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+    class function SHA512CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
   end;
-
 
 implementation
 
@@ -62,12 +72,34 @@ uses
 
 { TJOSE }
 
-class function TJOSE.DeserializeCompact(const ACompactToken: TJOSEBytes): TJWT;
+class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 begin
-  Result := DeserializeVerify(nil, ACompactToken, True, TJWTClaims);
+  Result := TJWS.CheckCompactToken(AValue);
 end;
 
-class function TJOSE.DeserializeVerify(AKey: TJWK; ACompactToken: TJOSEBytes;
+class function TJOSE.DeserializeCompact(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes): TJWT;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := DeserializeVerify(LKey, ACompactToken, True, TJWTClaims);
+  finally
+    LKey.Free;
+  end;
+end;
+
+class function TJOSE.DeserializeOnly(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
+begin
+  Result := DeserializeVerify(nil, ACompactToken, False, AClaimsClass);
+end;
+
+class function TJOSE.DeserializeCompact(AKey: TJWK; const ACompactToken: TJOSEBytes): TJWT;
+begin
+  Result := DeserializeVerify(AKey, ACompactToken, True, TJWTClaims);
+end;
+
+class function TJOSE.DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes;
     AVerify: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
 var
   LRes: TStringDynArray;
@@ -84,10 +116,12 @@ begin
         LSigner := TJWS.Create(Result);
         LSigner.SkipKeyValidation := True;
         try
-          LSigner.SetKey(AKey);
           LSigner.CompactToken := ACompactToken;
           if AVerify then
-            LSigner.VerifySignature
+          begin
+            LSigner.SetKey(AKey);
+            LSigner.VerifySignature;
+          end;
         finally
           LSigner.Free;
         end;
@@ -105,16 +139,8 @@ begin
 end;
 
 class function TJOSE.SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
-var
-  LSigner: TJWS;
 begin
-  LSigner := TJWS.Create(AToken);
-  try
-    LSigner.Sign(AKey, AAlg);
-    Result := LSigner.CompactToken;
-  finally
-    LSigner.Free;
-  end;
+  Result := SerializeCompact(AKey, AAlg, AToken, True);
 end;
 
 class function TJOSE.Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
@@ -129,42 +155,67 @@ begin
   end;
 end;
 
-class function TJOSE.SerializeCompact(AKey: TJOSEBytes; AAlg: TJOSEAlgorithmId;
-  AToken: TJWT): TJOSEBytes;
+class function TJOSE.SerializeCompact(AKey: TJOSEBytes; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
 var
   LKey: TJWK;
 begin
   LKey := TJWK.Create(AKey);
   try
-    Result := SerializeCompact(LKey, AAlg, AToken);
+    Result := SerializeCompact(LKey, AAlg, AToken, True);
   finally
     LKey.Free;
   end;
 end;
 
-class function TJOSE.SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+class function TJOSE.SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT;
+  ASkipValidation: Boolean): TJOSEBytes;
 var
   LSigner: TJWS;
-  LKey: TJWK;
 begin
   LSigner := TJWS.Create(AToken);
-  LSigner.SkipKeyValidation := True;
-  LKey := TJWK.Create(AKey);
   try
-    LSigner.Sign(LKey, TJOSEAlgorithmId.HS256);
+    LSigner.SkipKeyValidation := ASkipValidation;
+    LSigner.Sign(AKey, AAlg);
     Result := LSigner.CompactToken;
   finally
-    LKey.Free;
     LSigner.Free;
   end;
 end;
 
-class function TJOSE.Verify(AKey: TJWK; ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
+class function TJOSE.SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+begin
+  Result := SerializeCompact(AKey, TJOSEAlgorithmId.HS256, AToken);
+end;
+
+class function TJOSE.SHA284CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+begin
+  Result := SerializeCompact(AKey, TJOSEAlgorithmId.HS384, AToken);
+end;
+
+class function TJOSE.SHA512CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
+begin
+  Result := SerializeCompact(AKey, TJOSEAlgorithmId.HS512, AToken);
+end;
+
+class function TJOSE.Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
 begin
   if not Assigned(AClaimsClass) then
     AClaimsClass := TJWTClaims;
 
   Result := DeserializeVerify(AKey, ACompactToken, True, AClaimsClass);
+end;
+
+class function TJOSE.Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := Verify(LKey, ACompactToken, AClaimsClass);
+  finally
+    LKey.Free;
+  end;
 end;
 
 end.
