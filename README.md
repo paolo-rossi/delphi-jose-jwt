@@ -26,10 +26,10 @@
 
 ## :books: Articles about using Delphi-JOSE
 
-- [JWT authentication with Delphi. Part 1](http://blog.paolorossi.net/2017/04/27/jwt-authentication-with-delphi) - JWT and authentication technologies introduction (using Delphi)
-- [JWT authentication with Delphi. Part 2](http://blog.paolorossi.net/2017/05/17/jwt-authentication-with-delphi-part-2) - Understanding the JSON Web Token
-- [JWT authentication with Delphi. Part 3](http://blog.paolorossi.net/2018/08/27/jwt-authentication-with-delphi-part-3) - Using Delphi-JOSE-JWT to generate and verify JWT tokens
-- [JWT authentication with Delphi. Part 4](http://blog.paolorossi.net/2019/07/15/jwt-authentication-with-delphi-part-4) - Using JWT consumer to validate JWT's claims
+- [JWT authentication with Delphi. Part 1](https://blog.paolorossi.net/post/jwt-authentication-with-delphi-part-1/) - JWT and authentication technologies introduction (using Delphi)
+- [JWT authentication with Delphi. Part 2](https://blog.paolorossi.net/post/jwt-authentication-with-delphi-part-2/) - Understanding the JSON Web Token
+- [JWT authentication with Delphi. Part 3](https://blog.paolorossi.net/post/jwt-authentication-with-delphi-part-3/) - Using Delphi-JOSE-JWT to generate and verify JWT tokens
+- [JWT authentication with Delphi. Part 4](https://blog.paolorossi.net/post/jwt-authentication-with-delphi-part-4/) - Using JWT consumer to validate JWT's claims
 
 ## :warning: Important: OpenSSL requirements
 
@@ -113,7 +113,7 @@ If you need the OpenSSL library on the server, you can download the package dire
 ## :wrench: Todo
 
 ##### Features
-- JWE support
+- JWE support (there is partial implementation in [this PR](https://github.com/paolo-rossi/delphi-jose-jwt/pull/84))
 - Support of other crypto libraries (TMS Cryptography Pack, etc...)
 
 ##### Code
