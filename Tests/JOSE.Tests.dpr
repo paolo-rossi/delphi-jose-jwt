@@ -39,6 +39,7 @@ uses
   JOSE.Tests.JWK in 'Source\JOSE.Tests.JWK.pas',
   JOSE.Tests.JWS in 'Source\JOSE.Tests.JWS.pas',
   JOSE.Tests.JWT in 'Source\JOSE.Tests.JWT.pas',
+  JOSE.Tests.TimeUnit in 'Source\JOSE.Tests.TimeUnit.pas',
   JOSE.Tests.Utils in 'Source\JOSE.Tests.Utils.pas',
   JOSE.Tests.Common in 'Source\JOSE.Tests.Common.pas',
   JOSE.Tests.JWA.HMAC in 'Source\JOSE.Tests.JWA.HMAC.pas',
