@@ -50,13 +50,13 @@ type
   TJOSETimeUnit = (Days, Hours, Minutes, Seconds, Milliseconds);
   TJOSETimeUnitHelper = record helper for TJOSETimeUnit
   private
-    function Convert(ADuration: Cardinal; ADestUnit: TJOSETimeUnit): Cardinal;
+    function Convert(ADuration: UInt64; ADestUnit: TJOSETimeUnit): UInt64;
   public
-    function ToDays(ADuration: Cardinal): Cardinal;
-    function ToHours(ADuration: Cardinal): Cardinal;
-    function ToMinutes(ADuration: Cardinal): Cardinal;
-    function ToSeconds(ADuration: Cardinal): Cardinal;
-    function ToMilliseconds(ADuration: Cardinal): Cardinal;
+    function ToDays(ADuration: UInt64): UInt64;
+    function ToHours(ADuration: UInt64): UInt64;
+    function ToMinutes(ADuration: UInt64): UInt64;
+    function ToSeconds(ADuration: UInt64): UInt64;
+    function ToMilliseconds(ADuration: UInt64): UInt64;
   end;
 
   TJOSENumericDate = record
@@ -281,7 +281,7 @@ end;
 
 { TJOSETimeUnitHelper }
 
-function TJOSETimeUnitHelper.Convert(ADuration: Cardinal; ADestUnit: TJOSETimeUnit): Cardinal;
+function TJOSETimeUnitHelper.Convert(ADuration: UInt64; ADestUnit: TJOSETimeUnit): UInt64;
 begin
   Result := 0;
   case Self of
@@ -308,7 +308,7 @@ begin
     TJOSETimeUnit.Minutes:
     begin
       case ADestUnit of
-        TJOSETimeUnit.Days:     Result := (ADuration div 24) div 60;
+        TJOSETimeUnit.Days:     Result := (ADuration div 60) div 24;
         TJOSETimeUnit.Hours:    Result := ADuration div 60;
         TJOSETimeUnit.Minutes:  Result := ADuration;
         TJOSETimeUnit.Seconds:  Result := ADuration * 60;
@@ -318,9 +318,9 @@ begin
     TJOSETimeUnit.Seconds:
     begin
       case ADestUnit of
-        TJOSETimeUnit.Days:     Result := ((ADuration div 24) div 60) div 60;
-        TJOSETimeUnit.Hours:    Result := (ADuration div 24) div 60;
-        TJOSETimeUnit.Minutes:  Result := ADuration div 24;
+        TJOSETimeUnit.Days:     Result := ((ADuration div 60) div 60) div 24;
+        TJOSETimeUnit.Hours:    Result := (ADuration div 60) div 60;
+        TJOSETimeUnit.Minutes:  Result := ADuration div 60;
         TJOSETimeUnit.Seconds:  Result := ADuration;
         TJOSETimeUnit.Milliseconds: Result := ADuration * 1000;
       end;
@@ -328,37 +328,37 @@ begin
     TJOSETimeUnit.Milliseconds:
     begin
       case ADestUnit of
-        TJOSETimeUnit.Days:     Result := (((ADuration div 24) div 60) div 60) div 1000;
-        TJOSETimeUnit.Hours:    Result := ((ADuration div 24) div 60) div 60;
-        TJOSETimeUnit.Minutes:  Result := (ADuration div 24) div 60;
-        TJOSETimeUnit.Seconds:  Result := ADuration div 24;
+        TJOSETimeUnit.Days:     Result := (((ADuration div 1000) div 60) div 60) div 24;
+        TJOSETimeUnit.Hours:    Result := ((ADuration div 1000) div 60) div 60;
+        TJOSETimeUnit.Minutes:  Result := (ADuration div 1000) div 60;
+        TJOSETimeUnit.Seconds:  Result := ADuration div 1000;
         TJOSETimeUnit.Milliseconds: Result := ADuration;
       end;
     end;
   end;
 end;
 
-function TJOSETimeUnitHelper.ToDays(ADuration: Cardinal): Cardinal;
+function TJOSETimeUnitHelper.ToDays(ADuration: UInt64): UInt64;
 begin
   Result := Convert(ADuration, TJOSETimeUnit.Days);
 end;
 
-function TJOSETimeUnitHelper.ToHours(ADuration: Cardinal): Cardinal;
+function TJOSETimeUnitHelper.ToHours(ADuration: UInt64): UInt64;
 begin
   Result := Convert(ADuration, TJOSETimeUnit.Hours);
 end;
 
-function TJOSETimeUnitHelper.ToMilliseconds(ADuration: Cardinal): Cardinal;
+function TJOSETimeUnitHelper.ToMilliseconds(ADuration: UInt64): UInt64;
 begin
   Result := Convert(ADuration, TJOSETimeUnit.Milliseconds);
 end;
 
-function TJOSETimeUnitHelper.ToMinutes(ADuration: Cardinal): Cardinal;
+function TJOSETimeUnitHelper.ToMinutes(ADuration: UInt64): UInt64;
 begin
   Result := Convert(ADuration, TJOSETimeUnit.Minutes);
 end;
 
-function TJOSETimeUnitHelper.ToSeconds(ADuration: Cardinal): Cardinal;
+function TJOSETimeUnitHelper.ToSeconds(ADuration: UInt64): UInt64;
 begin
   Result := Convert(ADuration, TJOSETimeUnit.Seconds);
 end;
