@@ -114,7 +114,6 @@ begin
       Result := TJWT.Create(AClaimsClass);
       try
         LSigner := TJWS.Create(Result);
-        LSigner.SkipKeyValidation := True;
         try
           LSigner.CompactToken := ACompactToken;
           if AVerify then

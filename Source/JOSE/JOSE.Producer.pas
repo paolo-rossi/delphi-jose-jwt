@@ -159,8 +159,6 @@ var
 begin
   LSigner := TJWS.Create(FJWT);
   try
-    // External Option
-    LSigner.SkipKeyValidation := True;
     LSigner.Sign(FKeys.PrivateKey, FAlg);
     Result := LSigner.CompactToken;
   finally
