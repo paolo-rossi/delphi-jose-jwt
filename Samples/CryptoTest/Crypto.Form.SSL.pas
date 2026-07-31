@@ -121,8 +121,8 @@ begin
     '54h4FRWyuXpoQ';
   e64 := 'AQAB';
 
-  nJOSE := TBase64.Decode(n64);
-  eJOSE := TBase64.Decode(e64);
+  nJOSE := TBase64.URLDecode(n64);
+  eJOSE := TBase64.URLDecode(e64);
 
   nArr := nJOSE;
   eArr := eJOSE;
@@ -262,7 +262,6 @@ var
   //LKey: PEVP_PKEY;
   LAlg: Integer;
 begin
-  TECDSA.LoadOpenSSL;
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @ACertificate[0], Length(ACertificate));

@@ -95,7 +95,7 @@ uses
   System.Types,
   System.StrUtils,
   JOSE.Types.JSON,
-  JOSE.Signing.Base,
+  JOSE.Providers,
   JOSE.Encoding.Base64,
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
@@ -240,7 +240,7 @@ end;
 {$IFDEF RSA_SIGNING}
 procedure TJWS.SetKeyFromCert(const ACert: TJOSEBytes);
 begin
-  FKey.AsBytes := TSigningBase.PublicKeyFromCertificate(ACert.AsBytes);
+  FKey.AsBytes := TJOSEProviders.Certificate.PublicKeyFromCertificate(ACert.AsBytes);
 end;
 {$ENDIF}
 

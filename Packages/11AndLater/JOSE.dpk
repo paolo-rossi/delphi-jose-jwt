@@ -60,6 +60,10 @@ requires
 
 contains
   JOSE.OpenSSL.Headers in '..\..\Source\Common\JOSE.OpenSSL.Headers.pas',
+  JOSE.Crypto.Algorithms in '..\..\Source\Common\JOSE.Crypto.Algorithms.pas',
+  JOSE.Providers.Interfaces in '..\..\Source\Common\JOSE.Providers.Interfaces.pas',
+  JOSE.Providers.Default in '..\..\Source\Common\JOSE.Providers.Default.pas',
+  JOSE.Providers in '..\..\Source\Common\JOSE.Providers.pas',
   JOSE.Encoding.Base64 in '..\..\Source\Common\JOSE.Encoding.Base64.pas',
   JOSE.Hashing.HMAC in '..\..\Source\Common\JOSE.Hashing.HMAC.pas',
   JOSE.Signing.Base in '..\..\Source\Common\JOSE.Signing.Base.pas',

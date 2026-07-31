@@ -28,7 +28,6 @@ uses
   
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
-  JOSE.Signing.RSA,
   JOSE.Types.Arrays,
   JOSE.Types.JSON,
   JOSE.Encoding.Base64,
@@ -98,7 +97,7 @@ type
     procedure TestSignSHA384(const AValue1, AValue2, _Expected: string);
 
     [Test]
-    [TestCase('TestSignSHA512', 'plaintext,secret,3/adkEcz1vmOINXEEOxdtM119BDAnKgvIJyr7IxLpdQsaUWLu9vu1Wz4veWeKz7wrkKTzySUGFj6'#$D#$A'/rDBrJzRuQ==')]
+    [TestCase('TestSignSHA512', 'plaintext,secret,3/adkEcz1vmOINXEEOxdtM119BDAnKgvIJyr7IxLpdQsaUWLu9vu1Wz4veWeKz7wrkKTzySUGFj6/rDBrJzRuQ==')]
     procedure TestSignSHA512(const AValue1, AValue2, _Expected: string);
   end;
 

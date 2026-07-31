@@ -28,11 +28,10 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
 
+  JOSE.Crypto.Algorithms,
   JOSE.Encoding.Base64,
   JOSE.Signing.RSA,
-  JOSE.Types.Bytes,
-  IdSSLOpenSSLHeaders,
-  JOSE.OpenSSL.Headers;
+  JOSE.Types.Bytes;
 
 type
   TfrmCryptoRSA = class(TForm)
@@ -61,7 +60,7 @@ var
   LCert: TJOSEBytes;
 begin
   LCert := Sanitize(memoCertificate.Lines.Text);
-  if TRSA.VerifyCertificate(LCert.AsBytes, NID_rsaEncryption) then
+  if TRSA.VerifyCertificate(LCert.AsBytes, TJOSECertificatePublicKey.RSA) then
     ShowMessage('certificate verified. RSA Key detected')
   else
     ShowMessage('certificate not verified')

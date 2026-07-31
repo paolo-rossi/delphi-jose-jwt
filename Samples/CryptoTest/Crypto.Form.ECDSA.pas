@@ -28,6 +28,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Crypto.Utils,
 
+  JOSE.Crypto.Algorithms,
   JOSE.Encoding.Base64,
   JOSE.Signing.ECDSA,
   JOSE.Types.Bytes,
@@ -86,7 +87,7 @@ var
   LCert: TJOSEBytes;
 begin
   LCert := Sanitize(memoCertificate.Lines.Text);
-  if TECDSA.VerifyCertificate(LCert.AsBytes, JoseSSL.NID_X9_62_id_ecPublicKey) then
+  if TECDSA.VerifyCertificate(LCert.AsBytes, TJOSECertificatePublicKey.EC) then
     ShowMessage('certificate verified. EC Key detected')
   else
     ShowMessage('certificate not verified')
@@ -225,8 +226,6 @@ var
 
   LHash: TBytes;
 begin
-  TECDSA.LoadOpenSSL;
-
   LHash := HashFromSignature(AInput);
 
   // Load Private Key into ECDSA object
@@ -306,7 +305,6 @@ var
   sig: PECDSA_SIG;
   psig: Pointer;
 begin
-  TECDSA.LoadOpenSSL;
   sig := nil;
 
   // Load Public RSA Key into RSA object
