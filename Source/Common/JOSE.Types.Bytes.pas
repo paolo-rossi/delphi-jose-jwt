@@ -79,14 +79,22 @@ implementation
 
 { CompareBytes }
 
+// Constant-time comparison: used for signature/MAC equality checks, where
+// bailing out on the first differing byte would leak timing information.
 function CompareBytes(const A, B: TBytes): Boolean;
 var
-  LLen: Integer;
+  LIndex: Integer;
+  LDiff: Byte;
 begin
-  LLen := Length(A);
-  Result := LLen = Length(B);
-  if Result and (LLen > 0) then
-    Result := CompareMem(Pointer(A), Pointer(B), LLen);
+  Result := Length(A) = Length(B);
+  if not Result then
+    Exit;
+
+  LDiff := 0;
+  for LIndex := 0 to Length(A) - 1 do
+    LDiff := LDiff or (Byte(A[LIndex]) xor Byte(B[LIndex]));
+
+  Result := LDiff = 0;
 end;
 
 { TJOSEBytes }
