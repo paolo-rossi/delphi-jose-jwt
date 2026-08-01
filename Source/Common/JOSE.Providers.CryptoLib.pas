@@ -134,6 +134,31 @@ uses
   SbpBase64,
   JOSE.Signing.Base;
 
+resourcestring
+  SJOSECryptoLibUnsupportedHMACDigest = '[CryptoLib] Unsupported HMAC digest';
+  SJOSECryptoLibHMACError = '[CryptoLib] HMAC error: %s';
+  SJOSECryptoLibEmptyPEMObject = '[CryptoLib] Empty PEM object';
+  SJOSECryptoLibPEMNoPrivateKey = '[CryptoLib] PEM does not contain a private key';
+  SJOSECryptoLibPEMNoPublicKey = '[CryptoLib] PEM does not contain a public key';
+  SJOSECryptoLibExpectedPublicKeyPEM = '[CryptoLib] Expected a public key PEM (SPKI), not an X.509 certificate PEM';
+  SJOSECryptoLibNoCertProvider = '[CryptoLib] Certificate supplied but no IJOSECertificateProvider was configured';
+  SJOSECryptoLibCertNotRSA = '[CryptoLib] Certificate does not contain an RSA public key';
+  SJOSECryptoLibCertNotEC = '[CryptoLib] Certificate does not contain an EC public key';
+  SJOSEUnhandledCertPublicKeyValue = 'Unhandled TJOSECertificatePublicKey value';
+  SJOSECryptoLibNoPublicKeyInCert = '[CryptoLib] Unable to read public key from certificate';
+  SJOSECryptoLibCertificateError = '[CryptoLib] Certificate error: %s';
+  SJOSECryptoLibKeyNotRSA = '[CryptoLib] Key is not an RSA key';
+  SJOSECryptoLibKeyNotRSAPrivate = '[CryptoLib] Key is not an RSA private key';
+  SJOSECryptoLibRSAPEMNoPrivateKey = '[CryptoLib] RSA PEM did not contain a private key';
+  SJOSECryptoLibUnsupportedRSAAlg = '[CryptoLib] Unsupported RSA JWS algorithm';
+  SJOSECryptoLibRSASignError = '[CryptoLib] RSA sign error: %s';
+  SJOSECryptoLibUnsupportedECDSAAlg = '[CryptoLib] Unsupported ECDSA JWS algorithm';
+  SJOSECryptoLibKeyNotEC = '[CryptoLib] Key is not an EC key';
+  SJOSECryptoLibCurveMismatch = '[CryptoLib] EC key curve does not match the selected JOSE algorithm';
+  SJOSECryptoLibKeyNotECPublic = '[CryptoLib] Key is not an EC public key';
+  SJOSECryptoLibKeyNotECPrivate = '[CryptoLib] Key is not an EC private key';
+  SJOSECryptoLibECDSASignError = '[CryptoLib] ECDSA sign error: %s';
+
 { TJOSECryptoLibPem }
 
 type
@@ -218,7 +243,7 @@ begin
     THMACAlgorithm.SHA512:
       Result := 'HMAC-SHA512';
   else
-    raise Exception.Create('[CryptoLib] Unsupported HMAC digest');
+    raise Exception.Create(SJOSECryptoLibUnsupportedHMACDigest);
   end;
 end;
 
@@ -231,7 +256,7 @@ begin
     Result := TMacUtilities.CalculateMac(HmacMechanism(AAlg), LKeyParam, AInput);
   except
     on E: Exception do
-      raise Exception.Create('[CryptoLib] HMAC error: ' + E.Message);
+      raise Exception.CreateFmt(SJOSECryptoLibHMACError, [E.Message]);
   end;
 end;
 
@@ -249,7 +274,7 @@ begin
     try
       LVal := LReader.ReadObject();
       if LVal.IsEmpty then
-        raise ESignException.Create('[CryptoLib] Empty PEM object');
+        raise ESignException.Create(SJOSECryptoLibEmptyPEMObject);
       if LVal.TryAsType<IAsymmetricKeyParameter>(Result) and (Result <> nil) then
         Exit;
       if LVal.TryAsType<IAsymmetricCipherKeyPair>(LKp) and (LKp <> nil) then
@@ -257,7 +282,7 @@ begin
         Result := LKp.Private;
         Exit;
       end;
-      raise ESignException.Create('[CryptoLib] PEM does not contain a private key');
+      raise ESignException.Create(SJOSECryptoLibPEMNoPrivateKey);
     finally
       LReader.Free;
     end;
@@ -277,7 +302,7 @@ begin
     Result := LKp.Public;
     Exit;
   end;
-  raise ESignException.Create('[CryptoLib] PEM does not contain a public key');
+  raise ESignException.Create(SJOSECryptoLibPEMNoPublicKey);
 end;
 
 class function TJOSECryptoLibPem.ReadPublicKeyMaterial(const APem: TBytes): IAsymmetricKeyParameter;
@@ -293,9 +318,9 @@ begin
     try
       LVal := LReader.ReadObject();
       if LVal.IsEmpty then
-        raise ESignException.Create('[CryptoLib] Empty PEM object');
+        raise ESignException.Create(SJOSECryptoLibEmptyPEMObject);
       if LVal.TryAsType<IX509Certificate>(LCert) and (LCert <> nil) then
-        raise ESignException.Create('[CryptoLib] Expected a public key PEM (SPKI), not an X.509 certificate PEM');
+        raise ESignException.Create(SJOSECryptoLibExpectedPublicKeyPEM);
       Result := ParsePublicKeyFromDecodedPem(LVal);
     finally
       LReader.Free;
@@ -320,19 +345,19 @@ begin
     try
       LVal := LReader.ReadObject();
       if LVal.IsEmpty then
-        raise ESignException.Create('[CryptoLib] Empty PEM object');
+        raise ESignException.Create(SJOSECryptoLibEmptyPEMObject);
 
       if LVal.TryAsType<IX509Certificate>(LCert) and (LCert <> nil) then
       begin
         if ACertProvider = nil then
-          raise ESignException.Create('[CryptoLib] Certificate supplied but no IJOSECertificateProvider was configured');
+          raise ESignException.Create(SJOSECryptoLibNoCertProvider);
         if not ACertProvider.VerifyCertificate(APem, ACertExpected) then
         begin
           case ACertExpected of
             TJOSECertificatePublicKey.RSA:
-              raise ESignException.Create('[CryptoLib] Certificate does not contain an RSA public key');
+              raise ESignException.Create(SJOSECryptoLibCertNotRSA);
             TJOSECertificatePublicKey.EC:
-              raise ESignException.Create('[CryptoLib] Certificate does not contain an EC public key');
+              raise ESignException.Create(SJOSECryptoLibCertNotEC);
           end;
         end;
         LSpkiPem := ACertProvider.PublicKeyFromCertificate(APem);
@@ -359,7 +384,7 @@ begin
     TJOSECertificatePublicKey.EC:
       Result := TX9ObjectIdentifiers.IdECPublicKey;
   else
-    raise EArgumentException.Create('Unhandled TJOSECertificatePublicKey value');
+    raise EArgumentException.Create(SJOSEUnhandledCertPublicKeyValue);
   end;
 end;
 
@@ -395,13 +420,13 @@ begin
     LCert := LParser.ReadCertificate(ACertificate);
     LPub := LCert.GetPublicKey;
     if LPub = nil then
-      raise ESignException.Create('[CryptoLib] Unable to read public key from certificate');
+      raise ESignException.Create(SJOSECryptoLibNoPublicKeyInCert);
     Result := WritePublicKeyPem(LPub);
   except
     on E: ESignException do
       raise;
     on E: Exception do
-      raise ESignException.Create('[CryptoLib] Certificate error: ' + E.Message);
+      raise ESignException.CreateFmt(SJOSECryptoLibCertificateError, [E.Message]);
   end;
 end;
 
@@ -434,16 +459,16 @@ function TCryptoLibRSAProvider.PemToPublicKey(const APem: TBytes): IAsymmetricKe
 begin
   Result := TJOSECryptoLibPem.ReadPublicKey(APem, FCertificate, TJOSECertificatePublicKey.RSA);
   if not Supports(Result, IRsaKeyParameters) then
-    raise ESignException.Create('[CryptoLib] Key is not an RSA key');
+    raise ESignException.Create(SJOSECryptoLibKeyNotRSA);
 end;
 
 function TCryptoLibRSAProvider.PemToPrivateKey(const APem: TBytes): IAsymmetricKeyParameter;
 begin
   Result := TJOSECryptoLibPem.ReadPrivateKey(APem);
   if not Supports(Result, IRsaKeyParameters) then
-    raise ESignException.Create('[CryptoLib] Key is not an RSA private key');
+    raise ESignException.Create(SJOSECryptoLibKeyNotRSAPrivate);
   if not Result.IsPrivate then
-    raise ESignException.Create('[CryptoLib] RSA PEM did not contain a private key');
+    raise ESignException.Create(SJOSECryptoLibRSAPEMNoPrivateKey);
 end;
 
 function TCryptoLibRSAProvider.RsaMechanism(AAlg: TRSAAlgorithm): string;
@@ -456,7 +481,7 @@ begin
     TRSAAlgorithm.RS512:
       Result := 'SHA-512withRSA';
   else
-    raise ESignException.Create('[CryptoLib] Unsupported RSA JWS algorithm');
+    raise ESignException.Create(SJOSECryptoLibUnsupportedRSAAlg);
   end;
 end;
 
@@ -474,7 +499,7 @@ begin
     on E: ESignException do
       raise;
     on E: Exception do
-      raise ESignException.Create('[CryptoLib] RSA sign error: ' + E.Message);
+      raise ESignException.CreateFmt(SJOSECryptoLibRSASignError, [E.Message]);
   end;
 end;
 
@@ -563,7 +588,7 @@ begin
     TECDSAAlgorithm.ES512:
       Result := TSecObjectIdentifiers.SecP521r1;
   else
-    raise ESignException.Create('[CryptoLib] Unsupported ECDSA JWS algorithm');
+    raise ESignException.Create(SJOSECryptoLibUnsupportedECDSAAlg);
   end;
 end;
 
@@ -573,11 +598,11 @@ var
   LExp, LHave: IDerObjectIdentifier;
 begin
   if not Supports(AKey, IECKeyParameters, LEc) then
-    raise ESignException.Create('[CryptoLib] Key is not an EC key');
+    raise ESignException.Create(SJOSECryptoLibKeyNotEC);
   LExp := ExpectedEcCurveOid(AAlg);
   LHave := LEc.PublicKeyParamSet;
   if (LHave = nil) or (LExp = nil) or (LHave.ID <> LExp.ID) then
-    raise ESignException.Create('[CryptoLib] EC key curve does not match the selected JOSE algorithm');
+    raise ESignException.Create(SJOSECryptoLibCurveMismatch);
 end;
 
 function TCryptoLibECDSAProvider.EcdsaMechanism(AAlg: TECDSAAlgorithm): string;
@@ -590,7 +615,7 @@ begin
     TECDSAAlgorithm.ES512:
       Result := 'SHA-512withPLAIN-ECDSA';
   else
-    raise ESignException.Create('[CryptoLib] Unsupported ECDSA JWS algorithm');
+    raise ESignException.Create(SJOSECryptoLibUnsupportedECDSAAlg);
   end;
 end;
 
@@ -598,14 +623,14 @@ function TCryptoLibECDSAProvider.PemToPublicKey(const APem: TBytes): IAsymmetric
 begin
   Result := TJOSECryptoLibPem.ReadPublicKey(APem, FCertificate, TJOSECertificatePublicKey.EC);
   if not Supports(Result, IECPublicKeyParameters) then
-    raise ESignException.Create('[CryptoLib] Key is not an EC public key');
+    raise ESignException.Create(SJOSECryptoLibKeyNotECPublic);
 end;
 
 function TCryptoLibECDSAProvider.PemToPrivateKey(const APem: TBytes): IAsymmetricKeyParameter;
 begin
   Result := TJOSECryptoLibPem.ReadPrivateKey(APem);
   if not Supports(Result, IECPrivateKeyParameters) then
-    raise ESignException.Create('[CryptoLib] Key is not an EC private key');
+    raise ESignException.Create(SJOSECryptoLibKeyNotECPrivate);
 end;
 
 function TCryptoLibECDSAProvider.SignWithEc(const AInput: TBytes; const AKey: IAsymmetricKeyParameter; AAlg: TECDSAAlgorithm): TBytes;
@@ -623,7 +648,7 @@ begin
     on E: ESignException do
       raise;
     on E: Exception do
-      raise ESignException.Create('[CryptoLib] ECDSA sign error: ' + E.Message);
+      raise ESignException.CreateFmt(SJOSECryptoLibECDSASignError, [E.Message]);
   end;
 end;
 

@@ -202,6 +202,12 @@ uses
   System.StrUtils,
   JOSE.Types.JSON;
 
+resourcestring
+  SJOSEUnexpectedAlgorithm = 'JWS algorithm [%s] is not listed among those expected';
+  SJOSEInvalidSignature = 'JWS signature is invalid: %s';
+  SJOSESignatureRequired = 'The JWT has no signature but the JWT Consumer is configured to require one';
+  SJOSEClaimsRejected = 'JWT (claims: %s) rejected due to invalid claims.';
+
 function TJOSEConsumerBuilder.Build: IJOSEConsumer;
 begin
   if not Assigned(FClaimsClass) then
@@ -472,21 +478,21 @@ begin
     if not FSkipSignatureVerification then
     begin
       if not (LJWS.HeaderAlgorithmId in FExpectedAlgorithms) then
-        raise EJOSEException.CreateFmt('JWS algorithm [%s] is not listed among those expected', [LJWS.HeaderAlgorithm]);
+        raise EJOSEException.CreateFmt(SJOSEUnexpectedAlgorithm, [LJWS.HeaderAlgorithm]);
 
       if FSkipVerificationKeyValidation then
         LJWS.SkipKeyValidation := True;
 
       LJWS.SetKey(Self.FKey);
       if not LJWS.VerifySignature then
-        raise EJOSEException.Create('JWS signature is invalid: ' + LJWS.Signature);
+        raise EJOSEException.CreateFmt(SJOSEInvalidSignature, [LJWS.Signature.AsString]);
     end;
 
     if LJWS.HeaderAlgorithm <> TJOSEAlgorithmId.None.AsString then
       LHasSignature := True;
 
     if FRequireSignature and not LHasSignature then
-      raise EJOSEException.Create('The JWT has no signature but the JWT Consumer is configured to require one');
+      raise EJOSEException.Create(SJOSESignatureRequired);
 
   end
   else if AContext.GetJOSEObject is TJWE then
@@ -558,7 +564,7 @@ begin
     if LIssues.Count > 0 then
     begin
       LException := EInvalidJWTException.CreateFmt(
-        'JWT (claims: %s) rejected due to invalid claims.',
+        SJOSEClaimsRejected,
         [TJSONUtils.ToJSON(AContext.GetClaims.JSON)]);
       LException.SetDetails(LIssues);
 

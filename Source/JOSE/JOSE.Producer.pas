@@ -131,6 +131,11 @@ type
 
 implementation
 
+resourcestring
+  SJOSEClaimsNotAssigned = 'JWT Claims not assigned';
+  SJOSESigningKeysNotAssigned = 'Signing key(s) not assigned';
+  SJOSESigningAlgorithmNotAssigned = 'Signing algorithm not assigned';
+
 { TJOSEProducer }
 
 constructor TJOSEProducer.Create(AJWT: TJWT; AKeys: TKeyPair; AAlg: TJOSEAlgorithmId);
@@ -180,13 +185,13 @@ end;
 procedure TJOSEProducerBuilder.CheckPrerequisite;
 begin
   if not Assigned(FJWT) then
-    raise EJOSEException.Create('JWT Claims not assigned');
+    raise EJOSEException.Create(SJOSEClaimsNotAssigned);
 
   if not Assigned(FKeys) then
-    raise EJOSEException.Create('Signing key(s) not assigned');
+    raise EJOSEException.Create(SJOSESigningKeysNotAssigned);
 
   if FAlg = TJOSEAlgorithmId.Unknown then
-    raise EJOSEException.Create('Signing algorithm not assigned');
+    raise EJOSEException.Create(SJOSESigningAlgorithmNotAssigned);
 
 end;
 

@@ -100,6 +100,12 @@ uses
   JOSE.Hashing.HMAC,
   JOSE.Core.JWA.Factory;
 
+resourcestring
+  SJOSEAlgorithmHeaderNotSet = 'Signature algorithm header (%s) not set.';
+  SJOSESigningAlgorithmNotSupported = 'Signing algorithm (%s) is not supported.';
+  SJOSECompactSerializationEmpty = 'The JWS Compact Serialization is empty';
+  SJOSECompactSerializationPartCount = 'A JWS Compact Serialization must have %d parts';
+
 class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 var
   LRes: TStringDynArray;
@@ -159,7 +165,7 @@ begin
   LAlgId := FToken.Header.Algorithm;
 
   if LAlgId.IsEmpty then
-    raise EJOSEException.CreateFmt('Signature algorithm header (%s) not set.',
+    raise EJOSEException.CreateFmt(SJOSEAlgorithmHeaderNotSet,
       [THeaderNames.ALGORITHM]);
 
   Result := TJOSEAlgorithmRegistryFactory.Instance
@@ -167,7 +173,7 @@ begin
     .GetAlgorithm(LAlgId);
 
   if Result = nil then
-    raise EJOSEException.CreateFmt('Signing algorithm (%s) is not supported.',
+    raise EJOSEException.CreateFmt(SJOSESigningAlgorithmNotSupported,
       [LAlgId]);
 end;
 
@@ -201,7 +207,7 @@ var
   LRes: TStringDynArray;
 begin
   if Value.IsEmpty then
-    raise EJOSEException.Create('The JWS Compact Serialization is empty');
+    raise EJOSEException.Create(SJOSECompactSerializationEmpty);
 
   LRes := SplitString(Value, PART_SEPARATOR);
   if Length(LRes) = COMPACT_PARTS then
@@ -214,7 +220,7 @@ begin
     FToken.Claims.URLEncoded := LRes[1];
   end
   else
-    raise EJOSEException.CreateFmt('A JWS Compact Serialization must have %d parts', [COMPACT_PARTS]);
+    raise EJOSEException.CreateFmt(SJOSECompactSerializationPartCount, [COMPACT_PARTS]);
 end;
 
 procedure TJWS.SetHeader(const Value: TJOSEBytes);

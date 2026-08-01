@@ -34,6 +34,10 @@ uses
   System.Classes,
   System.Generics.Defaults;
 
+resourcestring
+  SJOSEArrayEmpty = 'The array is empty';
+  SJOSEArraySizeNegative = 'The array size cannot be negative';
+
 type
   TJOSEArray<T> = record
   private
@@ -109,7 +113,7 @@ end;
 function TJOSEArray<T>.GetFirst: T;
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   Result := FPayload[0];
 end;
@@ -117,7 +121,7 @@ end;
 function TJOSEArray<T>.GetLast: T;
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   Result := FPayload[Size - 1];
 end;
@@ -192,7 +196,7 @@ end;
 function TJOSEArray<T>.Pop: T;
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   Result := FPayload[Size - 1];
   SetLength(FPayload, Size - 1);
@@ -213,7 +217,7 @@ end;
 procedure TJOSEArray<T>.SetFirst(const Value: T);
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   FPayload[0] := Value;
 end;
@@ -221,7 +225,7 @@ end;
 procedure TJOSEArray<T>.SetLast(const Value: T);
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   FPayload[Size - 1] := Value;
 end;
@@ -229,7 +233,7 @@ end;
 procedure TJOSEArray<T>.SetSize(const Value: NativeInt);
 begin
   if Value < 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArraySizeNegative);
   SetLength(FPayload, Value);
 end;
 
@@ -238,7 +242,7 @@ var
   LIndex: Integer;
 begin
   if Size = 0 then
-    raise Exception.Create('Error Message');
+    raise Exception.Create(SJOSEArrayEmpty);
 
   Result := FPayload[0];
   if Size > 1 then

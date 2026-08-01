@@ -87,6 +87,27 @@ uses
   System.Types,
   System.StrUtils;
 
+resourcestring
+  SJOSEOneOf = 'one of ';
+  SJOSEClockSkewSuffix = '(even when providing [%d] seconds of leeway to account for clock skew)';
+  SJOSENoAudienceClaim = 'No Audience [aud] claim present';
+  SJOSEAudienceNotProvided = 'Audience [aud] claim present in the JWT but no expected audience value(s) were provided to the JWT Consumer. Expected %s as aud value.';
+  SJOSEAudienceMismatch = 'Audience [aud] claim doesn''t contain an acceptable identifier. Expected %s as aud value.';
+  SJOSENoExpirationClaim = 'No Expiration Time [exp] claim present';
+  SJOSENoIssuedAtClaim = 'No IssuedAt [iat] claim present';
+  SJOSENoNotBeforeClaim = 'No NotBefore [nbf] claim present';
+  SJOSEExpiredToken = 'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value %s';
+  SJOSEExpBeforeIat = 'The Expiration Time (exp=%s) claim value cannot be before the IssuedAt (iat=%s) claim value';
+  SJOSEExpBeforeNbf = 'The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value';
+  SJOSEExpTooFarInFuture = 'The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s] %s';
+  SJOSENotYetValid = 'The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time %s';
+  SJOSENoIssuerClaim = 'No Issuer [iss] claim present but was expecting %s';
+  SJOSEIssuerMismatch = 'Issuer [iss] claim value [%s] doesn''t match expected value of [%s]';
+  SJOSENoJTIClaim = 'No JWT ID [jti] claim present.';
+  SJOSEJTIMismatch = 'JWT Id [jti] claim value [%s] doesn''t match expected value of [%s]';
+  SJOSENoSubjectClaim = 'No Subject [sub] claim present';
+  SJOSESubjectMismatch = 'Subject [sub] claim value [%s] doesn''t match expected value of [%s]';
+
 { TJOSEDateClaimsParams }
 
 function TJOSEDateClaimsParams.GetEvaluationTime: TJOSENumericDate;
@@ -111,7 +132,7 @@ function TJOSEDateClaimsParams.SkewMessage: string;
 begin
   if AllowedClockSkewSeconds > 0 then
     Result := Format(
-      '(even when providing [%d] seconds of leeway to account for clock skew)',
+      SJOSEClockSkewSuffix,
       [AllowedClockSkewSeconds]
     )
   else
@@ -128,13 +149,14 @@ begin
       LOk: Boolean;
       LSingleAudience: string;
       LClaims: TJWTClaims;
+      LExpected: string;
     begin
       Result := '';
       LClaims := AJOSEContext.GetClaims;
 
       if not LClaims.HasAudience then
         if ARequired then
-          Exit('No Audience [aud] claim present')
+          Exit(SJOSENoAudienceClaim)
         else
           Exit('');
 
@@ -145,21 +167,15 @@ begin
 
       if not LOk then
       begin
-        Result := 'Audience [aud] claim ';
+        if AAudience.Size = 1 then
+          LExpected := '[' + AAudience.ToString + ']'
+        else
+          LExpected := SJOSEOneOf + '[' + AAudience.ToString + ']';
 
         if AAudience.IsEmpty then
-          Result := Result + ' present in the JWT but no expected audience value(s) were provided to the JWT Consumer.'
+          Result := Format(SJOSEAudienceNotProvided, [LExpected])
         else
-          Result := Result + ' doesn''t contain an acceptable identifier.';
-
-        Result := Result + ' Expected ';
-
-        if AAudience.Size = 1 then
-          Result := Result + '[' + AAudience.ToString + ']'
-        else
-          Result := Result + 'one of [' + AAudience.ToString + ']';
-
-        Result := Result +  ' as aud value.';
+          Result := Format(SJOSEAudienceMismatch, [LExpected]);
       end;
     end
 end;
@@ -182,29 +198,29 @@ begin
       LNotBefore := TJOSENumericDate.Create(LClaims.NotBefore);
 
       if ADateParams.RequireExp and not LClaims.HasExpiration then
-        Exit('No Expiration Time [exp] claim present');
+        Exit(SJOSENoExpirationClaim);
 
       if ADateParams.RequireIat and not LClaims.HasIssuedAt then
-        Exit('No IssuedAt [iat] claim present');
+        Exit(SJOSENoIssuedAtClaim);
 
       if ADateParams.RequireNbf and not LClaims.HasNotBefore then
-        Exit('No NotBefore [nbf] claim present');
+        Exit(SJOSENoNotBeforeClaim);
 
       if LClaims.HasExpiration then
       begin
         if ADateParams.EvaluationTime.IsAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(
-            'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value %s',
+            SJOSEExpiredToken,
             [ADateParams.EvaluationTime.AsISO8601, DateToISO8601(LClaims.Expiration, False), ADateParams.SkewMessage])
           );
 
         if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the IssuedAt (iat=%s) claim value',
+          Exit(Format(SJOSEExpBeforeIat,
             [LExpiration.AsISO8601, LIssuedAt.AsISO8601])
           );
 
         if LClaims.HasNotBefore and LExpiration.IsBefore(LNotBefore, ADateParams.AllowedClockSkewSeconds) then
-          Exit(Format('The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value',
+          Exit(Format(SJOSEExpBeforeNbf,
             [LExpiration.AsISO8601, LNotBefore.AsISO8601])
           );
 
@@ -216,7 +232,7 @@ begin
             ADateParams.EvaluationTime.AsSeconds;
 
           if LDeltaInSeconds > (ADateParams.MaxFutureValidityInMinutes * 60) then
-            Exit(Format('The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s] %s',
+            Exit(Format(SJOSEExpTooFarInFuture,
               [LExpiration.AsISO8601, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsISO8601, ADateParams.SkewMessage])
             );
         end;
@@ -224,7 +240,7 @@ begin
 
       if LClaims.HasNotBefore then
         if (ADateParams.EvaluationTime.AsSeconds + ADateParams.AllowedClockSkewSeconds) < LNotBefore.AsSeconds then
-          Exit(Format('The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time %s',
+          Exit(Format(SJOSENotYetValid,
             [ADateParams.EvaluationTime.AsISO8601, LNotBefore.AsISO8601, ADateParams.SkewMessage])
           );
     end;
@@ -254,12 +270,12 @@ begin
       LIssuer := AJOSEContext.GetClaims.Issuer;
 
       if not AJOSEContext.GetClaims.HasIssuer and ARequired then
-        Exit(Format('No Issuer [iss] claim present but was expecting %s',
-          [AIssuers.ToStringPluralForm('one of ')]));
+        Exit(Format(SJOSENoIssuerClaim,
+          [AIssuers.ToStringPluralForm(SJOSEOneOf)]));
 
       if (AIssuers.Size > 0) and not AIssuers.Contains(LIssuer) then
-          Exit(Format('Issuer [iss] claim value [%s] doesn''t match expected value of [%s]',
-            [LIssuer, AIssuers.ToStringPluralForm('one of ')]));
+          Exit(Format(SJOSEIssuerMismatch,
+            [LIssuer, AIssuers.ToStringPluralForm(SJOSEOneOf)]));
     end
   ;
 end;
@@ -275,11 +291,11 @@ begin
       LJWTId := AJOSEContext.GetClaims.JWTId;
 
       if not AJOSEContext.GetClaims.HasJWTId and ARequired then
-        Exit('No JWT ID [jti] claim present.')
+        Exit(SJOSENoJTIClaim)
       else
       if not AJwtId.IsEmpty and not AJwtId.Equals(LJwtId) then
         Exit(Format(
-          'JWT Id [jti] claim value [%s] doesn''t match expected value of [%s]',
+          SJOSEJTIMismatch,
           [LJwtId, AJwtId]));
     end
   ;
@@ -301,11 +317,11 @@ begin
       LSubject := AJOSEContext.GetClaims.Subject;
 
       if not AJOSEContext.GetClaims.HasSubject and ARequired then
-        Exit('No Subject [sub] claim present')
+        Exit(SJOSENoSubjectClaim)
       else
       if not ASubject.IsEmpty and not ASubject.Equals(LSubject) then
         Exit(Format(
-          'Subject [sub] claim value [%s] doesn''t match expected value of [%s]',
+          SJOSESubjectMismatch,
           [LSubject, ASubject]));
     end
   ;

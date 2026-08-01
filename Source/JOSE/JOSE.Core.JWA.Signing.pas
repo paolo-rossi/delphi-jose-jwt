@@ -62,7 +62,6 @@ type
 
   TUnsecureNoneAlgorithm = class(TJOSEAlgorithm, IJOSESigningAlgorithm)
   private
-    const CANNOT_HAVE_KEY = 'Unsecure JWS (alg=None) must not use a key';
     procedure ValidateKey(const AKey: TJOSEBytes);
   public
     constructor Create;
@@ -136,6 +135,12 @@ uses
   System.StrUtils,
   JOSE.Encoding.Base64;
 
+resourcestring
+  SJOSEKeyIsNull = 'Key is null';
+  SJOSEKeyTooShort = 'Key is too short (%dbit), expected (%dbit)';
+  SJOSENotImplemented = 'Not implemented';
+  SJOSEUnsecureAlgorithmMustNotUseKey = 'Unsecure JWS (alg=None) must not use a key';
+
 constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
 begin
   FAlgorithmIdentifier := AAlgorithmId;
@@ -176,10 +181,10 @@ end;
 procedure THmacUsingShaAlgorithm.ValidateKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
-    raise EJOSEException.Create('Key is null');
+    raise EJOSEException.Create(SJOSEKeyIsNull);
 
   if AKey.Size * 8 < FKeyMinLength then
-    raise EJOSEException.CreateFmt('Key is too short (%dbit), expected (%dbit)',
+    raise EJOSEException.CreateFmt(SJOSEKeyTooShort,
       [AKey.Size * 8, FKeyMinLength]);
 end;
 
@@ -212,12 +217,12 @@ end;
 
 procedure TBaseSignatureAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
 begin
-  raise EJOSEException.Create('Not implemented');
+  raise EJOSEException.Create(SJOSENotImplemented);
 end;
 
 procedure TBaseSignatureAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
 begin
-  raise EJOSEException.Create('Not implemented');
+  raise EJOSEException.Create(SJOSENotImplemented);
 end;
 
 function TBaseSignatureAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
@@ -242,7 +247,7 @@ end;
 procedure TUnsecureNoneAlgorithm.ValidateKey(const AKey: TJOSEBytes);
 begin
   if not AKey.IsEmpty then
-    raise EJOSEException.Create(CANNOT_HAVE_KEY);
+    raise EJOSEException.Create(SJOSEUnsecureAlgorithmMustNotUseKey);
 end;
 
 procedure TUnsecureNoneAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
@@ -262,6 +267,10 @@ begin
 end;
 
 {$IFDEF RSA_SIGNING}
+
+resourcestring
+  SJOSEKeyNotRSAPem = 'Key is not RSA key in PEM format';
+  SJOSEKeyNotECDSAPem = 'Key is not ECDSA key in PEM format';
 
 { TRSAAlgorithm }
 
@@ -305,19 +314,19 @@ end;
 procedure TRSAUsingSHAAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
-    raise EJOSEException.Create('Key is null');
+    raise EJOSEException.Create(SJOSEKeyIsNull);
 
   if not TRSA.VerifyPrivateKey(AKey) then
-    raise EJOSEException.Create('Key is not RSA key in PEM format');
+    raise EJOSEException.Create(SJOSEKeyNotRSAPem);
 end;
 
 procedure TRSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
-    raise EJOSEException.Create('Key is null');
+    raise EJOSEException.Create(SJOSEKeyIsNull);
 
   if not TRSA.VerifyPublicKey(AKey) then
-    raise EJOSEException.Create('Key is not RSA key in PEM format');
+    raise EJOSEException.Create(SJOSEKeyNotRSAPem);
 end;
 
 function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
@@ -377,19 +386,19 @@ end;
 procedure TECDSAUsingSHAAlgorithm.ValidateSigningKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
-    raise EJOSEException.Create('Key is null');
+    raise EJOSEException.Create(SJOSEKeyIsNull);
 
   if not TECDSA.VerifyPrivateKey(AKey) then
-    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+    raise EJOSEException.Create(SJOSEKeyNotECDSAPem);
 end;
 
 procedure TECDSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
-    raise EJOSEException.Create('Key is null');
+    raise EJOSEException.Create(SJOSEKeyIsNull);
 
   if not TECDSA.VerifyPublicKey(AKey) then
-    raise EJOSEException.Create('Key is not ECDSA key in PEM format');
+    raise EJOSEException.Create(SJOSEKeyNotECDSAPem);
 end;
 
 function TECDSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;

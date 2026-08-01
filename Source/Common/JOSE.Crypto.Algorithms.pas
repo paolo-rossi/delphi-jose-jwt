@@ -87,6 +87,13 @@ uses
   JOSE.Signing.Base;
 {$ENDIF}
 
+resourcestring
+  SJOSEInvalidHMACAlgorithm = 'Invalid HMAC algorithm type';
+{$IFDEF RSA_SIGNING}
+  SJOSEInvalidRSAAlgorithm = 'Invalid RSA algorithm type';
+  SJOSEInvalidECDSAAlgorithm = 'Invalid ECDSA algorithm type';
+{$ENDIF}
+
 { THMACAlgorithmHelper }
 
 procedure THMACAlgorithmHelper.FromString(const AValue: string);
@@ -98,7 +105,7 @@ begin
   else if AValue = 'SHA512' then
     Self := SHA512
   else
-    raise Exception.Create('Invalid HMAC algorithm type');
+    raise Exception.Create(SJOSEInvalidHMACAlgorithm);
 end;
 
 function THMACAlgorithmHelper.ToString: string;
@@ -123,7 +130,7 @@ begin
   else if AValue = 'RS512' then
     Self := RS512
   else
-    raise Exception.Create('Invalid RSA algorithm type');
+    raise Exception.Create(SJOSEInvalidRSAAlgorithm);
 end;
 
 function TRSAAlgorithmHelper.ToString: string;
@@ -149,7 +156,7 @@ begin
   else if AValue = 'ES512' then
     Self := ES512
   else
-    raise ESignException.Create('Invalid ECDSA algorithm type');
+    raise ESignException.Create(SJOSEInvalidECDSAAlgorithm);
 end;
 
 function TECDSAAlgorithmHelper.ToString: string;

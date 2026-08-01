@@ -70,6 +70,10 @@ uses
   System.Types,
   System.StrUtils;
 
+resourcestring
+  SJOSEJWENotSupported = 'Compact Serialization appears to be a JWE Token which is not (yet) supported';
+  SJOSEMalformedCompactSerialization = 'Malformed Compact Serialization';
+
 { TJOSE }
 
 class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
@@ -130,10 +134,10 @@ begin
     end;
     5:
     begin
-      raise EJOSEException.Create('Compact Serialization appears to be a JWE Token wich is not (yet) supported');
+      raise EJOSEException.Create(SJOSEJWENotSupported);
     end;
     else
-      raise EJOSEException.Create('Malformed Compact Serialization');
+      raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
   end
 end;
 

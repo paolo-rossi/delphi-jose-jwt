@@ -153,7 +153,56 @@ uses
   System.Types,
   JOSE.Providers;
 
+resourcestring
+  SJOSEErrorLoadingOpenSSLLibraries = 'Error Loading OpenSSL libraries';
+
 {$IFDEF RSA_SIGNING}
+
+resourcestring
+  SJOSEUnhandledCertPublicKeyValue = 'Unhandled TJOSECertificatePublicKey value';
+  SJOSEOpenSSLLoadFailed = '[OpenSSL] Unable to load OpenSSL libraries';
+  SJOSEOpenSSLTooOld = '[OpenSSL] Please, use OpenSSL 1.0.0 or newer!';
+  SJOSEOpenSSLInvalidCertificate = '[OpenSSL] Not a valid X509 certificate';
+  SJOSEOpenSSLCertLoadError = '[OpenSSL] Error loading X509 certificate';
+  SJOSEOpenSSLCertKeyAlgMismatch = '[OpenSSL] Certificate public key algorithm does not match expected type';
+  SJOSEOpenSSLCertExtractPublicKeyError = '[OpenSSL] Error extracting public key from X509 certificate';
+  SJOSERSAExtractFromEVPError = '[RSA] Error extracting RSA key from EVP_PKEY';
+  SJOSERSAUnsupportedAlgorithm = '[RSA] Unsupported signing algorithm!';
+  SJOSERSASignFailed = '[RSA] Unable to sign RSA message digest';
+  SJOSERSALoadPrivateKeyError = '[RSA] Unable to load private key: %s';
+  SJOSERSALoadPublicKeyError = '[RSA] Unable to load public key: %s';
+  SJOSEECDSAUnsupportedAlgorithm = '[ECDSA] Unsupported signing algorithm!';
+  SJOSEECDSAMemoryError = '[ECDSA] Error getting memory for ECDSA';
+  SJOSEECDSALoadPrivateKeyError = '[ECDSA] Unable to load private key: %s';
+  SJOSEECDSALoadPublicKeyError = '[ECDSA] Unable to load public key: %s';
+  SJOSEECDSAKeyError = '[ECDSA] Error getting EC Key: %s';
+  SJOSEECDSASignFailed = '[ECDSA] Digest signing failed: %s';
+  SJOSEJWKMissingKeyComponent = '[JWK] Missing required key component';
+  SJOSEJWKBignumConversionError = '[JWK] Unable to convert key component to BIGNUM';
+  SJOSEJWKECNoGroup = '[JWK] EC key has no group/curve';
+  SJOSEJWKECNoPublicPoint = '[JWK] EC key has no public point';
+  SJOSEJWKECReadPublicPointError = '[JWK] Unable to read the EC public point';
+  SJOSEJWKECCreateKeyError = '[JWK] Unable to create an EC key for the requested curve';
+  SJOSEJWKECInvalidPublicPoint = '[JWK] Invalid EC public point';
+  SJOSEJWKECSetPublicKeyError = '[JWK] Unable to set the EC public key';
+  SJOSEJWKECSetPrivateKeyError = '[JWK] Unable to set the EC private key';
+  SJOSEJWKEmptyPEMData = '[JWK] Empty PEM data';
+  SJOSEJWKUnrecognizedPEMFormat = '[JWK] Unable to parse PEM: unrecognized or unsupported key format';
+  SJOSEJWKPEMContainsECNotRSA = '[JWK] PEM contains an EC key, not an RSA key';
+  SJOSEJWKUnsupportedPEMKeyType = '[JWK] Unsupported PEM key type';
+  SJOSEJWKAllocateRSAError = '[JWK] Unable to allocate an RSA key';
+  SJOSEJWKWriteRSAPrivateError = '[JWK] Unable to write the RSA private key PEM';
+  SJOSEJWKWriteRSAPublicError = '[JWK] Unable to write the RSA public key PEM';
+  SJOSEJWKUnsupportedECCurve = '[JWK] Unsupported EC curve';
+  SJOSEJWKUnsupportedECCurveNID = '[JWK] Unsupported EC curve (NID %d)';
+  SJOSEJWKECSupportUnavailable = '[JWK] EC key support is not available (missing OpenSSL EC symbols)';
+  SJOSEJWKPEMContainsRSANotEC = '[JWK] PEM contains an RSA key, not an EC key';
+  SJOSEJWKPEMNoECKey = '[JWK] PEM does not contain an EC key';
+  SJOSEJWKExtractECKeyError = '[JWK] Unable to extract the EC key from the PEM';
+  SJOSEJWKAllocateEVPPKeyError = '[JWK] Unable to allocate an EVP_PKEY';
+  SJOSEJWKWrapECKeyError = '[JWK] Unable to wrap the EC key';
+  SJOSEJWKWriteECPrivateError = '[JWK] Unable to write the EC private key PEM';
+  SJOSEJWKWriteECPublicError = '[JWK] Unable to write the EC public key PEM';
 
 function JoseExpectedNidForCertPublicKey(const AExpected: TJOSECertificatePublicKey): Integer;
 begin
@@ -163,7 +212,7 @@ begin
     TJOSECertificatePublicKey.EC:
       Result := JoseSSL.NID_X9_62_id_ecPublicKey;
   else
-    raise EArgumentException.Create('Unhandled TJOSECertificatePublicKey value');
+    raise EArgumentException.Create(SJOSEUnhandledCertPublicKeyValue);
   end;
 end;
 
@@ -202,13 +251,13 @@ end;
 class procedure TJOSEDefaultOpenSslPem.LoadOpenSSL;
 begin
   if not IdSSLOpenSSLHeaders.Load then
-    raise ESignException.Create('[OpenSSL] Unable to load OpenSSL libraries');
+    raise ESignException.Create(SJOSEOpenSSLLoadFailed);
 
   if not JoseSSL.Load then
-    raise ESignException.Create('[OpenSSL] Unable to load OpenSSL libraries');
+    raise ESignException.Create(SJOSEOpenSSLLoadFailed);
 
   if @EVP_DigestVerifyInit = nil then
-    raise ESignException.Create('[OpenSSL] Please, use OpenSSL 1.0.0 or newer!');
+    raise ESignException.Create(SJOSEOpenSSLTooOld);
 end;
 
 class function TJOSEDefaultOpenSslPem.LoadCertificate(const ACertificate: TBytes): PX509;
@@ -216,14 +265,14 @@ var
   LBio: PBIO;
 begin
   if not CompareMem(@FPEM_X509_CERTIFICATE[0], @ACertificate[0], Length(FPEM_X509_CERTIFICATE)) then
-    raise ESignException.Create('[OpenSSL] Not a valid X509 certificate');
+    raise ESignException.Create(SJOSEOpenSSLInvalidCertificate);
 
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @ACertificate[0], Length(ACertificate));
     Result := PEM_read_bio_X509(LBio, nil, nil, nil);
     if Result = nil then
-      raise ESignException.Create('[OpenSSL] Error loading X509 certificate');
+      raise ESignException.Create(SJOSEOpenSSLCertLoadError);
   finally
     BIO_free(LBio);
   end;
@@ -245,11 +294,11 @@ begin
     LAlg := OBJ_obj2nid(LCer.cert_info.key.algor.algorithm);
     LExpectedNid := JoseExpectedNidForCertPublicKey(AExpected);
     if LAlg <> LExpectedNid then
-      raise ESignException.Create('[OpenSSL] Certificate public key algorithm does not match expected type');
+      raise ESignException.Create(SJOSEOpenSSLCertKeyAlgMismatch);
 
     Result := X509_PUBKEY_get(LCer.cert_info.key);
     if not Assigned(Result) then
-      raise ESignException.Create('[OpenSSL] Error extracting public key from X509 certificate');
+      raise ESignException.Create(SJOSEOpenSSLCertExtractPublicKeyError);
   finally
     X509_free(LCer);
   end;
@@ -265,7 +314,7 @@ begin
   try
     Result := X509_PUBKEY_get(LCer.cert_info.key);
     if not Assigned(Result) then
-      raise ESignException.Create('[OpenSSL] Error extracting public key from X509 certificate');
+      raise ESignException.Create(SJOSEOpenSSLCertExtractPublicKeyError);
   finally
     X509_free(LCer);
   end;
@@ -360,7 +409,7 @@ class function TDefaultRSAProvider.RSAKeyFromEVP(AKey: PEVP_PKEY): PRSA;
 begin
   Result := EVP_PKEY_get1_RSA(AKey);
   if not Assigned(Result) then
-    raise ESignException.Create('[RSA] Error extracting RSA key from EVP_PKEY');
+    raise ESignException.Create(SJOSERSAExtractFromEVPError);
 end;
 
 function TDefaultRSAProvider.InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
@@ -393,13 +442,13 @@ begin
       JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
     end;
   else
-    raise ESignException.Create('[RSA] Unsupported signing algorithm!');
+    raise ESignException.Create(SJOSERSAUnsupportedAlgorithm);
   end;
 
   LRsaLen := JoseSSL.RSA_size(AKey);
   SetLength(Result, LRsaLen);
   if JoseSSL.RSA_sign(LNID, @LHash[0], LShaLen, @Result[0], @LRsaLen, AKey) = 0 then
-    raise ESignException.Create('[RSA] Unable to sign RSA message digest');
+    raise ESignException.Create(SJOSERSASignFailed);
 end;
 
 function TDefaultRSAProvider.InternalVerify(const AInput, ASignature: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): Boolean;
@@ -432,7 +481,7 @@ begin
       JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
     end;
   else
-    raise ESignException.Create('[RSA] Unsupported signing algorithm!');
+    raise ESignException.Create(SJOSERSAUnsupportedAlgorithm);
   end;
   LResult := JoseSSL.RSA_verify(LNID, @LHash[0], LShaLen, @ASignature[0], Length(ASignature), AKey);
 
@@ -448,7 +497,7 @@ begin
     BIO_write(LBio, @AKey[0], Length(AKey));
     Result := PEM_read_bio_RSAPrivateKey(LBio, nil, nil, nil);
     if Result = nil then
-      raise ESignException.Create('[RSA] Unable to load private key: ' + JoseSSL.GetLastError);
+      raise ESignException.CreateFmt(SJOSERSALoadPrivateKeyError, [JoseSSL.GetLastError]);
   finally
     BIO_free(LBio);
   end;
@@ -469,7 +518,7 @@ begin
       Result := JoseSSL.PEM_read_bio_RSA_PUBKEY(LBio, nil, nil, nil);
 
     if Result = nil then
-      raise ESignException.Create('[RSA] Unable to load public key: ' + JoseSSL.GetLastError);
+      raise ESignException.CreateFmt(SJOSERSALoadPublicKeyError, [JoseSSL.GetLastError]);
   finally
     BIO_free(LBio);
   end;
@@ -603,7 +652,7 @@ begin
       JoseSSL.SHA512(@AInput[0], Length(AInput), @Result[0]);
     end;
   else
-    raise Exception.Create('[ECDSA] Unsupported signing algorithm!');
+    raise Exception.Create(SJOSEECDSAUnsupportedAlgorithm);
   end;
 end;
 
@@ -615,7 +664,7 @@ var
 begin
   LECKey := EVP_PKEY_get1_EC_KEY(APublicKey);
   if LECKey = nil then
-    raise Exception.Create('[ECDSA] Error getting memory for ECDSA');
+    raise Exception.Create(SJOSEECDSAMemoryError);
   try
     LSig := OctetSequence2Sig(ASignature, AAlg);
     try
@@ -640,7 +689,7 @@ begin
     BIO_write(LBIO, @AKey[0], Length(AKey));
     Result := PEM_read_bio_PrivateKey(LBIO, nil, nil, nil);
     if Result = nil then
-      raise ESignException.Create('[ECDSA] Unable to load private key: ' + JoseSSL.GetLastError);
+      raise ESignException.CreateFmt(SJOSEECDSALoadPrivateKeyError, [JoseSSL.GetLastError]);
   finally
     BIO_free(LBIO);
   end;
@@ -660,7 +709,7 @@ begin
 
     Result := JoseSSL.PEM_read_bio_PUBKEY(LKeyBuffer, nil, nil, nil);
     if Result = nil then
-      raise Exception.Create('[ECDSA] Unable to load public key: ' + JoseSSL.GetLastError);
+      raise Exception.CreateFmt(SJOSEECDSALoadPublicKeyError, [JoseSSL.GetLastError]);
   finally
     BIO_free(LKeyBuffer);
   end;
@@ -689,13 +738,13 @@ begin
   Result := [];
   LECKey := EVP_PKEY_get1_EC_KEY(AKey);
   if LECKey = nil then
-    raise ESignException.Create('[ECDSA] Error getting EC Key: ' + JoseSSL.GetLastError);
+    raise ESignException.CreateFmt(SJOSEECDSAKeyError, [JoseSSL.GetLastError]);
   try
     LShaHash := HashFromBytes(AInput, AAlg);
 
     LSig := JoseSSL.ECDSA_do_sign(@LShaHash[0], Length(LShaHash), LECKey);
     if LSig = nil then
-      raise ESignException.Create('[ECDSA] Digest signing failed: ' + JoseSSL.GetLastError);
+      raise ESignException.CreateFmt(SJOSEECDSASignFailed, [JoseSSL.GetLastError]);
     try
       Result := Sig2OctetSequence(LSig, AAlg);
     finally
@@ -824,11 +873,11 @@ end;
 function BytesToBignum(const AValue: TBytes): PBIGNUM;
 begin
   if Length(AValue) = 0 then
-    raise ESignException.Create('[JWK] Missing required key component');
+    raise ESignException.Create(SJOSEJWKMissingKeyComponent);
 
   Result := JoseSSL.BN_bin2bn(@AValue[0], Length(AValue), nil);
   if not Assigned(Result) then
-    raise ESignException.Create('[JWK] Unable to convert key component to BIGNUM');
+    raise ESignException.Create(SJOSEJWKBignumConversionError);
 end;
 
 function NewBIOFromBytes(const AData: TBytes): PBIO;
@@ -928,18 +977,18 @@ begin
 
   LGroup := JoseSSL.EC_KEY_get0_group(AEC);
   if not Assigned(LGroup) then
-    raise ESignException.Create('[JWK] EC key has no group/curve');
+    raise ESignException.Create(SJOSEJWKECNoGroup);
 
   LPoint := JoseSSL.EC_KEY_get0_public_key(AEC);
   if not Assigned(LPoint) then
-    raise ESignException.Create('[JWK] EC key has no public point');
+    raise ESignException.Create(SJOSEJWKECNoPublicPoint);
 
   LX := JoseSSL.BN_new();
   LY := JoseSSL.BN_new();
   LCtx := JoseSSL.BN_CTX_new();
   try
     if JoseSSL.EC_POINT_get_affine_coordinates_GFp(LGroup, LPoint, LX, LY, LCtx) <> 1 then
-      raise ESignException.Create('[JWK] Unable to read the EC public point');
+      raise ESignException.Create(SJOSEJWKECReadPublicPointError);
     Result.X := BignumToBytes(LX);
     Result.Y := BignumToBytes(LY);
   finally
@@ -962,7 +1011,7 @@ var
 begin
   Result := JoseSSL.EC_KEY_new_by_curve_name(ANID);
   if not Assigned(Result) then
-    raise ESignException.Create('[JWK] Unable to create an EC key for the requested curve');
+    raise ESignException.Create(SJOSEJWKECCreateKeyError);
 
   // Force named-curve (OID-referenced) encoding rather than explicit domain parameters, so
   // EC_GROUP_get_curve_name can recover the NID after a PEM write/read round-trip.
@@ -977,9 +1026,9 @@ begin
       LY := BytesToBignum(AKeyMaterial.Y);
       try
         if JoseSSL.EC_POINT_set_affine_coordinates_GFp(LGroup, LPoint, LX, LY, LCtx) <> 1 then
-          raise ESignException.Create('[JWK] Invalid EC public point');
+          raise ESignException.Create(SJOSEJWKECInvalidPublicPoint);
         if JoseSSL.EC_KEY_set_public_key(Result, LPoint) <> 1 then
-          raise ESignException.Create('[JWK] Unable to set the EC public key');
+          raise ESignException.Create(SJOSEJWKECSetPublicKeyError);
       finally
         JoseSSL.BN_free(LX);
         JoseSSL.BN_free(LY);
@@ -990,7 +1039,7 @@ begin
         LD := BytesToBignum(AKeyMaterial.D);
         try
           if JoseSSL.EC_KEY_set_private_key(Result, LD) <> 1 then
-            raise ESignException.Create('[JWK] Unable to set the EC private key');
+            raise ESignException.Create(SJOSEJWKECSetPrivateKeyError);
         finally
           JoseSSL.BN_free(LD);
         end;
@@ -1015,7 +1064,7 @@ begin
   TJOSEDefaultOpenSslPem.LoadOpenSSL;
 
   if Length(APEM) = 0 then
-    raise ESignException.Create('[JWK] Empty PEM data');
+    raise ESignException.Create(SJOSEJWKEmptyPEMData);
 
   LRsa := TryLoadRSA(APEM);
   if Assigned(LRsa) then
@@ -1030,14 +1079,14 @@ begin
 
   LPKey := TryLoadGenericPKey(APEM);
   if not Assigned(LPKey) then
-    raise ESignException.Create('[JWK] Unable to parse PEM: unrecognized or unsupported key format');
+    raise ESignException.Create(SJOSEJWKUnrecognizedPEMFormat);
   try
     if EVP_PKEY_id(LPKey) = JoseSSL.NID_X9_62_id_ecPublicKey then
-      raise ESignException.Create('[JWK] PEM contains an EC key, not an RSA key');
+      raise ESignException.Create(SJOSEJWKPEMContainsECNotRSA);
 
     LRsa := EVP_PKEY_get1_RSA(LPKey);
     if not Assigned(LRsa) then
-      raise ESignException.Create('[JWK] Unsupported PEM key type');
+      raise ESignException.Create(SJOSEJWKUnsupportedPEMKeyType);
     try
       Result := RSAKeyToMaterial(LRsa);
     finally
@@ -1062,7 +1111,7 @@ begin
   try
     LRsa := RSA_new;
     if not Assigned(LRsa) then
-      raise ESignException.Create('[JWK] Unable to allocate an RSA key');
+      raise ESignException.Create(SJOSEJWKAllocateRSAError);
     try
       LRsa.n := BytesToBignum(AKeyMaterial.Modulus);
       LRsa.e := BytesToBignum(AKeyMaterial.PublicExponent);
@@ -1075,12 +1124,12 @@ begin
         LRsa.dmq1 := BytesToBignum(AKeyMaterial.DQ);
         LRsa.iqmp := BytesToBignum(AKeyMaterial.QI);
         if PEM_write_bio_RSAPrivateKey(LBio, LRsa, nil, nil, 0, nil, nil) <> 1 then
-          raise ESignException.Create('[JWK] Unable to write the RSA private key PEM');
+          raise ESignException.Create(SJOSEJWKWriteRSAPrivateError);
       end
       else
       begin
         if PEM_write_bio_RSAPublicKey(LBio, LRsa) <> 1 then
-          raise ESignException.Create('[JWK] Unable to write the RSA public key PEM');
+          raise ESignException.Create(SJOSEJWKWriteRSAPublicError);
       end;
     finally
       RSA_free(LRsa);
@@ -1102,7 +1151,7 @@ begin
     TECCurve.P521:       Result := JoseSSL.NID_secp521r1;
     TECCurve.secp256k1:  Result := JoseSSL.NID_secp256k1;
   else
-    raise ESignException.Create('[JWK] Unsupported EC curve');
+    raise ESignException.Create(SJOSEJWKUnsupportedECCurve);
   end;
 end;
 
@@ -1117,7 +1166,7 @@ begin
   else if ANID = JoseSSL.NID_secp256k1 then
     Result := TECCurve.secp256k1
   else
-    raise ESignException.CreateFmt('[JWK] Unsupported EC curve (NID %d)', [ANID]);
+    raise ESignException.CreateFmt(SJOSEJWKUnsupportedECCurveNID, [ANID]);
 end;
 
 function TDefaultECKeyMaterialProvider.ImportPEM(const APEM: TBytes): TJOSEECKeyMaterial;
@@ -1130,32 +1179,32 @@ begin
   TJOSEDefaultOpenSslPem.LoadOpenSSL;
 
   if Length(APEM) = 0 then
-    raise ESignException.Create('[JWK] Empty PEM data');
+    raise ESignException.Create(SJOSEJWKEmptyPEMData);
 
   if not JoseSSL.EnsureECKeySupport then
-    raise ESignException.Create('[JWK] EC key support is not available (missing OpenSSL EC symbols)');
+    raise ESignException.Create(SJOSEJWKECSupportUnavailable);
 
   LRsa := TryLoadRSA(APEM);
   if Assigned(LRsa) then
   begin
     RSA_free(LRsa);
-    raise ESignException.Create('[JWK] PEM contains an RSA key, not an EC key');
+    raise ESignException.Create(SJOSEJWKPEMContainsRSANotEC);
   end;
 
   LPKey := TryLoadGenericPKey(APEM);
   if not Assigned(LPKey) then
-    raise ESignException.Create('[JWK] Unable to parse PEM: unrecognized or unsupported key format');
+    raise ESignException.Create(SJOSEJWKUnrecognizedPEMFormat);
   try
     if EVP_PKEY_id(LPKey) <> JoseSSL.NID_X9_62_id_ecPublicKey then
-      raise ESignException.Create('[JWK] PEM does not contain an EC key');
+      raise ESignException.Create(SJOSEJWKPEMNoECKey);
 
     LEC := EVP_PKEY_get1_EC_KEY(LPKey);
     if not Assigned(LEC) then
-      raise ESignException.Create('[JWK] Unable to extract the EC key from the PEM');
+      raise ESignException.Create(SJOSEJWKExtractECKeyError);
     try
       LGroup := JoseSSL.EC_KEY_get0_group(LEC);
       if not Assigned(LGroup) then
-        raise ESignException.Create('[JWK] EC key has no group/curve');
+        raise ESignException.Create(SJOSEJWKECNoGroup);
 
       Result := ECKeyToMaterial(NIDToCurve(JoseSSL.EC_GROUP_get_curve_name(LGroup)), LEC);
     finally
@@ -1176,7 +1225,7 @@ begin
   TJOSEDefaultOpenSslPem.LoadOpenSSL;
 
   if not JoseSSL.EnsureECKeySupport then
-    raise ESignException.Create('[JWK] EC key support is not available (missing OpenSSL EC symbols)');
+    raise ESignException.Create(SJOSEJWKECSupportUnavailable);
 
   LWritePrivate := AIncludePrivate and AKeyMaterial.IsPrivate;
 
@@ -1186,20 +1235,20 @@ begin
     try
       LPKey := EVP_PKEY_new;
       if not Assigned(LPKey) then
-        raise ESignException.Create('[JWK] Unable to allocate an EVP_PKEY');
+        raise ESignException.Create(SJOSEJWKAllocateEVPPKeyError);
       try
         if EVP_PKEY_set1_EC_KEY(LPKey, LEC) <> 1 then
-          raise ESignException.Create('[JWK] Unable to wrap the EC key');
+          raise ESignException.Create(SJOSEJWKWrapECKeyError);
 
         if LWritePrivate then
         begin
           if PEM_write_bio_PrivateKey(LBio, LPKey, nil, nil, 0, nil, nil) <> 1 then
-            raise ESignException.Create('[JWK] Unable to write the EC private key PEM');
+            raise ESignException.Create(SJOSEJWKWriteECPrivateError);
         end
         else
         begin
           if JoseSSL.PEM_write_bio_PUBKEY(LBio, LPKey) <> 1 then
-            raise ESignException.Create('[JWK] Unable to write the EC public key PEM');
+            raise ESignException.Create(SJOSEJWKWriteECPublicError);
         end;
       finally
         EVP_PKEY_free(LPKey);
@@ -1438,7 +1487,7 @@ begin
   LSigner := nil;
 
   if not IdSSLOpenSSL.LoadOpenSSLLibrary then
-    raise Exception.Create('Error Loading OpenSSL libraries');
+    raise Exception.Create(SJOSEErrorLoadingOpenSSLLibraries);
 
   case AAlg of
     THMACAlgorithm.SHA256: LSigner := TIdHMACSHA256.Create;

@@ -264,6 +264,19 @@ type
 
 implementation
 
+resourcestring
+  SJOSEJWKUnknownKeyType = '[JWK] Unknown key type [kty]: %s';
+  SJOSEJWKUnknownCurve = '[JWK] Unknown elliptic curve [crv]: %s';
+  SJOSEJWKUnsupportedCurve = '[JWK] Unsupported EC curve';
+  SJOSEJWKMissingKty = '[JWK] Missing required JWK member [kty]';
+  SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
+  SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
+  SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
+  SJOSEJWKToPEMUnsupportedKeyType = '[JWK] ToPEM is only supported for RSA and EC keys';
+  SJOSEJWKToKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for ToKeyPair';
+  SJOSEJWKFromKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for FromKeyPair';
+  SJOSEJWKSInvalidJSON = '[JWK] Invalid JWKS JSON';
+
 { TJWK }
 
 constructor TJWK.Create(AKey: TJOSEBytes);
@@ -339,7 +352,7 @@ begin
   else if AValue = 'EC' then
     Self := TJOSEKeyType.EC
   else
-    raise EJOSEJWKException.CreateFmt('[JWK] Unknown key type [kty]: %s', [AValue]);
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKUnknownKeyType, [AValue]);
 end;
 
 { TJOSEKeyUseHelper }
@@ -389,7 +402,7 @@ begin
   else if AValue = 'secp256k1' then
     Self := TJOSEEllipticCurve.secp256k1
   else
-    raise EJOSEJWKException.CreateFmt('[JWK] Unknown elliptic curve [crv]: %s', [AValue]);
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKUnknownCurve, [AValue]);
 end;
 
 {$IFDEF RSA_SIGNING}
@@ -401,7 +414,7 @@ begin
     TJOSEEllipticCurve.P521:      Result := TECCurve.P521;
     TJOSEEllipticCurve.secp256k1: Result := TECCurve.secp256k1;
   else
-    raise EJOSEJWKException.Create('[JWK] Unsupported EC curve');
+    raise EJOSEJWKException.Create(SJOSEJWKUnsupportedCurve);
   end;
 end;
 
@@ -413,7 +426,7 @@ begin
     TECCurve.P521:      Result := TJOSEEllipticCurve.P521;
     TECCurve.secp256k1: Result := TJOSEEllipticCurve.secp256k1;
   else
-    raise EJOSEJWKException.Create('[JWK] Unsupported EC curve');
+    raise EJOSEJWKException.Create(SJOSEJWKUnsupportedCurve);
   end;
 end;
 {$ENDIF}
@@ -501,7 +514,7 @@ var
 begin
   LStr := GetStringMember('kty');
   if LStr = '' then
-    raise EJOSEJWKException.Create('[JWK] Missing required JWK member [kty]');
+    raise EJOSEJWKException.Create(SJOSEJWKMissingKty);
   Result.AsString := LStr;
 end;
 
@@ -714,7 +727,7 @@ var
 begin
   LStr := GetStringMember('crv');
   if LStr = '' then
-    raise EJOSEJWKException.Create('[JWK] Missing required JWK member [crv]');
+    raise EJOSEJWKException.Create(SJOSEJWKMissingCrv);
   Result.AsString := LStr;
 end;
 
@@ -793,7 +806,7 @@ begin
   try
     LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
     if not Assigned(LParsed) then
-      raise EJOSEJWKException.Create('[JWK] Invalid JSON');
+      raise EJOSEJWKException.Create(SJOSEJWKInvalidJSON);
     Result.SetNewJSON(LParsed);
     Result.Kty; // Validates that [kty] is present and recognized
   except
@@ -830,7 +843,7 @@ begin
       Result := Format('{"crv":"%s","kty":"EC","x":"%s","y":"%s"}',
         [Crv.AsString, TBase64.URLEncode(X).AsString, TBase64.URLEncode(Y).AsString]);
   else
-    raise EJOSEJWKException.Create('[JWK] Unable to compute the thumbprint for this key type');
+    raise EJOSEJWKException.Create(SJOSEJWKThumbprintUnsupportedKeyType);
   end;
 end;
 
@@ -930,7 +943,7 @@ begin
       Result := TJOSEProviders.ECKeyMaterial.ExportPEM(LECMaterial, LWritePrivate);
     end;
   else
-    raise EJOSEJWKException.Create('[JWK] ToPEM is only supported for RSA and EC keys');
+    raise EJOSEJWKException.Create(SJOSEJWKToPEMUnsupportedKeyType);
   end;
 end;
 
@@ -950,7 +963,7 @@ begin
         Result := TKeyPair.Create(LPublicPEM, LPublicPEM);
     end;
   else
-    raise EJOSEJWKException.Create('[JWK] Unsupported key type for ToKeyPair');
+    raise EJOSEJWKException.Create(SJOSEJWKToKeyPairUnsupportedKeyType);
   end;
 end;
 
@@ -962,7 +975,7 @@ begin
     TJOSEKeyType.RSA, TJOSEKeyType.EC:
       Result := TJSONWebKey.FromPEM(AKeyPair.PrivateKey.Key);
   else
-    raise EJOSEJWKException.Create('[JWK] Unsupported key type for FromKeyPair');
+    raise EJOSEJWKException.Create(SJOSEJWKFromKeyPairUnsupportedKeyType);
   end;
 end;
 
@@ -1022,7 +1035,7 @@ begin
   try
     LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
     if not Assigned(LParsed) then
-      raise EJOSEJWKException.Create('[JWK] Invalid JWKS JSON');
+      raise EJOSEJWKException.Create(SJOSEJWKSInvalidJSON);
     try
       LKeysValue := LParsed.GetValue('keys');
       if Assigned(LKeysValue) and (LKeysValue is TJSONArray) then

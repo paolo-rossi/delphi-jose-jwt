@@ -79,6 +79,12 @@ implementation
 uses
   System.TypInfo;
 
+resourcestring
+  SJOSEJSONValueNotBoolean = 'The JSON value is not boolean';
+  SJOSEJSONExpectedDouble = 'JSON Incompatible type. Expected Double';
+  SJOSEJSONExpectedInteger = 'JSON Incompatible type. Expected Integer';
+  SJOSEJSONExpectedInt64 = 'JSON Incompatible type. Expected Int64';
+
 { TJSONUtils }
 
 class function TJSONUtils.GetJSONRttiValue(AValue: TValue): TJSONValue;
@@ -149,14 +155,14 @@ begin
   if AJSON is TJSONBool then
     Result := (AJSON as TJSONBool).AsBoolean
   else
-    raise EJSONConversionException.Create('The JSON value is not boolean');
+    raise EJSONConversionException.Create(SJOSEJSONValueNotBoolean);
 {$ELSE}
   if AJSON is TJSONTrue then
     Result := True
   else if AJSON is TJSONFalse then
     Result := False
   else
-    raise EJSONConversionException.Create('The JSON value is not boolean');
+    raise EJSONConversionException.Create(SJOSEJSONValueNotBoolean);
 {$ENDIF}
 end;
 
@@ -211,7 +217,7 @@ begin
   else if LJSONValue is TJSONNumber then
     Result := TJSONNumber(LJSONValue).AsDouble
   else
-    raise EJSONConversionException.Create('JSON Incompatible type. Expected Double');
+    raise EJSONConversionException.Create(SJOSEJSONExpectedDouble);
 end;
 
 class function TJSONUtils.GetJSONValueInt(const AName: string; AJSON: TJSONObject): TValue;
@@ -225,7 +231,7 @@ begin
   else if LJSONValue is TJSONNumber then
     Result := TJSONNumber(LJSONValue).AsInt
   else
-    raise EJSONConversionException.Create('JSON Incompatible type. Expected Integer');
+    raise EJSONConversionException.Create(SJOSEJSONExpectedInteger);
 end;
 
 class function TJSONUtils.GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
@@ -239,7 +245,7 @@ begin
   else if LJSONValue is TJSONNumber then
     Result := TJSONNumber(LJSONValue).AsInt64
   else
-    raise EJSONConversionException.Create('JSON Incompatible type. Expected Int64');
+    raise EJSONConversionException.Create(SJOSEJSONExpectedInt64);
 end;
 
 class function TJSONUtils.IsJSONBool(AJSON: TJSONValue): Boolean;

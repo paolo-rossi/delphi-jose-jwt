@@ -230,13 +230,16 @@ implementation
 uses
   JOSE.Types.Utils;
 
+resourcestring
+  SJOSEErrorLoadingFunction = 'Error loading [%s]';
+
 class function JoseSSL.LoadFunctionCLib(const AFunctionName: string; const ARaiseException: Boolean = True): Pointer;
 begin
   Result := {$IFDEF WINDOWS}Windows.{$ENDIF}GetProcAddress(GetCryptLibHandle, PChar(AFunctionName));
   if Result = nil then
   begin
     if ARaiseException then
-      raise Exception.CreateFmt('Error loading [%s]', [AFunctionName])
+      raise Exception.CreateFmt(SJOSEErrorLoadingFunction, [AFunctionName])
     else
       Inc(FLoadErrors);
   end;
