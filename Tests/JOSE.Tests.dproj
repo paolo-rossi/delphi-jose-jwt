@@ -108,6 +108,7 @@
         <DCCReference Include="Source\JOSE.Tests.JWA.HMAC.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWA.ECDSA.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWA.RSA.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Providers.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Classes.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>

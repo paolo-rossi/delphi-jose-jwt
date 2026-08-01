@@ -705,6 +705,11 @@ begin
   TJOSEProviders.Certificate := LCert;
   TJOSEProviders.RSA := TCryptoLibRSAProvider.Create(LCert);
   TJOSEProviders.ECDSA := TCryptoLibECDSAProvider.Create(LCert);
+  // No CryptoLib-backed raw key import/export (JWK PEM support) yet: clear these rather than
+  // leaving a stale OpenSSL-backed provider active, so JWK.FromPEM/ToPEM honestly raise
+  // "not registered" instead of silently depending on OpenSSL under a CryptoLib-only stack.
+  TJOSEProviders.RSAKeyMaterial := nil;
+  TJOSEProviders.ECKeyMaterial := nil;
 end;
 
 class procedure TJOSECryptoLibProviders.Unregister;
@@ -714,6 +719,8 @@ begin
   TJOSEProviders.Certificate := nil;
   TJOSEProviders.RSA := nil;
   TJOSEProviders.ECDSA := nil;
+  TJOSEProviders.RSAKeyMaterial := nil;
+  TJOSEProviders.ECKeyMaterial := nil;
 end;
 
 end.

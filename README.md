@@ -19,7 +19,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
 ![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
 
-[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms.
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL or pure-Pascal CryptoLib4Pascal).
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
@@ -46,6 +46,50 @@ Please keep in mind that the client doesn't have to generate or verify the token
 
 #### OpenSSL download
 If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page](https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness)
+
+## :satellite: Custom crypto providers (bring your own crypto)
+
+Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every crypto and Base64 operation goes through a swappable provider registry, `TJOSEProviders` (`JOSE.Providers`), instead of calling OpenSSL directly. Two provider stacks ship with the library:
+
+| Provider stack | Unit | Backing library | Notes |
+| --------------- | ---- | ---------------- | ----- |
+| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above), and is currently the only stack that implements [JWK](#json-web-key-jwk-support) PEM import/export |
+| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it |
+
+Switching to the CryptoLib4Pascal-backed stack (and back):
+
+```delphi
+uses
+  JOSE.Providers,
+  JOSE.Providers.CryptoLib;
+
+begin
+  TJOSECryptoLibProviders.Register; // from here on, no OpenSSL DLL is needed for HS/RS/ES signing
+  ...
+
+  TJOSECryptoLibProviders.Unregister;
+  TJOSEProviders.RegisterProvider;  // back to the OpenSSL-backed default
+end;
+```
+
+To bring your own backend (a hardware security module, another crypto library, ...), implement whichever of the interfaces in `JOSE.Providers.Interfaces` you need and assign them directly — you don't have to replace the whole stack:
+
+```delphi
+TJOSEProviders.RSA := TMyHSMBackedRSAProvider.Create;
+TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
+```
+
+| Interface | Capability |
+| --------- | ---------- |
+| `IJOSEBase64Provider` | Base64 / Base64Url encode/decode |
+| `IJOSEHmacProvider` | HMAC signing (HS256/384/512) |
+| `IJOSESignerRSA` | RSA signing/verification (RS256/384/512) |
+| `IJOSESignerECDSA` | ECDSA signing/verification (ES256/384/512/256K) |
+| `IJOSECertificateProvider` | Public key extraction/verification from an X.509 certificate |
+| `IJOSERSAKeyMaterialProvider` | Raw RSA key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
+| `IJOSEECKeyMaterialProvider` | Raw EC key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
+
+`RSAKeyMaterial`/`ECKeyMaterial` are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM`. Registering a stack without them (like `TJOSECryptoLibProviders` today) doesn't affect ordinary RSA/ECDSA signing; it just means `FromPEM`/`ToPEM` will raise until you either switch back to the default stack or provide your own implementation.
 
 ## :question: What is JOSE
 
@@ -105,6 +149,82 @@ If you need the OpenSSL library on the server, you can download the package dire
 - This library is not affected by the `None` algorithm vulnerability
 - This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
 
+## :key: JSON Web Key (JWK) support
+
+Full [RFC 7517](https://tools.ietf.org/html/rfc7517) JSON Web Key support, via `TJSONWebKey`/`TJSONWebKeySet` in `JOSE.Core.JWK`:
+
+- `oct` (symmetric), `RSA` and `EC` (P-256 / P-384 / P-521 / secp256k1) key types
+- JSON (de)serialization of the standard members (`kty`, `use`, `key_ops`, `alg`, `kid`, `x5u`/`x5c`/`x5t`/`x5t#S256`) plus the type-specific key material
+- PEM import/export (`FromPEM`/`ToPEM`), for both public and private keys
+- [RFC 7638](https://tools.ietf.org/html/rfc7638) JWK Thumbprint (`Thumbprint`)
+- `TJSONWebKeySet` for JWKS documents (`AddKey`, `FindByKid`, JSON round-trip)
+- A bridge (`ToKeyPair`/`FromKeyPair`) to the legacy `TJWK`/`TKeyPair` types, so a `TJSONWebKey` can be handed straight to `TJOSE.Sign`/`TJOSE.Verify`/`TJOSEProducer`
+
+PEM import/export is backed by the [crypto provider](#custom-crypto-providers-bring-your-own-crypto) currently registered; today that means the OpenSSL-backed default stack (see the table above).
+
+#### Import a PEM key and sign a token with it
+
+```delphi
+uses
+  System.IOUtils,
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Core.JWA,
+  JOSE.Core.Builder;
+
+var
+  LKey: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LToken: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  LKey := TJSONWebKey.FromPEM(TFile.ReadAllBytes('rsa-private.pem'));
+  try
+    // Use the JWK Thumbprint as a stable key id
+    LKey.Kid := LKey.Thumbprint;
+
+    // Bridge to the legacy key model and sign a token with it
+    LKeyPair := LKey.ToKeyPair;
+    try
+      LToken := TJWT.Create;
+      try
+        LToken.Claims.Subject := 'Paolo Rossi';
+        LCompact := TJOSE.SerializeCompact(LKeyPair.PrivateKey, TJOSEAlgorithmId.RS256, LToken);
+        memoCompact.Lines.Add(LCompact);
+      finally
+        LToken.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LKey.Free;
+  end;
+end;
+```
+
+#### Build a symmetric key and a JWKS document
+
+```delphi
+var
+  LKey: TJSONWebKey;
+  LSet: TJSONWebKeySet;
+begin
+  LKey := TJSONWebKey.CreateOct('my_very_long_and_safe_secret_key');
+  LKey.Kid := 'hmac-key-1'; // set members you need before AddKey - see note below
+
+  LSet := TJSONWebKeySet.Create;
+  try
+    LSet.AddKey(LKey); // the set now owns LKey
+    memoJWKS.Lines.Add(LSet.ToJSON);
+  finally
+    LSet.Free; // also frees LKey
+  end;
+end;
+```
+
+> **Note:** `TJSONWebKeySet.AddKey` snapshots the key's JSON representation at the moment it's added. Set properties like `Kid` on the `TJSONWebKey` *before* calling `AddKey`, not after.
+
 ## Projects using Delphi JOSE and JWT
 
 - The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
@@ -114,17 +234,18 @@ If you need the OpenSSL library on the server, you can download the package dire
 
 ##### Features
 - JWE support (there is partial implementation in [this PR](https://github.com/paolo-rossi/delphi-jose-jwt/pull/84))
-- Support of other crypto libraries (TMS Cryptography Pack, etc...)
+- More crypto providers on top of the [provider abstraction](#custom-crypto-providers-bring-your-own-crypto) (e.g. TMS Cryptography Pack) — OpenSSL and [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) are supported today
+- A CryptoLib4Pascal-backed `IJOSERSAKeyMaterialProvider`/`IJOSEECKeyMaterialProvider` implementation, so [JWK](#json-web-key-jwk-support) PEM import/export works without OpenSSL too (OpenSSL-backed provider only, for now)
 
 ##### Code
 - More unit tests
 - More examples
 
 ## :cookie: Prerequisite
-This library has been tested with **Delphi 12 Athens**, **Delphi 11 Alexandria**, **Delphi 10.4 Sydney**, **Delphi 10.3 Rio**, **Delphi 10.2 Tokyo** but with some work it should compile with **DXE6 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
+This library has been tested with **Delphi 13 Florence**, **Delphi 12 Athens**, **Delphi 11 Alexandria**, but with some work it should compile with **DXE6 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
 
 #### Libraries/Units dependencies
-This library has no dependencies on external libraries/units.
+This library has no required external dependencies when using the default (OpenSSL-backed) provider stack.
 
 Delphi units used:
 - System.JSON (DXE6+) (available on earlier Delphi versions as Data.DBXJSON)
@@ -132,6 +253,9 @@ Delphi units used:
 - System.Generics.Collections (D2009+)
 - System.NetEncoding (DXE7+)
 - Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash
+
+Optional, only if you [switch to the CryptoLib4Pascal provider stack](#custom-crypto-providers-bring-your-own-crypto):
+- [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) — not included in the `.dpk` package, add it (and `JOSE.Providers.CryptoLib.pas`) to your project yourself if you want it
 
 #### Indy notes
 - Please use always the latest version [from GitHub](https://github.com/IndySockets/Indy)

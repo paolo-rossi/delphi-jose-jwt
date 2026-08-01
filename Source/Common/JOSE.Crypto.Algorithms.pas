@@ -53,6 +53,31 @@ type
     function ToString: string;
   end;
 
+  /// <summary>Elliptic curve identifier used at the key-material provider boundary (not JSON-facing).</summary>
+  TECCurve = (P256, P384, P521, secp256k1);
+
+  /// <summary>Raw RSA key components (RFC 7518 6.3), as used by IJOSERSAKeyMaterialProvider.</summary>
+  TJOSERSAKeyMaterial = record
+    Modulus: TBytes;          // n
+    PublicExponent: TBytes;   // e
+    PrivateExponent: TBytes;  // d
+    P: TBytes;
+    Q: TBytes;
+    DP: TBytes;
+    DQ: TBytes;
+    QI: TBytes;
+    function IsPrivate: Boolean;
+  end;
+
+  /// <summary>Raw EC key components (RFC 7518 6.2), as used by IJOSEECKeyMaterialProvider.</summary>
+  TJOSEECKeyMaterial = record
+    Curve: TECCurve;
+    X: TBytes;
+    Y: TBytes;
+    D: TBytes;
+    function IsPrivate: Boolean;
+  end;
+
 {$ENDIF}
 
 implementation
@@ -135,6 +160,20 @@ begin
     ES384: Result := 'ES384';
     ES512: Result := 'ES512';
   end;
+end;
+
+{ TJOSERSAKeyMaterial }
+
+function TJOSERSAKeyMaterial.IsPrivate: Boolean;
+begin
+  Result := Length(PrivateExponent) > 0;
+end;
+
+{ TJOSEECKeyMaterial }
+
+function TJOSEECKeyMaterial.IsPrivate: Boolean;
+begin
+  Result := Length(D) > 0;
 end;
 
 {$ENDIF}

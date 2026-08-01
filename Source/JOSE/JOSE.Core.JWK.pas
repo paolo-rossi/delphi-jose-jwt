@@ -1,29 +1,27 @@
 {******************************************************************************}
 {                                                                              }
-{  Delphi JOSE Library                                                         }
-{  Copyright (c) 2015 Paolo Rossi                                              }
-{  https://github.com/paolo-rossi/delphi-jose-jwt                              }
+{  Delphi JOSE Library                                                        }
+{  Copyright (c) 2015 Paolo Rossi                                             }
+{  https://github.com/paolo-rossi/delphi-jose-jwt                             }
 {                                                                              }
 {******************************************************************************}
 {                                                                              }
-{  Licensed under the Apache License, Version 2.0 (the "License");             }
-{  you may not use this file except in compliance with the License.            }
-{  You may obtain a copy of the License at                                     }
+{  Licensed under the Apache License, Version 2.0 (the "License");            }
+{  you may not use this file except in compliance with the License.           }
+{  You may obtain a copy of the License at                                    }
 {                                                                              }
-{      http://www.apache.org/licenses/LICENSE-2.0                              }
+{      http://www.apache.org/licenses/LICENSE-2.0                             }
 {                                                                              }
-{  Unless required by applicable law or agreed to in writing, software         }
-{  distributed under the License is distributed on an "AS IS" BASIS,           }
-{  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    }
-{  See the License for the specific language governing permissions and         }
-{  limitations under the License.                                              }
+{  Unless required by applicable law or agreed to in writing, software        }
+{  distributed under the License is distributed on an "AS IS" BASIS,          }
+{  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   }
+{  See the License for the specific language governing permissions and        }
+{  limitations under the License.                                             }
 {                                                                              }
 {******************************************************************************}
 
 /// <summary>
-///   JSON Web Key (JWK) RFC implementation The JWK is not (yet) implemented,
-///   this unit contains only a small utility class to work with cryptographic
-///   keys in Delphi
+///   JSON Web Key (JWK) RFC implementation
 /// </summary>
 /// <seealso href="https://tools.ietf.org/html/rfc7517">
 ///   JWK RFC Document
@@ -38,9 +36,18 @@ interface
 
 uses
   System.SysUtils,
+  System.Rtti,
+  System.JSON,
+  System.Hash,
+  System.Generics.Collections,
   JOSE.Types.Bytes,
+  JOSE.Types.JSON,
   JOSE.Core.Base,
-  JOSE.Encoding.Base64;
+  JOSE.Core.JWA,
+  JOSE.Encoding.Base64
+  {$IFDEF RSA_SIGNING}
+  , JOSE.Crypto.Algorithms, JOSE.Providers, JOSE.Providers.Interfaces
+  {$ENDIF};
 
 type
   TKeyType = (Symmetric, Asymmetric);
@@ -77,6 +84,182 @@ type
     property KeyType: TKeyType read FKeyType write FKeyType;
     property PrivateKey: TJWK read FPrivateKey write FPrivateKey;
     property PublicKey: TJWK read FPublicKey write FPublicKey;
+  end;
+
+  EJOSEJWKException = class(EJOSEException);
+
+  /// <seealso href="https://tools.ietf.org/html/rfc7517#section-4.1">kty</seealso>
+  TJOSEKeyType = (Oct, RSA, EC);
+  TJOSEKeyTypeHelper = record helper for TJOSEKeyType
+  private
+    function GetAsString: string;
+    procedure SetAsString(const AValue: string);
+  public
+    property AsString: string read GetAsString write SetAsString;
+  end;
+
+  /// <seealso href="https://tools.ietf.org/html/rfc7517#section-4.2">use</seealso>
+  TJOSEKeyUse = (Unspecified, Signature, Encryption);
+  TJOSEKeyUseHelper = record helper for TJOSEKeyUse
+  private
+    function GetAsString: string;
+    procedure SetAsString(const AValue: string);
+  public
+    property AsString: string read GetAsString write SetAsString;
+  end;
+
+  /// <seealso href="https://tools.ietf.org/html/rfc7517#section-4.3">key_ops</seealso>
+  TJOSEKeyOperation = (Sign, Verify, Encrypt, Decrypt, WrapKey, UnwrapKey, DeriveKey, DeriveBits);
+  TJOSEKeyOperations = set of TJOSEKeyOperation;
+
+  /// <seealso href="https://tools.ietf.org/html/rfc7518#section-6.2.1.1">crv</seealso>
+  TJOSEEllipticCurve = (P256, P384, P521, secp256k1);
+  TJOSEEllipticCurveHelper = record helper for TJOSEEllipticCurve
+  private
+    function GetAsString: string;
+    procedure SetAsString(const AValue: string);
+  public
+    property AsString: string read GetAsString write SetAsString;
+    {$IFDEF RSA_SIGNING}
+    /// <summary>Maps to the Common-layer curve identifier used at the provider boundary.</summary>
+    function ToECCurve: TECCurve;
+    class function FromECCurve(ACurve: TECCurve): TJOSEEllipticCurve; static;
+    {$ENDIF}
+  end;
+
+  /// <summary>
+  ///   Full RFC 7517 JSON Web Key implementation: oct (symmetric), RSA and EC key types,
+  ///   with (on RSA_SIGNING platforms) PEM import/export and a bridge to the legacy
+  ///   <c>TKeyPair</c> consumed internally by <c>TJWS</c>/<c>TJOSE</c>/<c>TJOSEProducer</c>.
+  /// </summary>
+  TJSONWebKey = class(TJOSEBase)
+  private
+    function GetStringMember(const AName: string): string;
+    procedure SetStringMember(const AName, AValue: string);
+    function GetBytesMember(const AName: string): TJOSEBytes;
+    procedure SetBytesMember(const AName: string; const AValue: TJOSEBytes);
+    function GetStringArrayMember(const AName: string): TArray<string>;
+    procedure SetStringArrayMember(const AName: string; const AValue: TArray<string>);
+
+    function GetKty: TJOSEKeyType;
+    procedure SetKty(const AValue: TJOSEKeyType);
+    function GetUse: TJOSEKeyUse;
+    procedure SetUse(const AValue: TJOSEKeyUse);
+    function GetKeyOps: TJOSEKeyOperations;
+    procedure SetKeyOps(const AValue: TJOSEKeyOperations);
+    function GetAlg: TJOSEAlgorithmId;
+    procedure SetAlg(const AValue: TJOSEAlgorithmId);
+    function GetKid: string;
+    procedure SetKid(const AValue: string);
+    function GetX5u: string;
+    procedure SetX5u(const AValue: string);
+    function GetX5c: TArray<string>;
+    procedure SetX5c(const AValue: TArray<string>);
+    function GetX5t: string;
+    procedure SetX5t(const AValue: string);
+    function GetX5tS256: string;
+    procedure SetX5tS256(const AValue: string);
+
+    function GetK: TJOSEBytes;
+    procedure SetK(const AValue: TJOSEBytes);
+
+    function GetN: TJOSEBytes;
+    procedure SetN(const AValue: TJOSEBytes);
+    function GetE: TJOSEBytes;
+    procedure SetE(const AValue: TJOSEBytes);
+    function GetD: TJOSEBytes;
+    procedure SetD(const AValue: TJOSEBytes);
+    function GetP: TJOSEBytes;
+    procedure SetP(const AValue: TJOSEBytes);
+    function GetQ: TJOSEBytes;
+    procedure SetQ(const AValue: TJOSEBytes);
+    function GetDP: TJOSEBytes;
+    procedure SetDP(const AValue: TJOSEBytes);
+    function GetDQ: TJOSEBytes;
+    procedure SetDQ(const AValue: TJOSEBytes);
+    function GetQI: TJOSEBytes;
+    procedure SetQI(const AValue: TJOSEBytes);
+
+    function GetCrv: TJOSEEllipticCurve;
+    procedure SetCrv(const AValue: TJOSEEllipticCurve);
+    function GetX: TJOSEBytes;
+    procedure SetX(const AValue: TJOSEBytes);
+    function GetY: TJOSEBytes;
+    procedure SetY(const AValue: TJOSEBytes);
+
+    function BuildCanonicalJSON: string;
+  public
+    constructor CreateOct(const ASecret: TJOSEBytes);
+    constructor CreateRSAPublic(const AModulus, AExponent: TJOSEBytes);
+    constructor CreateRSAPrivate(const AModulus, AExponent, APrivateExponent, AP, AQ, ADP, ADQ, AQI: TJOSEBytes);
+    constructor CreateECPublic(ACurve: TJOSEEllipticCurve; const AX, AY: TJOSEBytes);
+    constructor CreateECPrivate(ACurve: TJOSEEllipticCurve; const AX, AY, AD: TJOSEBytes);
+
+    class function FromJSON(const AJSON: string): TJSONWebKey;
+    function ToJSON: string;
+
+    /// <summary>True if the type-appropriate private component(s) are present.</summary>
+    function IsPrivate: Boolean;
+    /// <seealso href="https://tools.ietf.org/html/rfc7638">RFC 7638 JWK Thumbprint</seealso>
+    function Thumbprint: TJOSEBytes;
+
+    {$IFDEF RSA_SIGNING}
+    /// <summary>Loads an RSA or EC key (public or private, PKCS1/PKCS8/SPKI/traditional-EC) from PEM.</summary>
+    class function FromPEM(const APEM: TJOSEBytes): TJSONWebKey;
+    /// <summary>Rebuilds a PEM (RSA or EC) from this key's components.</summary>
+    function ToPEM(AIncludePrivate: Boolean = True): TJOSEBytes;
+
+    /// <summary>Bridges to the legacy raw-bytes key model consumed by TJWS/TJOSE/TJOSEProducer.</summary>
+    function ToKeyPair: TKeyPair;
+    class function FromKeyPair(AKeyPair: TKeyPair; AKty: TJOSEKeyType): TJSONWebKey;
+    {$ENDIF}
+
+    property Kty: TJOSEKeyType read GetKty write SetKty;
+    property Use: TJOSEKeyUse read GetUse write SetUse;
+    property KeyOps: TJOSEKeyOperations read GetKeyOps write SetKeyOps;
+    property Alg: TJOSEAlgorithmId read GetAlg write SetAlg;
+    property Kid: string read GetKid write SetKid;
+    property X5u: string read GetX5u write SetX5u;
+    property X5c: TArray<string> read GetX5c write SetX5c;
+    property X5t: string read GetX5t write SetX5t;
+    property X5tS256: string read GetX5tS256 write SetX5tS256;
+
+    /// <summary>Symmetric key value (oct).</summary>
+    property K: TJOSEBytes read GetK write SetK;
+
+    /// <summary>RSA modulus / public exponent.</summary>
+    property N: TJOSEBytes read GetN write SetN;
+    property E: TJOSEBytes read GetE write SetE;
+    /// <summary>RSA private exponent, or EC private key (the JWK "d" member is shared by both).</summary>
+    property D: TJOSEBytes read GetD write SetD;
+    property P: TJOSEBytes read GetP write SetP;
+    property Q: TJOSEBytes read GetQ write SetQ;
+    property DP: TJOSEBytes read GetDP write SetDP;
+    property DQ: TJOSEBytes read GetDQ write SetDQ;
+    property QI: TJOSEBytes read GetQI write SetQI;
+
+    /// <summary>EC curve / public point.</summary>
+    property Crv: TJOSEEllipticCurve read GetCrv write SetCrv;
+    property X: TJOSEBytes read GetX write SetX;
+    property Y: TJOSEBytes read GetY write SetY;
+  end;
+
+  /// <seealso href="https://tools.ietf.org/html/rfc7517#section-5">JWK Set</seealso>
+  TJSONWebKeySet = class(TJOSEBase)
+  private
+    FKeys: TObjectList<TJSONWebKey>;
+    procedure RebuildJSON;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    procedure AddKey(AKey: TJSONWebKey);
+    function FindByKid(const AKid: string): TJSONWebKey;
+
+    class function FromJSON(const AJSON: string): TJSONWebKeySet;
+    function ToJSON: string;
+
+    property Keys: TObjectList<TJSONWebKey> read FKeys;
   end;
 
 implementation
@@ -132,6 +315,740 @@ begin
   FKeyType := TKeyType.Symmetric;
   FPublicKey.Key := ASecret;
   FPrivateKey.Key := ASecret;
+end;
+
+{ TJOSEKeyTypeHelper }
+
+function TJOSEKeyTypeHelper.GetAsString: string;
+begin
+  case Self of
+    TJOSEKeyType.Oct: Result := 'oct';
+    TJOSEKeyType.RSA: Result := 'RSA';
+    TJOSEKeyType.EC:  Result := 'EC';
+  else
+    Result := '';
+  end;
+end;
+
+procedure TJOSEKeyTypeHelper.SetAsString(const AValue: string);
+begin
+  if AValue = 'oct' then
+    Self := TJOSEKeyType.Oct
+  else if AValue = 'RSA' then
+    Self := TJOSEKeyType.RSA
+  else if AValue = 'EC' then
+    Self := TJOSEKeyType.EC
+  else
+    raise EJOSEJWKException.CreateFmt('[JWK] Unknown key type [kty]: %s', [AValue]);
+end;
+
+{ TJOSEKeyUseHelper }
+
+function TJOSEKeyUseHelper.GetAsString: string;
+begin
+  case Self of
+    TJOSEKeyUse.Signature:  Result := 'sig';
+    TJOSEKeyUse.Encryption: Result := 'enc';
+  else
+    Result := '';
+  end;
+end;
+
+procedure TJOSEKeyUseHelper.SetAsString(const AValue: string);
+begin
+  if AValue = 'sig' then
+    Self := TJOSEKeyUse.Signature
+  else if AValue = 'enc' then
+    Self := TJOSEKeyUse.Encryption
+  else
+    Self := TJOSEKeyUse.Unspecified;
+end;
+
+{ TJOSEEllipticCurveHelper }
+
+function TJOSEEllipticCurveHelper.GetAsString: string;
+begin
+  case Self of
+    TJOSEEllipticCurve.P256:      Result := 'P-256';
+    TJOSEEllipticCurve.P384:      Result := 'P-384';
+    TJOSEEllipticCurve.P521:      Result := 'P-521';
+    TJOSEEllipticCurve.secp256k1: Result := 'secp256k1';
+  else
+    Result := '';
+  end;
+end;
+
+procedure TJOSEEllipticCurveHelper.SetAsString(const AValue: string);
+begin
+  if AValue = 'P-256' then
+    Self := TJOSEEllipticCurve.P256
+  else if AValue = 'P-384' then
+    Self := TJOSEEllipticCurve.P384
+  else if AValue = 'P-521' then
+    Self := TJOSEEllipticCurve.P521
+  else if AValue = 'secp256k1' then
+    Self := TJOSEEllipticCurve.secp256k1
+  else
+    raise EJOSEJWKException.CreateFmt('[JWK] Unknown elliptic curve [crv]: %s', [AValue]);
+end;
+
+{$IFDEF RSA_SIGNING}
+function TJOSEEllipticCurveHelper.ToECCurve: TECCurve;
+begin
+  case Self of
+    TJOSEEllipticCurve.P256:      Result := TECCurve.P256;
+    TJOSEEllipticCurve.P384:      Result := TECCurve.P384;
+    TJOSEEllipticCurve.P521:      Result := TECCurve.P521;
+    TJOSEEllipticCurve.secp256k1: Result := TECCurve.secp256k1;
+  else
+    raise EJOSEJWKException.Create('[JWK] Unsupported EC curve');
+  end;
+end;
+
+class function TJOSEEllipticCurveHelper.FromECCurve(ACurve: TECCurve): TJOSEEllipticCurve;
+begin
+  case ACurve of
+    TECCurve.P256:      Result := TJOSEEllipticCurve.P256;
+    TECCurve.P384:      Result := TJOSEEllipticCurve.P384;
+    TECCurve.P521:      Result := TJOSEEllipticCurve.P521;
+    TECCurve.secp256k1: Result := TJOSEEllipticCurve.secp256k1;
+  else
+    raise EJOSEJWKException.Create('[JWK] Unsupported EC curve');
+  end;
+end;
+{$ENDIF}
+
+const
+  KeyOpNames: array[TJOSEKeyOperation] of string = (
+    'sign', 'verify', 'encrypt', 'decrypt', 'wrapKey', 'unwrapKey', 'deriveKey', 'deriveBits'
+  );
+
+{ TJSONWebKey }
+
+function TJSONWebKey.GetStringMember(const AName: string): string;
+var
+  LValue: TValue;
+begin
+  LValue := TJSONUtils.GetJSONValue(AName, FJSON);
+  if LValue.IsEmpty then
+    Result := ''
+  else
+    Result := LValue.AsString;
+end;
+
+procedure TJSONWebKey.SetStringMember(const AName, AValue: string);
+begin
+  if AValue = '' then
+    TJSONUtils.RemoveJSONNode(AName, FJSON)
+  else
+    AddPairOfType<string>(AName, AValue);
+end;
+
+function TJSONWebKey.GetBytesMember(const AName: string): TJOSEBytes;
+var
+  LStr: string;
+begin
+  LStr := GetStringMember(AName);
+  if LStr = '' then
+    Result := TJOSEBytes.Empty
+  else
+    Result := TBase64.URLDecode(LStr);
+end;
+
+procedure TJSONWebKey.SetBytesMember(const AName: string; const AValue: TJOSEBytes);
+begin
+  if AValue.IsEmpty then
+    TJSONUtils.RemoveJSONNode(AName, FJSON)
+  else
+    SetStringMember(AName, TBase64.URLEncode(AValue).AsString);
+end;
+
+function TJSONWebKey.GetStringArrayMember(const AName: string): TArray<string>;
+var
+  LValue: TJSONValue;
+  LArray: TJSONArray;
+  I: Integer;
+begin
+  Result := nil;
+  LValue := FJSON.GetValue(AName);
+  if Assigned(LValue) and (LValue is TJSONArray) then
+  begin
+    LArray := LValue as TJSONArray;
+    SetLength(Result, LArray.Count);
+    for I := 0 to LArray.Count - 1 do
+      Result[I] := LArray.Items[I].Value;
+  end;
+end;
+
+procedure TJSONWebKey.SetStringArrayMember(const AName: string; const AValue: TArray<string>);
+var
+  LArray: TJSONArray;
+  LItem: string;
+begin
+  TJSONUtils.RemoveJSONNode(AName, FJSON);
+  if Length(AValue) = 0 then
+    Exit;
+
+  LArray := TJSONArray.Create;
+  for LItem in AValue do
+    LArray.Add(LItem);
+  TJSONUtils.SetJSONValue(AName, LArray, FJSON);
+end;
+
+function TJSONWebKey.GetKty: TJOSEKeyType;
+var
+  LStr: string;
+begin
+  LStr := GetStringMember('kty');
+  if LStr = '' then
+    raise EJOSEJWKException.Create('[JWK] Missing required JWK member [kty]');
+  Result.AsString := LStr;
+end;
+
+procedure TJSONWebKey.SetKty(const AValue: TJOSEKeyType);
+begin
+  SetStringMember('kty', AValue.AsString);
+end;
+
+function TJSONWebKey.GetUse: TJOSEKeyUse;
+begin
+  Result.AsString := GetStringMember('use');
+end;
+
+procedure TJSONWebKey.SetUse(const AValue: TJOSEKeyUse);
+begin
+  if AValue = TJOSEKeyUse.Unspecified then
+    TJSONUtils.RemoveJSONNode('use', FJSON)
+  else
+    SetStringMember('use', AValue.AsString);
+end;
+
+function TJSONWebKey.GetKeyOps: TJOSEKeyOperations;
+var
+  LNames: TArray<string>;
+  LName: string;
+  LOp: TJOSEKeyOperation;
+begin
+  Result := [];
+  LNames := GetStringArrayMember('key_ops');
+  for LName in LNames do
+    for LOp := Low(TJOSEKeyOperation) to High(TJOSEKeyOperation) do
+      if KeyOpNames[LOp] = LName then
+        Include(Result, LOp);
+end;
+
+procedure TJSONWebKey.SetKeyOps(const AValue: TJOSEKeyOperations);
+var
+  LNames: TArray<string>;
+  LOp: TJOSEKeyOperation;
+  LCount: Integer;
+begin
+  LCount := 0;
+  SetLength(LNames, 0);
+  for LOp := Low(TJOSEKeyOperation) to High(TJOSEKeyOperation) do
+    if LOp in AValue then
+    begin
+      SetLength(LNames, LCount + 1);
+      LNames[LCount] := KeyOpNames[LOp];
+      Inc(LCount);
+    end;
+  SetStringArrayMember('key_ops', LNames);
+end;
+
+function TJSONWebKey.GetAlg: TJOSEAlgorithmId;
+begin
+  Result.AsString := GetStringMember('alg');
+end;
+
+procedure TJSONWebKey.SetAlg(const AValue: TJOSEAlgorithmId);
+begin
+  if AValue = TJOSEAlgorithmId.Unknown then
+    TJSONUtils.RemoveJSONNode('alg', FJSON)
+  else
+    SetStringMember('alg', AValue.AsString);
+end;
+
+function TJSONWebKey.GetKid: string;
+begin
+  Result := GetStringMember('kid');
+end;
+
+procedure TJSONWebKey.SetKid(const AValue: string);
+begin
+  SetStringMember('kid', AValue);
+end;
+
+function TJSONWebKey.GetX5u: string;
+begin
+  Result := GetStringMember('x5u');
+end;
+
+procedure TJSONWebKey.SetX5u(const AValue: string);
+begin
+  SetStringMember('x5u', AValue);
+end;
+
+function TJSONWebKey.GetX5c: TArray<string>;
+begin
+  Result := GetStringArrayMember('x5c');
+end;
+
+procedure TJSONWebKey.SetX5c(const AValue: TArray<string>);
+begin
+  SetStringArrayMember('x5c', AValue);
+end;
+
+function TJSONWebKey.GetX5t: string;
+begin
+  Result := GetStringMember('x5t');
+end;
+
+procedure TJSONWebKey.SetX5t(const AValue: string);
+begin
+  SetStringMember('x5t', AValue);
+end;
+
+function TJSONWebKey.GetX5tS256: string;
+begin
+  Result := GetStringMember('x5t#S256');
+end;
+
+procedure TJSONWebKey.SetX5tS256(const AValue: string);
+begin
+  SetStringMember('x5t#S256', AValue);
+end;
+
+function TJSONWebKey.GetK: TJOSEBytes;
+begin
+  Result := GetBytesMember('k');
+end;
+
+procedure TJSONWebKey.SetK(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('k', AValue);
+end;
+
+function TJSONWebKey.GetN: TJOSEBytes;
+begin
+  Result := GetBytesMember('n');
+end;
+
+procedure TJSONWebKey.SetN(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('n', AValue);
+end;
+
+function TJSONWebKey.GetE: TJOSEBytes;
+begin
+  Result := GetBytesMember('e');
+end;
+
+procedure TJSONWebKey.SetE(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('e', AValue);
+end;
+
+function TJSONWebKey.GetD: TJOSEBytes;
+begin
+  Result := GetBytesMember('d');
+end;
+
+procedure TJSONWebKey.SetD(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('d', AValue);
+end;
+
+function TJSONWebKey.GetP: TJOSEBytes;
+begin
+  Result := GetBytesMember('p');
+end;
+
+procedure TJSONWebKey.SetP(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('p', AValue);
+end;
+
+function TJSONWebKey.GetQ: TJOSEBytes;
+begin
+  Result := GetBytesMember('q');
+end;
+
+procedure TJSONWebKey.SetQ(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('q', AValue);
+end;
+
+function TJSONWebKey.GetDP: TJOSEBytes;
+begin
+  Result := GetBytesMember('dp');
+end;
+
+procedure TJSONWebKey.SetDP(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('dp', AValue);
+end;
+
+function TJSONWebKey.GetDQ: TJOSEBytes;
+begin
+  Result := GetBytesMember('dq');
+end;
+
+procedure TJSONWebKey.SetDQ(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('dq', AValue);
+end;
+
+function TJSONWebKey.GetQI: TJOSEBytes;
+begin
+  Result := GetBytesMember('qi');
+end;
+
+procedure TJSONWebKey.SetQI(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('qi', AValue);
+end;
+
+function TJSONWebKey.GetCrv: TJOSEEllipticCurve;
+var
+  LStr: string;
+begin
+  LStr := GetStringMember('crv');
+  if LStr = '' then
+    raise EJOSEJWKException.Create('[JWK] Missing required JWK member [crv]');
+  Result.AsString := LStr;
+end;
+
+procedure TJSONWebKey.SetCrv(const AValue: TJOSEEllipticCurve);
+begin
+  SetStringMember('crv', AValue.AsString);
+end;
+
+function TJSONWebKey.GetX: TJOSEBytes;
+begin
+  Result := GetBytesMember('x');
+end;
+
+procedure TJSONWebKey.SetX(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('x', AValue);
+end;
+
+function TJSONWebKey.GetY: TJOSEBytes;
+begin
+  Result := GetBytesMember('y');
+end;
+
+procedure TJSONWebKey.SetY(const AValue: TJOSEBytes);
+begin
+  SetBytesMember('y', AValue);
+end;
+
+constructor TJSONWebKey.CreateOct(const ASecret: TJOSEBytes);
+begin
+  inherited Create;
+  Kty := TJOSEKeyType.Oct;
+  K := ASecret;
+end;
+
+constructor TJSONWebKey.CreateRSAPublic(const AModulus, AExponent: TJOSEBytes);
+begin
+  inherited Create;
+  Kty := TJOSEKeyType.RSA;
+  N := AModulus;
+  E := AExponent;
+end;
+
+constructor TJSONWebKey.CreateRSAPrivate(const AModulus, AExponent, APrivateExponent, AP, AQ, ADP, ADQ,
+  AQI: TJOSEBytes);
+begin
+  CreateRSAPublic(AModulus, AExponent);
+  D := APrivateExponent;
+  P := AP;
+  Q := AQ;
+  DP := ADP;
+  DQ := ADQ;
+  QI := AQI;
+end;
+
+constructor TJSONWebKey.CreateECPublic(ACurve: TJOSEEllipticCurve; const AX, AY: TJOSEBytes);
+begin
+  inherited Create;
+  Kty := TJOSEKeyType.EC;
+  Crv := ACurve;
+  X := AX;
+  Y := AY;
+end;
+
+constructor TJSONWebKey.CreateECPrivate(ACurve: TJOSEEllipticCurve; const AX, AY, AD: TJOSEBytes);
+begin
+  CreateECPublic(ACurve, AX, AY);
+  D := AD;
+end;
+
+class function TJSONWebKey.FromJSON(const AJSON: string): TJSONWebKey;
+var
+  LParsed: TJSONObject;
+begin
+  Result := TJSONWebKey.Create;
+  try
+    LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
+    if not Assigned(LParsed) then
+      raise EJOSEJWKException.Create('[JWK] Invalid JSON');
+    Result.SetNewJSON(LParsed);
+    Result.Kty; // Validates that [kty] is present and recognized
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TJSONWebKey.ToJSON: string;
+begin
+  Result := JOSE.Core.Base.ToJSON(FJSON);
+end;
+
+function TJSONWebKey.IsPrivate: Boolean;
+begin
+  case Kty of
+    TJOSEKeyType.Oct: Result := not K.IsEmpty;
+    TJOSEKeyType.RSA: Result := not D.IsEmpty;
+    TJOSEKeyType.EC:  Result := not D.IsEmpty;
+  else
+    Result := False;
+  end;
+end;
+
+function TJSONWebKey.BuildCanonicalJSON: string;
+begin
+  case Kty of
+    TJOSEKeyType.Oct:
+      Result := Format('{"k":"%s","kty":"oct"}', [TBase64.URLEncode(K).AsString]);
+    TJOSEKeyType.RSA:
+      Result := Format('{"e":"%s","kty":"RSA","n":"%s"}',
+        [TBase64.URLEncode(E).AsString, TBase64.URLEncode(N).AsString]);
+    TJOSEKeyType.EC:
+      Result := Format('{"crv":"%s","kty":"EC","x":"%s","y":"%s"}',
+        [Crv.AsString, TBase64.URLEncode(X).AsString, TBase64.URLEncode(Y).AsString]);
+  else
+    raise EJOSEJWKException.Create('[JWK] Unable to compute the thumbprint for this key type');
+  end;
+end;
+
+function TJSONWebKey.Thumbprint: TJOSEBytes;
+var
+  LHasher: THashSHA2;
+begin
+  LHasher := THashSHA2.Create(THashSHA2.TSHA2Version.SHA256);
+  LHasher.Update(TEncoding.UTF8.GetBytes(BuildCanonicalJSON));
+  Result := TBase64.URLEncode(LHasher.HashAsBytes);
+end;
+
+{$IFDEF RSA_SIGNING}
+
+class function TJSONWebKey.FromPEM(const APEM: TJOSEBytes): TJSONWebKey;
+var
+  LData: TBytes;
+  LRSAMaterial: TJOSERSAKeyMaterial;
+  LECMaterial: TJOSEECKeyMaterial;
+begin
+  LData := APEM.AsBytes;
+
+  try
+    LRSAMaterial := TJOSEProviders.RSAKeyMaterial.ImportPEM(LData);
+  except
+    // Not an RSA key (or an unsupported format for RSA) - try EC. If this also fails,
+    // its exception is the more relevant one and is left to propagate.
+    LECMaterial := TJOSEProviders.ECKeyMaterial.ImportPEM(LData);
+
+    Result := TJSONWebKey.Create;
+    try
+      Result.Kty := TJOSEKeyType.EC;
+      Result.Crv := TJOSEEllipticCurve.FromECCurve(LECMaterial.Curve);
+      Result.X := LECMaterial.X;
+      Result.Y := LECMaterial.Y;
+      if LECMaterial.IsPrivate then
+        Result.D := LECMaterial.D;
+    except
+      Result.Free;
+      raise;
+    end;
+    Exit;
+  end;
+
+  Result := TJSONWebKey.Create;
+  try
+    Result.Kty := TJOSEKeyType.RSA;
+    Result.N := LRSAMaterial.Modulus;
+    Result.E := LRSAMaterial.PublicExponent;
+    if LRSAMaterial.IsPrivate then
+    begin
+      Result.D := LRSAMaterial.PrivateExponent;
+      Result.P := LRSAMaterial.P;
+      Result.Q := LRSAMaterial.Q;
+      Result.DP := LRSAMaterial.DP;
+      Result.DQ := LRSAMaterial.DQ;
+      Result.QI := LRSAMaterial.QI;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TJSONWebKey.ToPEM(AIncludePrivate: Boolean): TJOSEBytes;
+var
+  LRSAMaterial: TJOSERSAKeyMaterial;
+  LECMaterial: TJOSEECKeyMaterial;
+  LWritePrivate: Boolean;
+begin
+  LWritePrivate := AIncludePrivate and IsPrivate;
+
+  case Kty of
+    TJOSEKeyType.RSA:
+    begin
+      LRSAMaterial.Modulus := N.AsBytes;
+      LRSAMaterial.PublicExponent := E.AsBytes;
+      if LWritePrivate then
+      begin
+        LRSAMaterial.PrivateExponent := D.AsBytes;
+        LRSAMaterial.P := P.AsBytes;
+        LRSAMaterial.Q := Q.AsBytes;
+        LRSAMaterial.DP := DP.AsBytes;
+        LRSAMaterial.DQ := DQ.AsBytes;
+        LRSAMaterial.QI := QI.AsBytes;
+      end;
+      Result := TJOSEProviders.RSAKeyMaterial.ExportPEM(LRSAMaterial, LWritePrivate);
+    end;
+
+    TJOSEKeyType.EC:
+    begin
+      LECMaterial.Curve := Crv.ToECCurve;
+      LECMaterial.X := X.AsBytes;
+      LECMaterial.Y := Y.AsBytes;
+      if LWritePrivate then
+        LECMaterial.D := D.AsBytes;
+      Result := TJOSEProviders.ECKeyMaterial.ExportPEM(LECMaterial, LWritePrivate);
+    end;
+  else
+    raise EJOSEJWKException.Create('[JWK] ToPEM is only supported for RSA and EC keys');
+  end;
+end;
+
+function TJSONWebKey.ToKeyPair: TKeyPair;
+var
+  LPublicPEM: TJOSEBytes;
+begin
+  case Kty of
+    TJOSEKeyType.Oct:
+      Result := TKeyPair.Create(K, K);
+    TJOSEKeyType.RSA, TJOSEKeyType.EC:
+    begin
+      LPublicPEM := ToPEM(False);
+      if IsPrivate then
+        Result := TKeyPair.Create(LPublicPEM, ToPEM(True))
+      else
+        Result := TKeyPair.Create(LPublicPEM, LPublicPEM);
+    end;
+  else
+    raise EJOSEJWKException.Create('[JWK] Unsupported key type for ToKeyPair');
+  end;
+end;
+
+class function TJSONWebKey.FromKeyPair(AKeyPair: TKeyPair; AKty: TJOSEKeyType): TJSONWebKey;
+begin
+  case AKty of
+    TJOSEKeyType.Oct:
+      Result := TJSONWebKey.CreateOct(AKeyPair.PrivateKey.Key);
+    TJOSEKeyType.RSA, TJOSEKeyType.EC:
+      Result := TJSONWebKey.FromPEM(AKeyPair.PrivateKey.Key);
+  else
+    raise EJOSEJWKException.Create('[JWK] Unsupported key type for FromKeyPair');
+  end;
+end;
+
+{$ENDIF}
+
+{ TJSONWebKeySet }
+
+constructor TJSONWebKeySet.Create;
+begin
+  inherited Create;
+  FKeys := TObjectList<TJSONWebKey>.Create(True);
+end;
+
+destructor TJSONWebKeySet.Destroy;
+begin
+  FKeys.Free;
+  inherited;
+end;
+
+procedure TJSONWebKeySet.AddKey(AKey: TJSONWebKey);
+begin
+  FKeys.Add(AKey);
+  RebuildJSON;
+end;
+
+function TJSONWebKeySet.FindByKid(const AKid: string): TJSONWebKey;
+var
+  LKey: TJSONWebKey;
+begin
+  Result := nil;
+  for LKey in FKeys do
+    if LKey.Kid = AKid then
+      Exit(LKey);
+end;
+
+procedure TJSONWebKeySet.RebuildJSON;
+var
+  LArray: TJSONArray;
+  LKey: TJSONWebKey;
+begin
+  Clear;
+  LArray := TJSONArray.Create;
+  for LKey in FKeys do
+    LArray.AddElement(LKey.Clone);
+  TJSONUtils.SetJSONValue('keys', LArray, FJSON);
+end;
+
+class function TJSONWebKeySet.FromJSON(const AJSON: string): TJSONWebKeySet;
+var
+  LParsed: TJSONObject;
+  LKeysValue: TJSONValue;
+  LKeysArray: TJSONArray;
+  I: Integer;
+  LKey: TJSONWebKey;
+begin
+  Result := TJSONWebKeySet.Create;
+  try
+    LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
+    if not Assigned(LParsed) then
+      raise EJOSEJWKException.Create('[JWK] Invalid JWKS JSON');
+    try
+      LKeysValue := LParsed.GetValue('keys');
+      if Assigned(LKeysValue) and (LKeysValue is TJSONArray) then
+      begin
+        LKeysArray := LKeysValue as TJSONArray;
+        for I := 0 to LKeysArray.Count - 1 do
+        begin
+          LKey := TJSONWebKey.Create;
+          LKey.SetNewJSON(LKeysArray.Items[I].Clone as TJSONObject);
+          LKey.Kty; // Validates that [kty] is present and recognized
+          Result.FKeys.Add(LKey);
+        end;
+      end;
+      Result.RebuildJSON;
+    finally
+      LParsed.Free;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TJSONWebKeySet.ToJSON: string;
+begin
+  Result := JOSE.Core.Base.ToJSON(FJSON);
 end;
 
 end.

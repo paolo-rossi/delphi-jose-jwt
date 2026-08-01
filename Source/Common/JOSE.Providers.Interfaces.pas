@@ -73,6 +73,20 @@ type
     function VerifyPrivateKey(const AKey: TBytes): Boolean;
   end;
 
+  /// <summary>Imports/exports raw RSA key material (RFC 7517/7518) to/from PEM, for JWK support.</summary>
+  IJOSERSAKeyMaterialProvider = interface
+    ['{3A2F1E0D-9C8B-4A7D-9E1F-2B3C4D5E6F70}']
+    function ImportPEM(const APEM: TBytes): TJOSERSAKeyMaterial;
+    function ExportPEM(const AKeyMaterial: TJOSERSAKeyMaterial; AIncludePrivate: Boolean): TBytes;
+  end;
+
+  /// <summary>Imports/exports raw EC key material (RFC 7517/7518) to/from PEM, for JWK support.</summary>
+  IJOSEECKeyMaterialProvider = interface
+    ['{9B1C2D3E-4F5A-4B6C-8D7E-1F2A3B4C5D6E}']
+    function ImportPEM(const APEM: TBytes): TJOSEECKeyMaterial;
+    function ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
+  end;
+
 {$ENDIF}
 
 implementation

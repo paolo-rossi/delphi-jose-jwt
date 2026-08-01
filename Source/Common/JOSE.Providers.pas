@@ -46,11 +46,15 @@ type
     class var FCertificate: IJOSECertificateProvider;
     class var FRSA: IJOSESignerRSA;
     class var FECDSA: IJOSESignerECDSA;
+    class var FRSAKeyMaterial: IJOSERSAKeyMaterialProvider;
+    class var FECKeyMaterial: IJOSEECKeyMaterialProvider;
 {$ENDIF}
     class procedure RequireBase64; static;
     class procedure RequireHMAC; static;
 {$IFDEF RSA_SIGNING}
     class procedure RequireSigningStack; static;
+    class procedure RequireRSAKeyMaterial; static;
+    class procedure RequireECKeyMaterial; static;
 {$ENDIF}
     class function GetBase64: IJOSEBase64Provider; static;
     class function GetHMAC: IJOSEHmacProvider; static;
@@ -63,6 +67,10 @@ type
     class procedure SetCertificate(const AValue: IJOSECertificateProvider); static;
     class procedure SetRSA(const AValue: IJOSESignerRSA); static;
     class procedure SetECDSA(const AValue: IJOSESignerECDSA); static;
+    class function GetRSAKeyMaterial: IJOSERSAKeyMaterialProvider; static;
+    class function GetECKeyMaterial: IJOSEECKeyMaterialProvider; static;
+    class procedure SetRSAKeyMaterial(const AValue: IJOSERSAKeyMaterialProvider); static;
+    class procedure SetECKeyMaterial(const AValue: IJOSEECKeyMaterialProvider); static;
 {$ENDIF}
   public
     /// <summary>Delegates to <c>TJOSEDefaultProviders.Register</c>.</summary>
@@ -75,6 +83,12 @@ type
     class property Certificate: IJOSECertificateProvider read GetCertificate write SetCertificate;
     class property RSA: IJOSESignerRSA read GetRSA write SetRSA;
     class property ECDSA: IJOSESignerECDSA read GetECDSA write SetECDSA;
+    /// <summary>Optional capability: raw RSA key import/export (JWK PEM support). Not required by
+    ///   ordinary RSA signing/verification, so registering a provider stack without it (e.g. a
+    ///   CryptoLib-only stack) does not affect <c>RSA</c>/<c>ECDSA</c>/<c>Certificate</c>.</summary>
+    class property RSAKeyMaterial: IJOSERSAKeyMaterialProvider read GetRSAKeyMaterial write SetRSAKeyMaterial;
+    /// <summary>Optional capability: raw EC key import/export (JWK PEM support). See <c>RSAKeyMaterial</c>.</summary>
+    class property ECKeyMaterial: IJOSEECKeyMaterialProvider read GetECKeyMaterial write SetECKeyMaterial;
 {$ENDIF}
   end;
 
@@ -177,6 +191,40 @@ end;
 class procedure TJOSEProviders.SetECDSA(const AValue: IJOSESignerECDSA);
 begin
   FECDSA := AValue;
+end;
+
+class procedure TJOSEProviders.RequireRSAKeyMaterial;
+begin
+  if FRSAKeyMaterial = nil then
+    raise EJOSEProvidersNotRegistered.Create(SJOSEProvidersNotRegistered);
+end;
+
+class procedure TJOSEProviders.RequireECKeyMaterial;
+begin
+  if FECKeyMaterial = nil then
+    raise EJOSEProvidersNotRegistered.Create(SJOSEProvidersNotRegistered);
+end;
+
+class function TJOSEProviders.GetRSAKeyMaterial: IJOSERSAKeyMaterialProvider;
+begin
+  RequireRSAKeyMaterial;
+  Result := FRSAKeyMaterial;
+end;
+
+class function TJOSEProviders.GetECKeyMaterial: IJOSEECKeyMaterialProvider;
+begin
+  RequireECKeyMaterial;
+  Result := FECKeyMaterial;
+end;
+
+class procedure TJOSEProviders.SetRSAKeyMaterial(const AValue: IJOSERSAKeyMaterialProvider);
+begin
+  FRSAKeyMaterial := AValue;
+end;
+
+class procedure TJOSEProviders.SetECKeyMaterial(const AValue: IJOSEECKeyMaterialProvider);
+begin
+  FECKeyMaterial := AValue;
 end;
 
 {$ENDIF}

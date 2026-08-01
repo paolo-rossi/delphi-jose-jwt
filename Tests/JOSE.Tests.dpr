@@ -45,6 +45,7 @@ uses
   JOSE.Tests.JWA.HMAC in 'Source\JOSE.Tests.JWA.HMAC.pas',
   JOSE.Tests.JWA.ECDSA in 'Source\JOSE.Tests.JWA.ECDSA.pas',
   JOSE.Tests.JWA.RSA in 'Source\JOSE.Tests.JWA.RSA.pas',
+  JOSE.Tests.Providers in 'Source\JOSE.Tests.Providers.pas',
   JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas';
 
 var

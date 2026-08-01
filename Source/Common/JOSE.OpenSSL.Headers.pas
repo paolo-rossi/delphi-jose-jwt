@@ -93,12 +93,45 @@ type
     fn_d2i_ECDSA_SIG = 'd2i_ECDSA_SIG';
     fn_i2d_ECDSA_SIG = 'i2d_ECDSA_SIG';
 
+    // EC key-material related functions (used by JWK, not by JWS signing)
+    fn_EC_KEY_new = 'EC_KEY_new';
+    fn_EC_KEY_new_by_curve_name = 'EC_KEY_new_by_curve_name';
+    fn_EC_KEY_set_group = 'EC_KEY_set_group';
+    fn_EC_KEY_generate_key = 'EC_KEY_generate_key';
+    fn_EC_KEY_get0_private_key = 'EC_KEY_get0_private_key';
+    fn_EC_KEY_set_private_key = 'EC_KEY_set_private_key';
+    fn_EC_KEY_get0_public_key = 'EC_KEY_get0_public_key';
+    fn_EC_KEY_set_public_key = 'EC_KEY_set_public_key';
+    fn_EC_GROUP_new_by_curve_name = 'EC_GROUP_new_by_curve_name';
+    fn_EC_GROUP_free = 'EC_GROUP_free';
+    fn_EC_GROUP_get_curve_name = 'EC_GROUP_get_curve_name';
+    fn_EC_KEY_set_asn1_flag = 'EC_KEY_set_asn1_flag';
+    fn_EC_POINT_new = 'EC_POINT_new';
+    fn_EC_POINT_free = 'EC_POINT_free';
+    fn_EC_POINT_get_affine_coordinates_GFp = 'EC_POINT_get_affine_coordinates_GFp';
+    fn_EC_POINT_set_affine_coordinates_GFp = 'EC_POINT_set_affine_coordinates_GFp';
+    fn_BN_CTX_new = 'BN_CTX_new';
+    fn_BN_CTX_free = 'BN_CTX_free';
+    fn_BN_new = 'BN_new';
+    fn_BN_free = 'BN_free';
+
   public const
     // Numeric ASN1 Object Identifiers
     NID_sha256 = 672;
     NID_sha384 = 673;
     NID_sha512 = 674;
     NID_X9_62_id_ecPublicKey = 408; // EC Key
+
+    // Curve Numeric ASN1 Object Identifiers (JWK crv <-> OpenSSL NID mapping)
+    NID_X9_62_prime256v1 = 415; // P-256
+    NID_secp384r1 = 715;        // P-384
+    NID_secp521r1 = 716;        // P-521
+    NID_secp256k1 = 714;        // secp256k1
+
+    // EC_KEY ASN1 encoding flags (EC_KEY_set_asn1_flag): forces the curve to be serialized
+    // by its named-curve OID instead of explicit domain parameters, so EC_GROUP_get_curve_name
+    // can recover the NID after a PEM write/read round-trip.
+    OPENSSL_EC_NAMED_CURVE = $001;
 
   public class var
     SSLeay_version: function(_type: Integer): PIdAnsiChar cdecl;
@@ -143,8 +176,32 @@ type
     d2i_ECDSA_SIG: function(ppSignature: PPECDSA_SIG; const pp: PPointer; len: LongInt): PECDSA_SIG cdecl;
     i2d_ECDSA_SIG: function (const sig: PECDSA_SIG; pp: PPointer): Integer cdecl;
 
+    // EC key-material related functions (used by JWK, not by JWS signing)
+    EC_KEY_new: function(): PEC_KEY cdecl;
+    EC_KEY_new_by_curve_name: function(nid: Integer): PEC_KEY cdecl;
+    EC_KEY_set_group: function(key: PEC_KEY; const group: PEC_GROUP): Integer cdecl;
+    EC_KEY_generate_key: function(key: PEC_KEY): Integer cdecl;
+    EC_KEY_get0_private_key: function(const key: PEC_KEY): PBIGNUM cdecl;
+    EC_KEY_set_private_key: function(key: PEC_KEY; const prv: PBIGNUM): Integer cdecl;
+    EC_KEY_get0_public_key: function(const key: PEC_KEY): PEC_POINT cdecl;
+    EC_KEY_set_public_key: function(key: PEC_KEY; const pub: PEC_POINT): Integer cdecl;
+    EC_GROUP_new_by_curve_name: function(nid: Integer): PEC_GROUP cdecl;
+    EC_GROUP_free: procedure(group: PEC_GROUP) cdecl;
+    EC_GROUP_get_curve_name: function(const group: PEC_GROUP): Integer cdecl;
+    EC_KEY_set_asn1_flag: procedure(key: PEC_KEY; asn1_flag: Integer) cdecl;
+    EC_POINT_new: function(const group: PEC_GROUP): PEC_POINT cdecl;
+    EC_POINT_free: procedure(point: PEC_POINT) cdecl;
+    EC_POINT_get_affine_coordinates_GFp: function(const group: PEC_GROUP; const point: PEC_POINT; x: PBIGNUM; y: PBIGNUM; ctx: PBN_CTX): Integer cdecl;
+    EC_POINT_set_affine_coordinates_GFp: function(const group: PEC_GROUP; point: PEC_POINT; const x: PBIGNUM; const y: PBIGNUM; ctx: PBN_CTX): Integer cdecl;
+    BN_CTX_new: function(): PBN_CTX cdecl;
+    BN_CTX_free: procedure(c: PBN_CTX) cdecl;
+    BN_new: function(): PBIGNUM cdecl;
+    BN_free: procedure(a: PBIGNUM) cdecl;
+
   public class var
     FLoadErrors: Integer;
+    FECKeySupportLoaded: Boolean;
+    FECKeySupportAvailable: Boolean;
   private
     class function LoadFunctionCLib(const AFunctionName: string; const ARaiseException: Boolean = True): Pointer;
   public
@@ -155,6 +212,13 @@ type
   public
     class function Load: Boolean;
     class procedure Unload;
+    /// <summary>
+    ///   Lazily loads the low-level EC key-construction symbols (EC_KEY_new_by_curve_name,
+    ///   EC_POINT_get/set_affine_coordinates_GFp, etc). Non-fatal: returns False (instead of
+    ///   raising) if the loaded OpenSSL library is missing one of these symbols, so that
+    ///   oct/RSA-only consumers are never affected by a missing EC symbol.
+    /// </summary>
+    class function EnsureECKeySupport: Boolean;
   end;
 
 {$ENDIF}
@@ -203,6 +267,61 @@ begin
 	sig.s := s;
 
 	Exit(1);
+end;
+
+class function JoseSSL.EnsureECKeySupport: Boolean;
+var
+  LErrors: Integer;
+begin
+  if FECKeySupportLoaded then
+    Exit(FECKeySupportAvailable);
+
+  LErrors := 0;
+
+  @EC_KEY_new := LoadFunctionCLib(fn_EC_KEY_new, False);
+  if not Assigned(EC_KEY_new) then Inc(LErrors);
+  @EC_KEY_new_by_curve_name := LoadFunctionCLib(fn_EC_KEY_new_by_curve_name, False);
+  if not Assigned(EC_KEY_new_by_curve_name) then Inc(LErrors);
+  @EC_KEY_set_group := LoadFunctionCLib(fn_EC_KEY_set_group, False);
+  if not Assigned(EC_KEY_set_group) then Inc(LErrors);
+  @EC_KEY_generate_key := LoadFunctionCLib(fn_EC_KEY_generate_key, False);
+  if not Assigned(EC_KEY_generate_key) then Inc(LErrors);
+  @EC_KEY_get0_private_key := LoadFunctionCLib(fn_EC_KEY_get0_private_key, False);
+  if not Assigned(EC_KEY_get0_private_key) then Inc(LErrors);
+  @EC_KEY_set_private_key := LoadFunctionCLib(fn_EC_KEY_set_private_key, False);
+  if not Assigned(EC_KEY_set_private_key) then Inc(LErrors);
+  @EC_KEY_get0_public_key := LoadFunctionCLib(fn_EC_KEY_get0_public_key, False);
+  if not Assigned(EC_KEY_get0_public_key) then Inc(LErrors);
+  @EC_KEY_set_public_key := LoadFunctionCLib(fn_EC_KEY_set_public_key, False);
+  if not Assigned(EC_KEY_set_public_key) then Inc(LErrors);
+  @EC_GROUP_new_by_curve_name := LoadFunctionCLib(fn_EC_GROUP_new_by_curve_name, False);
+  if not Assigned(EC_GROUP_new_by_curve_name) then Inc(LErrors);
+  @EC_GROUP_free := LoadFunctionCLib(fn_EC_GROUP_free, False);
+  if not Assigned(EC_GROUP_free) then Inc(LErrors);
+  @EC_GROUP_get_curve_name := LoadFunctionCLib(fn_EC_GROUP_get_curve_name, False);
+  if not Assigned(EC_GROUP_get_curve_name) then Inc(LErrors);
+  @EC_KEY_set_asn1_flag := LoadFunctionCLib(fn_EC_KEY_set_asn1_flag, False);
+  if not Assigned(EC_KEY_set_asn1_flag) then Inc(LErrors);
+  @EC_POINT_new := LoadFunctionCLib(fn_EC_POINT_new, False);
+  if not Assigned(EC_POINT_new) then Inc(LErrors);
+  @EC_POINT_free := LoadFunctionCLib(fn_EC_POINT_free, False);
+  if not Assigned(EC_POINT_free) then Inc(LErrors);
+  @EC_POINT_get_affine_coordinates_GFp := LoadFunctionCLib(fn_EC_POINT_get_affine_coordinates_GFp, False);
+  if not Assigned(EC_POINT_get_affine_coordinates_GFp) then Inc(LErrors);
+  @EC_POINT_set_affine_coordinates_GFp := LoadFunctionCLib(fn_EC_POINT_set_affine_coordinates_GFp, False);
+  if not Assigned(EC_POINT_set_affine_coordinates_GFp) then Inc(LErrors);
+  @BN_CTX_new := LoadFunctionCLib(fn_BN_CTX_new, False);
+  if not Assigned(BN_CTX_new) then Inc(LErrors);
+  @BN_CTX_free := LoadFunctionCLib(fn_BN_CTX_free, False);
+  if not Assigned(BN_CTX_free) then Inc(LErrors);
+  @BN_new := LoadFunctionCLib(fn_BN_new, False);
+  if not Assigned(BN_new) then Inc(LErrors);
+  @BN_free := LoadFunctionCLib(fn_BN_free, False);
+  if not Assigned(BN_free) then Inc(LErrors);
+
+  FECKeySupportAvailable := LErrors = 0;
+  FECKeySupportLoaded := True;
+  Result := FECKeySupportAvailable;
 end;
 
 class function JoseSSL.GetLastError: string;
@@ -298,6 +417,29 @@ begin
   @EC_GROUP_get_degree := nil;
   @d2i_ECDSA_SIG := nil;
   @i2d_ECDSA_SIG := nil;
+
+  @EC_KEY_new := nil;
+  @EC_KEY_new_by_curve_name := nil;
+  @EC_KEY_set_group := nil;
+  @EC_KEY_generate_key := nil;
+  @EC_KEY_get0_private_key := nil;
+  @EC_KEY_set_private_key := nil;
+  @EC_KEY_get0_public_key := nil;
+  @EC_KEY_set_public_key := nil;
+  @EC_GROUP_new_by_curve_name := nil;
+  @EC_GROUP_free := nil;
+  @EC_GROUP_get_curve_name := nil;
+  @EC_KEY_set_asn1_flag := nil;
+  @EC_POINT_new := nil;
+  @EC_POINT_free := nil;
+  @EC_POINT_get_affine_coordinates_GFp := nil;
+  @EC_POINT_set_affine_coordinates_GFp := nil;
+  @BN_CTX_new := nil;
+  @BN_CTX_free := nil;
+  @BN_new := nil;
+  @BN_free := nil;
+  FECKeySupportLoaded := False;
+  FECKeySupportAvailable := False;
 end;
 
 {$ENDIF}
