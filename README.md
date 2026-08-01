@@ -19,7 +19,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
 ![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
 
-[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL or pure-Pascal CryptoLib4Pascal).
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
@@ -49,26 +49,31 @@ If you need the OpenSSL library on the server, you can download the package dire
 
 ## :satellite: Custom crypto providers (bring your own crypto)
 
-Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every crypto and Base64 operation goes through a swappable provider registry, `TJOSEProviders` (`JOSE.Providers`), instead of calling OpenSSL directly. Two provider stacks ship with the library:
+Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every crypto and Base64 operation goes through a swappable provider registry, `TJOSEProviders` (`JOSE.Providers`), instead of calling OpenSSL directly. Three provider stacks ship with the library:
 
 | Provider stack | Unit | Backing library | Notes |
 | --------------- | ---- | ---------------- | ----- |
-| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above), and is currently the only stack that implements [JWK](#json-web-key-jwk-support) PEM import/export |
+| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x/1.1.x (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). Pokes a few raw OpenSSL struct fields internally, so it does **not** work against OpenSSL 3.x/4.x (those structs are opaque) — use `TJOSETaurusTLSProviders` for that. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
+| `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them) |
 | `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it |
 
-Switching to the CryptoLib4Pascal-backed stack (and back):
+Switching to the TaurusTLS-backed stack (OpenSSL 3.x/4.x) or the CryptoLib4Pascal-backed stack (and back):
 
 ```delphi
 uses
   JOSE.Providers,
+  JOSE.Providers.TaurusTLS,
   JOSE.Providers.CryptoLib;
 
 begin
+  TJOSETaurusTLSProviders.Register; // OpenSSL 3.x/4.x capable, via TaurusTLS
+  ...
+
   TJOSECryptoLibProviders.Register; // from here on, no OpenSSL DLL is needed for HS/RS/ES signing
   ...
 
   TJOSECryptoLibProviders.Unregister;
-  TJOSEProviders.RegisterProvider;  // back to the OpenSSL-backed default
+  TJOSEProviders.RegisterProvider;  // back to the OpenSSL 1.x-backed default
 end;
 ```
 
