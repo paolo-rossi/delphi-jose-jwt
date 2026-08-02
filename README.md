@@ -54,8 +54,10 @@ Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every cr
 | Provider stack | Unit | Backing library | Notes |
 | --------------- | ---- | ---------------- | ----- |
 | `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x/1.1.x (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). Pokes a few raw OpenSSL struct fields internally, so it does **not** work against OpenSSL 3.x/4.x (those structs are opaque) — use `TJOSETaurusTLSProviders` for that. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
-| `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them) |
-| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it |
+| `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them). Exercised by its own test project, `Tests\JOSE.Tests.TaurusTLS.dproj` |
+| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it. Exercised by its own test project, `Tests\JOSE.Tests.CryptoLib.dproj` (also needs `HashLib4Pascal` and `SimpleBaseLib4Pascal`, both vendored under `Libs\`) |
+
+> :warning: **Unlike the default (OpenSSL/Indy) stack, `TJOSETaurusTLSProviders` and `TJOSECryptoLibProviders` are *not* built into the JOSE `.dpk` packages.** Using either one in your own project means adding its unit(s) and backing library to your project manually (see the table above). Same story for the test suite: `Tests\JOSE.Tests.TaurusTLS.dproj` and `Tests\JOSE.Tests.CryptoLib.dproj` are separate projects from `Tests\JOSE.Tests.dproj` precisely because each pulls in its own extra, non-`.dpk` dependencies — see [Running the tests](#test_tube-running-the-tests) below before trying to build them.
 
 Switching to the TaurusTLS-backed stack (OpenSSL 3.x/4.x) or the CryptoLib4Pascal-backed stack (and back):
 
@@ -263,6 +265,25 @@ Optional, only if you [switch to the CryptoLib4Pascal provider stack](#custom-cr
 
 #### Indy notes
 - Please use always the latest version [from GitHub](https://github.com/IndySockets/Indy)
+
+## :test_tube: Running the tests
+
+The DUnitX-based test suite is split across three projects, one per crypto stack:
+
+| Project | Covers | Extra setup |
+| ------- | ------ | ------------ |
+| `Tests\JOSE.Tests.dproj` | Core JOSE/JWT/JWK/JWS + the default OpenSSL 1.x provider stack | None |
+| `Tests\JOSE.Tests.TaurusTLS.dproj` | `TJOSETaurusTLSProviders` (OpenSSL 1.1.x/3.x/4.x) | Needs `Libs\TaurusTLS` (vendored) and OpenSSL 3.x/4.x DLLs discoverable at runtime |
+| `Tests\JOSE.Tests.CryptoLib.dproj` | `TJOSECryptoLibProviders` (pure-Pascal) | Needs `Libs\CryptoLib4Pascal`, `Libs\HashLib4Pascal` and `Libs\SimpleBaseLib4Pascal` (vendored); run `Libs\build-cryptolib-deps.ps1` once beforehand to precompile them into `Libs\_build` (their combined source tree is too deep for a single Delphi unit search path) |
+
+Each builds to its own console exe under `Tests\Exe`. From a Delphi command prompt (`rsvars.bat` run, or `msbuild` on `PATH`):
+
+```
+msbuild "Tests\JOSE.Tests.dproj" /p:Config=Debug /p:Platform=Win32
+Tests\Exe\JOSE.Tests.exe
+```
+
+...and likewise for the other two `.dproj` files.
 
 ## :floppy_disk: Installation
 

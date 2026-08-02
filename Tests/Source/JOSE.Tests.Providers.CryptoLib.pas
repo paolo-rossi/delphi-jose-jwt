@@ -20,7 +20,7 @@
 {                                                                              }
 {******************************************************************************}
 
-unit JOSE.Tests.CryptoLib;
+unit JOSE.Tests.Providers.CryptoLib;
 
 interface
 
