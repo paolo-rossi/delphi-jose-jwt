@@ -60,7 +60,7 @@ type
     procedure TestUnregistered_ECKeyMaterial_Raises;
 
     [Test]
-    procedure TestKeyMaterialProviders_IndependentFromSigningStack;
+    procedure TestKeyMaterialSlots_CanBeClearedIndependentlyOfSigningStack;
 
     [Test]
     procedure TestRSAKeyMaterial_ImportPEM_ExtractsComponents;
@@ -72,11 +72,12 @@ type
     procedure TestRSAKeyMaterial_RejectsECPem;
 
     [Test]
-    [TestCase('P256', 'es256,P256')]
-    [TestCase('secp256k1', 'es256k,secp256k1')]
-    [TestCase('P384', 'es384,P384')]
-    [TestCase('P521', 'es512,P521')]
-    procedure TestECKeyMaterial_ImportPEM_ExtractsComponents(const AKeyFilePrefix: string; ACurve: TECCurve);
+    [TestCase('P256', 'es256,P256,32')]
+    [TestCase('secp256k1', 'es256k,secp256k1,32')]
+    [TestCase('P384', 'es384,P384,48')]
+    [TestCase('P521', 'es512,P521,66')]
+    procedure TestECKeyMaterial_ImportPEM_ExtractsComponents(const AKeyFilePrefix: string; ACurve: TECCurve;
+      AComponentLen: Integer);
 
     [Test]
     [TestCase('P256', 'es256,P256')]
@@ -144,11 +145,10 @@ begin
   );
 end;
 
-procedure TTestKeyMaterialProviders.TestKeyMaterialProviders_IndependentFromSigningStack;
+procedure TTestKeyMaterialProviders.TestKeyMaterialSlots_CanBeClearedIndependentlyOfSigningStack;
 begin
-  // Simulates a provider stack that doesn't implement raw key import/export (e.g. the
-  // CryptoLib4Pascal-backed TJOSECryptoLibProviders, which explicitly clears these two
-  // slots in TJOSECryptoLibProviders.Register - see JOSE.Providers.CryptoLib.pas).
+  // Both stacks that ship with the library implement raw key import/export, but the two slots stay
+  // optional: a caller assigning providers individually can leave them unset.
   TJOSEProviders.RSAKeyMaterial := nil;
   TJOSEProviders.ECKeyMaterial := nil;
 
@@ -253,7 +253,7 @@ begin
 end;
 
 procedure TTestKeyMaterialProviders.TestECKeyMaterial_ImportPEM_ExtractsComponents(const AKeyFilePrefix: string;
-  ACurve: TECCurve);
+  ACurve: TECCurve; AComponentLen: Integer);
 var
   LPem: TBytes;
   LMaterial: TJOSEECKeyMaterial;
@@ -262,10 +262,15 @@ begin
   LMaterial := TJOSEProviders.ECKeyMaterial.ImportPEM(LPem);
 
   Assert.AreEqual(ACurve, LMaterial.Curve);
-  Assert.IsTrue(Length(LMaterial.X) > 0, 'X should not be empty');
-  Assert.IsTrue(Length(LMaterial.Y) > 0, 'Y should not be empty');
   Assert.IsTrue(LMaterial.IsPrivate, 'Imported key should be reported as private');
-  Assert.IsTrue(Length(LMaterial.D) > 0, 'D should not be empty');
+
+  // RFC 7518 §§6.2.1.2/6.2.2.1: x, y and d are encoded as fixed-length octet
+  // strings. If the big-endian value has leading zero bytes, they MUST be
+  // retained (or added as left padding) so the encoded value has the curve's
+  // required length.
+  Assert.AreEqual<Integer>(AComponentLen, Length(LMaterial.X), 'X should be the full coordinate width');
+  Assert.AreEqual<Integer>(AComponentLen, Length(LMaterial.Y), 'Y should be the full coordinate width');
+  Assert.AreEqual<Integer>(AComponentLen, Length(LMaterial.D), 'D should be the full order width');
 end;
 
 procedure TTestKeyMaterialProviders.TestECKeyMaterial_ExportPEM_RoundTrips(const AKeyFilePrefix: string;
