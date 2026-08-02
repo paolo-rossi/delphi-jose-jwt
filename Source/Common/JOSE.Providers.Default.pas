@@ -870,6 +870,28 @@ begin
     JoseSSL.BN_bn2bin(ABN, @Result[0]);
 end;
 
+/// <summary>
+///   <c>BignumToBytes</c> left-padded to <paramref name="ALength" /> bytes. EC key components are
+///   fixed-width octet strings - the coordinate size of the curve for x/y (RFC 7518 6.2.1.2) and
+///   the order size for d (RFC 7518 6.2.2.1) - but <c>BN_bn2bin</c> emits the minimal encoding, so
+///   a component with a leading zero byte would otherwise come out short. Short components are not
+///   just non-conformant on the wire: they also change the canonical JSON that the RFC 7638
+///   thumbprint is computed over.
+/// </summary>
+function BignumToFixedBytes(ABN: PBIGNUM; ALength: Integer): TBytes;
+var
+  LRaw: TBytes;
+begin
+  LRaw := BignumToBytes(ABN);
+  if Length(LRaw) >= ALength then
+    Exit(LRaw);
+
+  SetLength(Result, ALength);
+  FillChar(Result[0], ALength, 0);
+  if Length(LRaw) > 0 then
+    Move(LRaw[0], Result[ALength - Length(LRaw)], Length(LRaw));
+end;
+
 function BytesToBignum(const AValue: TBytes): PBIGNUM;
 begin
   if Length(AValue) = 0 then
@@ -953,6 +975,11 @@ end;
 
 function RSAKeyToMaterial(ARsa: PRSA): TJOSERSAKeyMaterial;
 begin
+  // The result is written straight into the caller's variable, so the private components have to be
+  // cleared rather than left over from whatever that variable held before: importing a public key
+  // into a reused record would otherwise report IsPrivate and carry the previous key's secrets.
+  Result := Default(TJOSERSAKeyMaterial);
+
   Result.Modulus := BignumToBytes(ARsa.n);
   Result.PublicExponent := BignumToBytes(ARsa.e);
   if Assigned(ARsa.d) then
@@ -972,7 +999,11 @@ var
   LPoint: PEC_POINT;
   LPriv, LX, LY: PBIGNUM;
   LCtx: PBN_CTX;
+  LComponentLen: Integer;
 begin
+  // See RSAKeyToMaterial: clear before filling, so a reused record cannot keep a previous key's D.
+  Result := Default(TJOSEECKeyMaterial);
+
   Result.Curve := ACurve;
 
   LGroup := JoseSSL.EC_KEY_get0_group(AEC);
@@ -983,14 +1014,18 @@ begin
   if not Assigned(LPoint) then
     raise ESignException.Create(SJOSEJWKECNoPublicPoint);
 
+  // For every curve JOSE supports (P-256/P-384/P-521/secp256k1) the group order is the same width
+  // as a coordinate, so the field degree sizes x, y and d alike.
+  LComponentLen := (JoseSSL.EC_GROUP_get_degree(LGroup) + 7) div 8;
+
   LX := JoseSSL.BN_new();
   LY := JoseSSL.BN_new();
   LCtx := JoseSSL.BN_CTX_new();
   try
     if JoseSSL.EC_POINT_get_affine_coordinates_GFp(LGroup, LPoint, LX, LY, LCtx) <> 1 then
       raise ESignException.Create(SJOSEJWKECReadPublicPointError);
-    Result.X := BignumToBytes(LX);
-    Result.Y := BignumToBytes(LY);
+    Result.X := BignumToFixedBytes(LX, LComponentLen);
+    Result.Y := BignumToFixedBytes(LY, LComponentLen);
   finally
     JoseSSL.BN_free(LX);
     JoseSSL.BN_free(LY);
@@ -999,7 +1034,7 @@ begin
 
   LPriv := JoseSSL.EC_KEY_get0_private_key(AEC);
   if Assigned(LPriv) then
-    Result.D := BignumToBytes(LPriv);
+    Result.D := BignumToFixedBytes(LPriv, LComponentLen);
 end;
 
 function BuildECKey(const AKeyMaterial: TJOSEECKeyMaterial; ANID: Integer; AIncludePrivate: Boolean): PEC_KEY;

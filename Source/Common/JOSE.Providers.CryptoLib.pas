@@ -97,9 +97,26 @@ type
     function VerifyPrivateKey(const AKey: TBytes): Boolean;
   end;
 
+  /// <summary>CryptoLib-backed raw RSA key import/export (JWK PEM support).</summary>
+  TCryptoLibRSAKeyMaterialProvider = class(TInterfacedObject, IJOSERSAKeyMaterialProvider)
+  public
+    function ImportPEM(const APEM: TBytes): TJOSERSAKeyMaterial;
+    function ExportPEM(const AKeyMaterial: TJOSERSAKeyMaterial; AIncludePrivate: Boolean): TBytes;
+  end;
+
+  /// <summary>CryptoLib-backed raw EC key import/export (JWK PEM support).</summary>
+  TCryptoLibECKeyMaterialProvider = class(TInterfacedObject, IJOSEECKeyMaterialProvider)
+  strict private
+    class function CurveToOid(ACurve: TECCurve): IDerObjectIdentifier; static;
+    class function OidToCurve(const AOid: IDerObjectIdentifier): TECCurve; static;
+  public
+    function ImportPEM(const APEM: TBytes): TJOSEECKeyMaterial;
+    function ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
+  end;
+
   TJOSECryptoLibProviders = class
   public
-    /// <summary>Wires CryptoLib implementations into <see cref="JOSE.Providers|TJOSEProviders"/> (Base64, HMAC, cert, RSA, ECDSA).</summary>
+    /// <summary>Wires CryptoLib implementations into <see cref="JOSE.Providers|TJOSEProviders"/> (Base64, HMAC, cert, RSA, ECDSA, key material).</summary>
     class procedure Register; static;
     /// <summary>Clears <see cref="JOSE.Providers|TJOSEProviders"/> slots previously set by <see cref="Register"/>.</summary>
     class procedure Unregister; static;
@@ -130,7 +147,13 @@ uses
   ClpX9ObjectIdentifiers,
   ClpSecObjectIdentifiers,
   ClpIRsaParameters,
+  ClpRsaParameters,
   ClpIECParameters,
+  ClpECParameters,
+  ClpECGenerators,
+  ClpIECCommon,
+  ClpBigInteger,
+  ClpBigIntegerUtilities,
   SbpBase64,
   JOSE.Signing.Base;
 
@@ -158,6 +181,17 @@ resourcestring
   SJOSECryptoLibKeyNotECPublic = '[CryptoLib] Key is not an EC public key';
   SJOSECryptoLibKeyNotECPrivate = '[CryptoLib] Key is not an EC private key';
   SJOSECryptoLibECDSASignError = '[CryptoLib] ECDSA sign error: %s';
+  SJOSECryptoLibJWKEmptyPEMData = '[CryptoLib][JWK] Empty PEM data';
+  SJOSECryptoLibJWKExpectedKeyPEM = '[CryptoLib][JWK] Expected a key PEM, not an X.509 certificate PEM';
+  SJOSECryptoLibJWKNoKeyInPEM = '[CryptoLib][JWK] PEM does not contain a key';
+  SJOSECryptoLibJWKPEMNotRSA = '[CryptoLib][JWK] PEM does not contain an RSA key';
+  SJOSECryptoLibJWKPEMNotEC = '[CryptoLib][JWK] PEM does not contain an EC key';
+  SJOSECryptoLibJWKRSANoCRT = '[CryptoLib][JWK] RSA private key has no CRT components (public exponent unavailable)';
+  SJOSECryptoLibJWKECNoNamedCurve = '[CryptoLib][JWK] EC key does not use a named curve';
+  SJOSECryptoLibJWKMissingComponent = '[CryptoLib][JWK] Missing required key component [%s]';
+  SJOSECryptoLibJWKUnsupportedECCurve = '[CryptoLib][JWK] Unsupported EC curve';
+  SJOSECryptoLibJWKUnsupportedECCurveOID = '[CryptoLib][JWK] Unsupported EC curve (OID %s)';
+  SJOSECryptoLibJWKWritePEMError = '[CryptoLib][JWK] Unable to write the key PEM: %s';
 
 { TJOSECryptoLibPem }
 
@@ -175,7 +209,65 @@ type
     /// </summary>
     class function ReadPublicKey(const APem: TBytes; const ACertProvider: IJOSECertificateProvider;
       ACertExpected: TJOSECertificatePublicKey): IAsymmetricKeyParameter; static;
+    /// <summary>
+    /// Reads whichever key halves a PEM carries, for the key-material (JWK) providers: a key pair
+    /// PEM yields both, a lone private/public key PEM yields that one and leaves the other nil.
+    /// Unlike <see cref="ReadPrivateKey"/>/<see cref="ReadPublicKey"/> it accepts either kind, and
+    /// never accepts a certificate.
+    /// </summary>
+    class procedure ReadKeyMaterial(const APem: TBytes; out APrivateKey, APublicKey: IAsymmetricKeyParameter); static;
+    /// <summary>Writes any asymmetric key as PEM: RSA private keys as PKCS#1, EC private keys as
+    ///   SEC1, public keys as SPKI, which is what <c>TOpenSslPemWriter</c> emits per key type.</summary>
+    class function WriteKey(const AKey: IAsymmetricKeyParameter): TBytes; static;
   end;
+
+  /// <summary>Plumbing shared by the two key-material (JWK) providers.</summary>
+  TJOSECryptoLibKeyMaterial = class
+  public
+    /// <summary>The half of a decoded PEM that carries the most key material: a private key
+    ///   determines every JWK component, a public key only the public ones.</summary>
+    class function SelectKey(const APrivateKey, APublicKey: IAsymmetricKeyParameter): IAsymmetricKeyParameter; static;
+    /// <summary>Converts a required JWK key component, naming it in the error when it is absent.</summary>
+    class function RequiredComponent(const AValue: TBytes; const AName: string): TBigInteger; static;
+  end;
+
+class function TJOSECryptoLibPem.WriteKey(const AKey: IAsymmetricKeyParameter): TBytes;
+var
+  LStream: TMemoryStream;
+  LWriter: TOpenSslPemWriter;
+begin
+  LStream := TMemoryStream.Create;
+  try
+    LWriter := TOpenSslPemWriter.Create(LStream);
+    try
+      LWriter.WriteObject(TValue.From<IAsymmetricKeyParameter>(AKey));
+    finally
+      LWriter.Free;
+    end;
+    SetLength(Result, LStream.Size);
+    if LStream.Size > 0 then
+      Move(LStream.Memory^, Result[0], LStream.Size);
+  finally
+    LStream.Free;
+  end;
+end;
+
+{ TJOSECryptoLibKeyMaterial }
+
+class function TJOSECryptoLibKeyMaterial.SelectKey(const APrivateKey, APublicKey: IAsymmetricKeyParameter): IAsymmetricKeyParameter;
+begin
+  if Assigned(APrivateKey) then
+    Result := APrivateKey
+  else
+    Result := APublicKey;
+end;
+
+class function TJOSECryptoLibKeyMaterial.RequiredComponent(const AValue: TBytes; const AName: string): TBigInteger;
+begin
+  if Length(AValue) = 0 then
+    raise ESignException.CreateFmt(SJOSECryptoLibJWKMissingComponent, [AName]);
+  Result := TBigIntegerUtilities.FromUnsignedByteArray(AValue);
+end;
 
 { TCryptoLibBase64Provider }
 
@@ -374,6 +466,54 @@ begin
   end;
 end;
 
+class procedure TJOSECryptoLibPem.ReadKeyMaterial(const APem: TBytes; out APrivateKey, APublicKey: IAsymmetricKeyParameter);
+var
+  LStream: TStringStream;
+  LReader: TOpenSslPemReader;
+  LVal: TValue;
+  LKp: IAsymmetricCipherKeyPair;
+  LCert: IX509Certificate;
+  LKey: IAsymmetricKeyParameter;
+begin
+  APrivateKey := nil;
+  APublicKey := nil;
+
+  LStream := TStringStream.Create(TEncoding.ASCII.GetString(APem));
+  try
+    LReader := TOpenSslPemReader.Create(LStream);
+    try
+      LVal := LReader.ReadObject();
+      if LVal.IsEmpty then
+        raise ESignException.Create(SJOSECryptoLibEmptyPEMObject);
+      if LVal.TryAsType<IX509Certificate>(LCert) and (LCert <> nil) then
+        raise ESignException.Create(SJOSECryptoLibJWKExpectedKeyPEM);
+
+      // A PKCS#1/SEC1 private key PEM decodes to a key pair, a PKCS#8 or SPKI PEM to a lone key.
+      if LVal.TryAsType<IAsymmetricKeyParameter>(LKey) and (LKey <> nil) then
+      begin
+        if LKey.IsPrivate then
+          APrivateKey := LKey
+        else
+          APublicKey := LKey;
+        Exit;
+      end;
+
+      if LVal.TryAsType<IAsymmetricCipherKeyPair>(LKp) and (LKp <> nil) then
+      begin
+        APrivateKey := LKp.Private;
+        APublicKey := LKp.Public;
+        Exit;
+      end;
+
+      raise ESignException.Create(SJOSECryptoLibJWKNoKeyInPEM);
+    finally
+      LReader.Free;
+    end;
+  finally
+    LStream.Free;
+  end;
+end;
+
 { TCryptoLibCertificateProvider }
 
 function TCryptoLibCertificateProvider.ExpectedCertPkAlg(AExpected: TJOSECertificatePublicKey): IDerObjectIdentifier;
@@ -389,24 +529,8 @@ begin
 end;
 
 function TCryptoLibCertificateProvider.WritePublicKeyPem(const APublicKey: IAsymmetricKeyParameter): TBytes;
-var
-  LStream: TMemoryStream;
-  LWriter: TOpenSslPemWriter;
 begin
-  LStream := TMemoryStream.Create;
-  try
-    LWriter := TOpenSslPemWriter.Create(LStream);
-    try
-      LWriter.WriteObject(TValue.From<IAsymmetricKeyParameter>(APublicKey));
-    finally
-      LWriter.Free;
-    end;
-    SetLength(Result, LStream.Size);
-    if LStream.Size > 0 then
-      Move(LStream.Memory^, Result[0], LStream.Size);
-  finally
-    LStream.Free;
-  end;
+  Result := TJOSECryptoLibPem.WriteKey(APublicKey);
 end;
 
 function TCryptoLibCertificateProvider.PublicKeyFromCertificate(const ACertificate: TBytes): TBytes;
@@ -718,6 +842,184 @@ begin
   end;
 end;
 
+{ TCryptoLibRSAKeyMaterialProvider }
+
+function TCryptoLibRSAKeyMaterialProvider.ImportPEM(const APEM: TBytes): TJOSERSAKeyMaterial;
+var
+  LPrivate, LPublic, LKey: IAsymmetricKeyParameter;
+  LRsa: IRsaKeyParameters;
+  LCrt: IRsaPrivateCrtKeyParameters;
+begin
+  Result := Default(TJOSERSAKeyMaterial);
+
+  if Length(APEM) = 0 then
+    raise ESignException.Create(SJOSECryptoLibJWKEmptyPEMData);
+
+  TJOSECryptoLibPem.ReadKeyMaterial(APEM, LPrivate, LPublic);
+  LKey := TJOSECryptoLibKeyMaterial.SelectKey(LPrivate, LPublic);
+
+  if not Supports(LKey, IRsaKeyParameters, LRsa) then
+    raise ESignException.Create(SJOSECryptoLibJWKPEMNotRSA);
+
+  Result.Modulus := TBigIntegerUtilities.AsUnsignedByteArray(LRsa.Modulus);
+
+  if not LRsa.IsPrivate then
+  begin
+    Result.PublicExponent := TBigIntegerUtilities.AsUnsignedByteArray(LRsa.Exponent);
+    Exit;
+  end;
+
+  // A private RSA key only carries the public exponent in its CRT form, which is what every PEM
+  // encoding CryptoLib can read (PKCS#1 and PKCS#8 alike) produces.
+  if not Supports(LKey, IRsaPrivateCrtKeyParameters, LCrt) then
+    raise ESignException.Create(SJOSECryptoLibJWKRSANoCRT);
+
+  Result.PublicExponent := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.PublicExponent);
+  Result.PrivateExponent := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.Exponent);
+  Result.P := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.P);
+  Result.Q := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.Q);
+  Result.DP := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.DP);
+  Result.DQ := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.DQ);
+  Result.QI := TBigIntegerUtilities.AsUnsignedByteArray(LCrt.QInv);
+end;
+
+function TCryptoLibRSAKeyMaterialProvider.ExportPEM(const AKeyMaterial: TJOSERSAKeyMaterial; AIncludePrivate: Boolean): TBytes;
+var
+  LKey: IAsymmetricKeyParameter;
+  LWritePrivate: Boolean;
+begin
+  LWritePrivate := AIncludePrivate and AKeyMaterial.IsPrivate;
+
+  if LWritePrivate then
+    LKey := TRsaPrivateCrtKeyParameters.Create(
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PrivateExponent, 'd'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.P, 'p'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Q, 'q'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DP, 'dp'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DQ, 'dq'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.QI, 'qi'))
+  else
+    LKey := TRsaKeyParameters.Create(False,
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'));
+
+  try
+    Result := TJOSECryptoLibPem.WriteKey(LKey);
+  except
+    on E: ESignException do
+      raise;
+    on E: Exception do
+      raise ESignException.CreateFmt(SJOSECryptoLibJWKWritePEMError, [E.Message]);
+  end;
+end;
+
+{ TCryptoLibECKeyMaterialProvider }
+
+class function TCryptoLibECKeyMaterialProvider.CurveToOid(ACurve: TECCurve): IDerObjectIdentifier;
+begin
+  case ACurve of
+    TECCurve.P256:      Result := TSecObjectIdentifiers.SecP256r1;
+    TECCurve.P384:      Result := TSecObjectIdentifiers.SecP384r1;
+    TECCurve.P521:      Result := TSecObjectIdentifiers.SecP521r1;
+    TECCurve.secp256k1: Result := TSecObjectIdentifiers.SecP256k1;
+  else
+    raise ESignException.Create(SJOSECryptoLibJWKUnsupportedECCurve);
+  end;
+end;
+
+class function TCryptoLibECKeyMaterialProvider.OidToCurve(const AOid: IDerObjectIdentifier): TECCurve;
+begin
+  if AOid = nil then
+    raise ESignException.Create(SJOSECryptoLibJWKECNoNamedCurve);
+
+  if AOid.ID = TSecObjectIdentifiers.SecP256r1.ID then
+    Result := TECCurve.P256
+  else if AOid.ID = TSecObjectIdentifiers.SecP384r1.ID then
+    Result := TECCurve.P384
+  else if AOid.ID = TSecObjectIdentifiers.SecP521r1.ID then
+    Result := TECCurve.P521
+  else if AOid.ID = TSecObjectIdentifiers.SecP256k1.ID then
+    Result := TECCurve.secp256k1
+  else
+    raise ESignException.CreateFmt(SJOSECryptoLibJWKUnsupportedECCurveOID, [AOid.ID]);
+end;
+
+function TCryptoLibECKeyMaterialProvider.ImportPEM(const APEM: TBytes): TJOSEECKeyMaterial;
+var
+  LPrivate, LPublic, LKey: IAsymmetricKeyParameter;
+  LEc: IECKeyParameters;
+  LEcPublic: IECPublicKeyParameters;
+  LEcPrivate: IECPrivateKeyParameters;
+  LPoint: IECPoint;
+begin
+  Result := Default(TJOSEECKeyMaterial);
+
+  if Length(APEM) = 0 then
+    raise ESignException.Create(SJOSECryptoLibJWKEmptyPEMData);
+
+  TJOSECryptoLibPem.ReadKeyMaterial(APEM, LPrivate, LPublic);
+  LKey := TJOSECryptoLibKeyMaterial.SelectKey(LPrivate, LPublic);
+
+  if not Supports(LKey, IECKeyParameters, LEc) then
+    raise ESignException.Create(SJOSECryptoLibJWKPEMNotEC);
+
+  Result.Curve := OidToCurve(LEc.PublicKeyParamSet);
+
+  // RFC 7518 6.2.2.1: "d" is the order-sized octet string, not the minimal encoding.
+  if Supports(LPrivate, IECPrivateKeyParameters, LEcPrivate) then
+    Result.D := TBigIntegerUtilities.AsUnsignedByteArray(
+      (LEcPrivate.Parameters.N.BitLength + 7) div 8, LEcPrivate.D);
+
+  // A PKCS#8 EC private key PEM decodes to a lone private key, so the public point has to be
+  // recovered from the scalar.
+  if Supports(LPublic, IECPublicKeyParameters, LEcPublic) then
+    LPoint := LEcPublic.Q
+  else if Assigned(LEcPrivate) then
+    LPoint := TECKeyPairGenerator.GetCorrespondingPublicKey(LEcPrivate).Q
+  else
+    raise ESignException.Create(SJOSECryptoLibJWKPEMNotEC);
+
+  LPoint := LPoint.Normalize;
+  Result.X := LPoint.AffineXCoord.GetEncoded;
+  Result.Y := LPoint.AffineYCoord.GetEncoded;
+end;
+
+function TCryptoLibECKeyMaterialProvider.ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
+var
+  LOid: IDerObjectIdentifier;
+  LDomain: IECNamedDomainParameters;
+  LPoint: IECPoint;
+  LKey: IAsymmetricKeyParameter;
+  LWritePrivate: Boolean;
+begin
+  LWritePrivate := AIncludePrivate and AKeyMaterial.IsPrivate;
+
+  LOid := CurveToOid(AKeyMaterial.Curve);
+  LDomain := TECNamedDomainParameters.LookupOid(LOid);
+
+  // Built for both branches: it validates x/y against the curve even when the private scalar is
+  // what ends up in the PEM.
+  LPoint := LDomain.Curve.CreatePoint(
+    TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.X, 'x'),
+    TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Y, 'y'));
+
+  if LWritePrivate then
+    LKey := TECPrivateKeyParameters.Create('EC', TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.D, 'd'), LOid)
+  else
+    LKey := TECPublicKeyParameters.Create('EC', LPoint, LOid);
+
+  try
+    Result := TJOSECryptoLibPem.WriteKey(LKey);
+  except
+    on E: ESignException do
+      raise;
+    on E: Exception do
+      raise ESignException.CreateFmt(SJOSECryptoLibJWKWritePEMError, [E.Message]);
+  end;
+end;
+
 { TJOSECryptoLibProviders }
 
 class procedure TJOSECryptoLibProviders.Register;
@@ -730,11 +1032,8 @@ begin
   TJOSEProviders.Certificate := LCert;
   TJOSEProviders.RSA := TCryptoLibRSAProvider.Create(LCert);
   TJOSEProviders.ECDSA := TCryptoLibECDSAProvider.Create(LCert);
-  // No CryptoLib-backed raw key import/export (JWK PEM support) yet: clear these rather than
-  // leaving a stale OpenSSL-backed provider active, so JWK.FromPEM/ToPEM honestly raise
-  // "not registered" instead of silently depending on OpenSSL under a CryptoLib-only stack.
-  TJOSEProviders.RSAKeyMaterial := nil;
-  TJOSEProviders.ECKeyMaterial := nil;
+  TJOSEProviders.RSAKeyMaterial := TCryptoLibRSAKeyMaterialProvider.Create;
+  TJOSEProviders.ECKeyMaterial := TCryptoLibECKeyMaterialProvider.Create;
 end;
 
 class procedure TJOSECryptoLibProviders.Unregister;

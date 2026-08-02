@@ -220,7 +220,7 @@ begin
     LKey2.Kid := 'key-two';
     LSet.AddKey(LKey2);
 
-    Assert.AreEqual(2, LSet.Keys.Count);
+    Assert.AreEqual<Integer>(2, LSet.Keys.Count);
 
     LJson := LSet.ToJSON;
   finally
@@ -229,7 +229,7 @@ begin
 
   LParsed := TJSONWebKeySet.FromJSON(LJson);
   try
-    Assert.AreEqual(2, LParsed.Keys.Count);
+    Assert.AreEqual<Integer>(2, LParsed.Keys.Count);
 
     LFound := LParsed.FindByKid('key-one');
     Assert.IsNotNull(LFound, 'key-one should be found in the parsed JWKS');

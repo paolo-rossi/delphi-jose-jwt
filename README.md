@@ -55,7 +55,7 @@ Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every cr
 | --------------- | ---- | ---------------- | ----- |
 | `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x/1.1.x (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). Pokes a few raw OpenSSL struct fields internally, so it does **not** work against OpenSSL 3.x/4.x (those structs are opaque) — use `TJOSETaurusTLSProviders` for that. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
 | `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them) |
-| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it |
+| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it |
 
 Switching to the TaurusTLS-backed stack (OpenSSL 3.x/4.x) or the CryptoLib4Pascal-backed stack (and back):
 
@@ -94,7 +94,7 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 | `IJOSERSAKeyMaterialProvider` | Raw RSA key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
 | `IJOSEECKeyMaterialProvider` | Raw EC key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
 
-`RSAKeyMaterial`/`ECKeyMaterial` are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM`. Registering a stack without them (like `TJOSECryptoLibProviders` today) doesn't affect ordinary RSA/ECDSA signing; it just means `FromPEM`/`ToPEM` will raise until you either switch back to the default stack or provide your own implementation.
+`RSAKeyMaterial`/`ECKeyMaterial` are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM`. Every stack that ships with the library implements both, but if you assign providers individually and leave these two unset, ordinary RSA/ECDSA signing is unaffected; it just means `FromPEM`/`ToPEM` will raise until you supply an implementation.
 
 ## :question: What is JOSE
 
@@ -165,7 +165,7 @@ Full [RFC 7517](https://tools.ietf.org/html/rfc7517) JSON Web Key support, via `
 - `TJSONWebKeySet` for JWKS documents (`AddKey`, `FindByKid`, JSON round-trip)
 - A bridge (`ToKeyPair`/`FromKeyPair`) to the legacy `TJWK`/`TKeyPair` types, so a `TJSONWebKey` can be handed straight to `TJOSE.Sign`/`TJOSE.Verify`/`TJOSEProducer`
 
-PEM import/export is backed by the [crypto provider](#custom-crypto-providers-bring-your-own-crypto) currently registered; today that means the OpenSSL-backed default stack (see the table above).
+PEM import/export is backed by the [crypto provider](#custom-crypto-providers-bring-your-own-crypto) currently registered — every stack in the table above supports it, so `FromPEM`/`ToPEM` works with or without OpenSSL.
 
 #### Import a PEM key and sign a token with it
 
@@ -240,7 +240,6 @@ end;
 ##### Features
 - JWE support (there is partial implementation in [this PR](https://github.com/paolo-rossi/delphi-jose-jwt/pull/84))
 - More crypto providers on top of the [provider abstraction](#custom-crypto-providers-bring-your-own-crypto) (e.g. TMS Cryptography Pack) — OpenSSL and [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) are supported today
-- A CryptoLib4Pascal-backed `IJOSERSAKeyMaterialProvider`/`IJOSEECKeyMaterialProvider` implementation, so [JWK](#json-web-key-jwk-support) PEM import/export works without OpenSSL too (OpenSSL-backed provider only, for now)
 
 ##### Code
 - More unit tests
