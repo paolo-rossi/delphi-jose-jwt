@@ -169,6 +169,8 @@ Full [RFC 7517](https://tools.ietf.org/html/rfc7517) JSON Web Key support, via `
 
 PEM import/export is backed by the [crypto provider](#custom-crypto-providers-bring-your-own-crypto) currently registered — every stack in the table above supports it, so `FromPEM`/`ToPEM` works with or without OpenSSL.
 
+> :book: **[JWK Practical Guide](Docs/jwk-guide.md)** — reading a JWKS, extracting keys, signing with a JWK and validating an incoming token against a key set, memory ownership rules. Its snippets are the runnable `Samples\JWKGuide` console project.
+
 #### Import a PEM key and sign a token with it
 
 ```delphi
