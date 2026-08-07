@@ -27,6 +27,7 @@ uses
   System.SysUtils, System.Rtti, DUnitX.TestFramework,
 
   JOSE.Types.Bytes,
+  JOSE.Core.Base,
   JOSE.Core.JWT,
   JOSE.Core.JWA,
   JOSE.Core.JWK,
@@ -38,6 +39,11 @@ uses
 type
   [TestFixture]
   TTestJWK = class(TTestBase)
+  private
+    /// <summary>Signs a token with the private half of a PEM fixture, for tests whose subject is
+    ///   the public half.</summary>
+    function SignWithPrivateFixture(const AKeyFile: string; AAlg: TJOSEAlgorithmId;
+      const ASubject: string): TJOSEBytes;
   public
     [Setup]
     procedure Setup;
@@ -97,6 +103,31 @@ type
 
     [Test]
     procedure TestRSA_FromPEM_ToPEM_SignVerify;
+
+    [Test]
+    procedure TestRSA_FromPEM_PublicOnly;
+
+    [Test]
+    [TestCase('ES256', 'ES256,es256,P256')]
+    [TestCase('ES256K', 'ES256K,es256k,secp256k1')]
+    [TestCase('ES384', 'ES384,es384,P384')]
+    [TestCase('ES512', 'ES512,es512,P521')]
+    procedure TestEC_FromPEM_PublicOnly(AAlg: TJOSEAlgorithmId; const AKeyFilePrefix: string;
+      ACurve: TJOSEEllipticCurve);
+
+    [Test]
+    procedure TestToKeyPair_PublicOnlyKeyCannotSign;
+
+    [Test]
+    [TestCase('ES256', 'es256,P256,32')]
+    [TestCase('ES256K', 'es256k,secp256k1,32')]
+    [TestCase('ES384', 'es384,P384,48')]
+    [TestCase('ES512', 'es512,P521,66')]
+    procedure TestEC_ComponentsAreFixedWidth(const AKeyFilePrefix: string; ACurve: TJOSEEllipticCurve;
+      AComponentBytes: Integer);
+
+    [Test]
+    procedure TestEC_LeadingZeroCoordinateKeepsItsPadding;
 
     [Test]
     [TestCase('ES256', 'ES256,es256,P256')]
@@ -584,6 +615,227 @@ begin
   Assert.IsTrue(LMessage <> '', 'FromPEM should have raised EJOSEJWKException');
   Assert.IsTrue(Pos('RSA', LMessage) > 0, 'The error should mention the RSA attempt: ' + LMessage);
   Assert.IsTrue(Pos('EC', LMessage) > 0, 'The error should mention the EC attempt: ' + LMessage);
+end;
+
+function TTestJWK.SignWithPrivateFixture(const AKeyFile: string; AAlg: TJOSEAlgorithmId;
+  const ASubject: string): TJOSEBytes;
+var
+  LJWK: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LToken: TJWT;
+begin
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFile)));
+  try
+    LKeyPair := LJWK.ToKeyPair;
+    try
+      LToken := TJWT.Create;
+      try
+        LToken.Claims.Subject := ASubject;
+        Result := TJOSE.SerializeCompact(LKeyPair.PrivateKey, AAlg, LToken);
+      finally
+        LToken.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestRSA_FromPEM_PublicOnly;
+var
+  LJWK: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LVerified: TJWT;
+begin
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem')));
+  try
+    Assert.AreEqual(TJOSEKeyType.RSA, LJWK.Kty);
+    Assert.IsFalse(LJWK.IsPrivate, 'A public PEM must not import as a private key');
+
+    Assert.IsTrue(LJWK.D.IsEmpty, '[d] should be absent');
+    Assert.IsTrue(LJWK.P.IsEmpty, '[p] should be absent');
+    Assert.IsTrue(LJWK.Q.IsEmpty, '[q] should be absent');
+    Assert.IsTrue(LJWK.DP.IsEmpty, '[dp] should be absent');
+    Assert.IsTrue(LJWK.DQ.IsEmpty, '[dq] should be absent');
+    Assert.IsTrue(LJWK.QI.IsEmpty, '[qi] should be absent');
+
+    Assert.IsFalse(LJWK.N.IsEmpty, '[n] should be present');
+    Assert.IsFalse(LJWK.E.IsEmpty, '[e] should be present');
+    Assert.IsTrue(LJWK.IsValid, 'A public RSA key is structurally complete');
+
+    LKeyPair := LJWK.ToKeyPair;
+    try
+      // A key with no private half is still an asymmetric key. It used to come back labelled
+      // Symmetric, because the pair inferred its type by comparing two identical PEMs.
+      Assert.AreEqual(TKeyType.Asymmetric, LKeyPair.KeyType);
+      Assert.IsTrue(LKeyPair.PrivateKey.Key.IsEmpty, 'There is no private half to hand out');
+      Assert.IsFalse(LKeyPair.PublicKey.Key.IsEmpty, 'The public half should be a usable PEM');
+
+      LVerified := TJOSE.Verify(LKeyPair.PublicKey,
+        SignWithPrivateFixture('rsa-private.pem', TJOSEAlgorithmId.RS256, 'jwk-rsa-public-import'));
+      try
+        // Verify hands back the token either way, so the flag is the actual assertion.
+        Assert.IsTrue(LVerified.Verified,
+          'A token signed with the private half should verify against the imported public key');
+        Assert.AreEqual('jwk-rsa-public-import', LVerified.Claims.Subject);
+      finally
+        LVerified.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestEC_FromPEM_PublicOnly(AAlg: TJOSEAlgorithmId; const AKeyFilePrefix: string;
+  ACurve: TJOSEEllipticCurve);
+var
+  LJWK: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LVerified: TJWT;
+begin
+  LJWK := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFilePrefix + '-public.pem')));
+  try
+    Assert.AreEqual(TJOSEKeyType.EC, LJWK.Kty);
+    Assert.AreEqual(ACurve, LJWK.Crv);
+    Assert.IsFalse(LJWK.IsPrivate, 'A public PEM must not import as a private key');
+    Assert.IsTrue(LJWK.D.IsEmpty, '[d] should be absent');
+
+    Assert.IsFalse(LJWK.X.IsEmpty, '[x] should be present');
+    Assert.IsFalse(LJWK.Y.IsEmpty, '[y] should be present');
+    Assert.IsTrue(LJWK.IsValid, 'A public EC key is structurally complete');
+
+    LKeyPair := LJWK.ToKeyPair;
+    try
+      Assert.AreEqual(TKeyType.Asymmetric, LKeyPair.KeyType);
+      Assert.IsTrue(LKeyPair.PrivateKey.Key.IsEmpty, 'There is no private half to hand out');
+      Assert.IsFalse(LKeyPair.PublicKey.Key.IsEmpty, 'The public half should be a usable PEM');
+
+      LVerified := TJOSE.Verify(LKeyPair.PublicKey,
+        SignWithPrivateFixture(AKeyFilePrefix + '-private.pem', AAlg, 'jwk-ec-public-import'));
+      try
+        Assert.IsTrue(LVerified.Verified,
+          'A token signed with the private half should verify against the imported public key');
+        Assert.AreEqual('jwk-ec-public-import', LVerified.Claims.Subject);
+      finally
+        LVerified.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToKeyPair_PublicOnlyKeyCannotSign;
+var
+  LJWK: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LToken: TJWT;
+begin
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem')));
+  try
+    LKeyPair := LJWK.ToKeyPair;
+    try
+      LToken := TJWT.Create;
+      try
+        LToken.Claims.Subject := 'should-not-be-signable';
+
+        // The empty private half makes this fail on the key itself. The pair used to carry the
+        // public PEM here instead, which reads as a perfectly valid PEM that merely happens not
+        // to be a private key - so the failure surfaced from inside the PEM reader.
+        Assert.WillRaise(
+          procedure
+          begin
+            TJOSE.SerializeCompact(LKeyPair.PrivateKey, TJOSEAlgorithmId.RS256, LToken);
+          end,
+          EJOSEException, 'Signing with a public-only key pair should raise');
+      finally
+        LToken.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestEC_ComponentsAreFixedWidth(const AKeyFilePrefix: string;
+  ACurve: TJOSEEllipticCurve; AComponentBytes: Integer);
+var
+  LJWK: TJSONWebKey;
+begin
+  // RFC 7518 6.2.1.2 makes x and y fixed-width octet strings sized by the curve, and 6.2.2.1 does
+  // the same for d. The natural big-endian encoding of a bignum is minimal, so a component that
+  // happens to start with a zero byte comes out short unless the provider pads it back. Short
+  // components are not merely non-conformant on the wire: they change the canonical JSON that the
+  // RFC 7638 thumbprint is computed over, so the key gets a different identity.
+  LJWK := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFilePrefix + '-private.pem')));
+  try
+    Assert.AreEqual(ACurve, LJWK.Crv);
+    Assert.AreEqual<Integer>(AComponentBytes, Length(LJWK.X.AsBytes), '[x] width');
+    Assert.AreEqual<Integer>(AComponentBytes, Length(LJWK.Y.AsBytes), '[y] width');
+    Assert.AreEqual<Integer>(AComponentBytes, Length(LJWK.D.AsBytes), '[d] width');
+  finally
+    LJWK.Free;
+  end;
+
+  LJWK := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFilePrefix + '-public.pem')));
+  try
+    Assert.AreEqual<Integer>(AComponentBytes, Length(LJWK.X.AsBytes), '[x] width, public PEM');
+    Assert.AreEqual<Integer>(AComponentBytes, Length(LJWK.Y.AsBytes), '[y] width, public PEM');
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestEC_LeadingZeroCoordinateKeepsItsPadding;
+const
+  // es256-leadzero-*.pem exist for this test alone: a P-256 key whose x starts with a 0x00 byte,
+  // which is where dropping the padding would actually show. Roughly one key in 256 qualifies,
+  // so the ordinary fixtures are very unlikely to cover it.
+  EXPECTED_X = 'ANEt6MdD21hobBHdRjYhgwWA4VDKlMDuvmUd36i0cwg';
+  EXPECTED_Y = '-SpuEZLBVhbthPZL7LxDpeDjMA4xDH5RJr36haG4eEg';
+  // Over the padded x above. An unpadded x would encode as 0S3ox0PbWGhsEd1GNiGDBYDhUMqUwO6-ZR3fqLRzCA
+  // and hash to something else entirely, which is the whole point.
+  EXPECTED_THUMBPRINT = 'UJnUPHUb3GiV0efRrpg7fqmuaYrU_Q4KAPmZVXV1QEY';
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-leadzero-private.pem')));
+  try
+    Assert.AreEqual<Integer>(32, Length(LJWK.X.AsBytes),
+      '[x] must keep its leading zero byte, not shrink to 31 bytes');
+    Assert.AreEqual<Byte>(0, LJWK.X.AsBytes[0], '[x] should begin with the zero byte');
+
+    Assert.AreEqual(EXPECTED_X, TBase64.URLEncode(LJWK.X).AsString);
+    Assert.AreEqual(EXPECTED_Y, TBase64.URLEncode(LJWK.Y).AsString);
+    Assert.AreEqual(EXPECTED_THUMBPRINT, LJWK.Thumbprint.AsString);
+  finally
+    LJWK.Free;
+  end;
+
+  // The public PEM of the same key has to agree, component for component.
+  LJWK := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-leadzero-public.pem')));
+  try
+    Assert.AreEqual<Integer>(32, Length(LJWK.X.AsBytes));
+    Assert.AreEqual(EXPECTED_X, TBase64.URLEncode(LJWK.X).AsString);
+    Assert.AreEqual(EXPECTED_THUMBPRINT, LJWK.Thumbprint.AsString,
+      'A key and its public PEM are the same key, so they share a thumbprint');
+  finally
+    LJWK.Free;
+  end;
 end;
 
 procedure TTestJWK.TestRSA_FromPEM_ToPEM_SignVerify;
