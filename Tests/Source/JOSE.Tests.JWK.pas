@@ -130,6 +130,21 @@ type
     procedure TestEC_LeadingZeroCoordinateKeepsItsPadding;
 
     [Test]
+    [TestCase('RSA', 'rsa')]
+    [TestCase('ES256', 'es256')]
+    [TestCase('ES256K', 'es256k')]
+    [TestCase('ES384', 'es384')]
+    [TestCase('ES512', 'es512')]
+    [TestCase('P-256 leading-zero x', 'es256-leadzero')]
+    procedure TestPrivateAndPublicPEMsAgree(const AKeyFilePrefix: string);
+
+    [Test]
+    procedure TestInterop_RFC7517_RSAPublicKey;
+
+    [Test]
+    procedure TestInterop_RFC7515_ECPrivateKey;
+
+    [Test]
     [TestCase('RSA private', 'rsa-private.pem')]
     [TestCase('RSA public', 'rsa-public.pem')]
     [TestCase('ES256 private', 'es256-private.pem')]
@@ -211,17 +226,13 @@ begin
 end;
 
 procedure TTestJWK.TestRSA_Thumbprint_RFC7638Vector;
-const
-  // RFC 7638 Appendix A.1 worked example
-  N = '0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw';
-  E = 'AQAB';
-  EXPECTED_THUMBPRINT = 'NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs';
 var
   LJWK: TJSONWebKey;
 begin
-  LJWK := TJSONWebKey.CreateRSAPublic(TBase64.URLDecode(N), TBase64.URLDecode(E));
+  LJWK := TJSONWebKey.CreateRSAPublic(
+    TBase64.URLDecode(RFC7517_A1_MODULUS), TBase64.URLDecode('AQAB'));
   try
-    Assert.AreEqual(EXPECTED_THUMBPRINT, LJWK.Thumbprint.AsString);
+    Assert.AreEqual(RFC7517_A1_THUMBPRINT, LJWK.Thumbprint.AsString);
   finally
     LJWK.Free;
   end;
@@ -323,6 +334,37 @@ begin
   CheckRaises('{"kty":"oct"}');
 end;
 
+const
+  // RFC 7517 Appendix A.1 and RFC 7638 Appendix A.1 carry the same RSA public key.
+  RFC7517_A1_MODULUS =
+    '0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJ' +
+    'ECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW' +
+    '2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQ' +
+    'Fh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw';
+  RFC7517_A1_THUMBPRINT = 'NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs';
+
+  // RFC 7515 Appendix A.3, the ES256 worked example. Confirmed out-of-band: the point lies on
+  // P-256 and d regenerates it, so the three components are mutually consistent.
+  RFC7515_A3_EC_JWK =
+    '{"kty":"EC","crv":"P-256",' +
+    '"x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",' +
+    '"y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",' +
+    '"d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}';
+  RFC7515_A3_THUMBPRINT = 'oKIywvGUpTVTyxMQ3bwIIeQUudfr_CkLMjCE19ECD-U';
+
+/// <summary>
+///   Base64url form of a key component, for comparing two of them.
+/// </summary>
+/// <remarks>
+///   Not <c>AsString</c>: that is a UTF-8 decode, and key material is binary, so invalid
+///   sequences collapse to U+FFFD and two genuinely different components can compare equal.
+///   Base64url output is ASCII, so comparing it is exact.
+/// </remarks>
+function Enc(const AValue: TJOSEBytes): string;
+begin
+  Result := TBase64.URLEncode(AValue).AsString;
+end;
+
 // The assertion that matters most for ToPublicJWK: no private member survives into the document
 // that gets published. Checked on the serialised JSON, not just the properties, because that is
 // what actually leaves the process.
@@ -351,8 +393,8 @@ begin
       AssertNoPrivateMembers(LPublic.ToJSON);
 
       // The public half has to survive intact, or the twin is useless for verification.
-      Assert.AreEqual(LPrivate.N.AsString, LPublic.N.AsString, '[n] should carry across');
-      Assert.AreEqual(LPrivate.E.AsString, LPublic.E.AsString, '[e] should carry across');
+      Assert.AreEqual(Enc(LPrivate.N), Enc(LPublic.N), '[n] should carry across');
+      Assert.AreEqual(Enc(LPrivate.E), Enc(LPublic.E), '[e] should carry across');
       Assert.AreEqual(TJOSEKeyType.RSA, LPublic.Kty);
 
       // The original must not be modified in the process.
@@ -379,8 +421,8 @@ begin
       AssertNoPrivateMembers(LPublic.ToJSON);
 
       Assert.AreEqual(TJOSEEllipticCurve.P256, LPublic.Crv);
-      Assert.AreEqual(LPrivate.X.AsString, LPublic.X.AsString, '[x] should carry across');
-      Assert.AreEqual(LPrivate.Y.AsString, LPublic.Y.AsString, '[y] should carry across');
+      Assert.AreEqual(Enc(LPrivate.X), Enc(LPublic.X), '[x] should carry across');
+      Assert.AreEqual(Enc(LPrivate.Y), Enc(LPublic.Y), '[y] should carry across');
     finally
       LPublic.Free;
     end;
@@ -849,6 +891,141 @@ begin
       'A key and its public PEM are the same key, so they share a thumbprint');
   finally
     LJWK.Free;
+  end;
+end;
+
+// The fixtures under Tests/Keys were all generated for this repository, so every other test here
+// ultimately checks the library against itself. These two start from JWK documents published in
+// the RFCs - not produced by this code, and not by OpenSSL on this machine either.
+
+procedure TTestJWK.TestInterop_RFC7517_RSAPublicKey;
+var
+  LJWK, LReimported: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.FromJSON(
+    '{"kty":"RSA","n":"' + RFC7517_A1_MODULUS + '","e":"AQAB","alg":"RS256","kid":"2011-04-29"}');
+  try
+    Assert.AreEqual(TJOSEKeyType.RSA, LJWK.Kty);
+    Assert.AreEqual(TJOSEAlgorithmId.RS256, LJWK.Alg);
+    Assert.AreEqual('2011-04-29', LJWK.Kid);
+    Assert.IsFalse(LJWK.IsPrivate);
+    Assert.IsTrue(LJWK.IsValid);
+
+    // Published in RFC 7638 A.1, so this is an externally fixed value rather than one this
+    // library computed.
+    Assert.AreEqual(RFC7517_A1_THUMBPRINT, LJWK.Thumbprint.AsString);
+
+    // A foreign JWK has to survive the trip out to PEM and back.
+    LReimported := TJSONWebKey.FromPEM(LJWK.ToPEM(False));
+    try
+      Assert.AreEqual(Enc(LJWK.N), Enc(LReimported.N), '[n] should survive the PEM round trip');
+      Assert.AreEqual(Enc(LJWK.E), Enc(LReimported.E), '[e] should survive the PEM round trip');
+      Assert.AreEqual(RFC7517_A1_THUMBPRINT, LReimported.Thumbprint.AsString);
+    finally
+      LReimported.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestInterop_RFC7515_ECPrivateKey;
+var
+  LJWK: TJSONWebKey;
+  LKeyPair: TKeyPair;
+  LToken, LVerified: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  LJWK := TJSONWebKey.FromJSON(RFC7515_A3_EC_JWK);
+  try
+    Assert.AreEqual(TJOSEKeyType.EC, LJWK.Kty);
+    Assert.AreEqual(TJOSEEllipticCurve.P256, LJWK.Crv);
+    Assert.IsTrue(LJWK.IsPrivate);
+    Assert.IsTrue(LJWK.IsValid);
+    Assert.AreEqual<Integer>(32, Length(LJWK.X.AsBytes));
+    Assert.AreEqual<Integer>(32, Length(LJWK.Y.AsBytes));
+    Assert.AreEqual<Integer>(32, Length(LJWK.D.AsBytes));
+    Assert.AreEqual(RFC7515_A3_THUMBPRINT, LJWK.Thumbprint.AsString);
+
+    // The interop that matters: a key this library never generated, driving its signing path.
+    LKeyPair := LJWK.ToKeyPair;
+    try
+      Assert.AreEqual(TKeyType.Asymmetric, LKeyPair.KeyType);
+
+      LToken := TJWT.Create;
+      try
+        LToken.Claims.Subject := 'rfc7515-a3-interop';
+        LCompact := TJOSE.SerializeCompact(LKeyPair.PrivateKey, TJOSEAlgorithmId.ES256, LToken);
+      finally
+        LToken.Free;
+      end;
+
+      LVerified := TJOSE.Verify(LKeyPair.PublicKey, LCompact);
+      try
+        Assert.IsTrue(LVerified.Verified,
+          'A token signed with the RFC 7515 key should verify against its own public half');
+        Assert.AreEqual('rfc7515-a3-interop', LVerified.Claims.Subject);
+      finally
+        LVerified.Free;
+      end;
+    finally
+      LKeyPair.Free;
+    end;
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestPrivateAndPublicPEMsAgree(const AKeyFilePrefix: string);
+var
+  LFromPrivate, LFromPublic, LDerivedPublic: TJSONWebKey;
+begin
+  LFromPrivate := TJSONWebKey.FromPEM(
+    TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFilePrefix + '-private.pem')));
+  try
+    LFromPublic := TJSONWebKey.FromPEM(
+      TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFilePrefix + '-public.pem')));
+    try
+      Assert.IsTrue(LFromPrivate.IsPrivate, 'Precondition: the private fixture imports as private');
+      Assert.IsFalse(LFromPublic.IsPrivate, 'Precondition: the public fixture does not');
+      Assert.AreEqual(LFromPrivate.Kty, LFromPublic.Kty);
+
+      // The two files take different parse paths - a private key structure on one side, an SPKI
+      // or PKCS#1 public key on the other - so agreeing on every public component is a real
+      // cross-check between them rather than a tautology.
+      case LFromPrivate.Kty of
+        TJOSEKeyType.RSA:
+        begin
+          Assert.AreEqual(Enc(LFromPrivate.N), Enc(LFromPublic.N), '[n] should agree');
+          Assert.AreEqual(Enc(LFromPrivate.E), Enc(LFromPublic.E), '[e] should agree');
+        end;
+
+        TJOSEKeyType.EC:
+        begin
+          Assert.AreEqual(LFromPrivate.Crv, LFromPublic.Crv, '[crv] should agree');
+          Assert.AreEqual(Enc(LFromPrivate.X), Enc(LFromPublic.X), '[x] should agree');
+          Assert.AreEqual(Enc(LFromPrivate.Y), Enc(LFromPublic.Y), '[y] should agree');
+        end;
+      end;
+
+      // RFC 7638 hashes the public members only, so the two halves of a key pair are one
+      // identity - whichever half you happen to have loaded.
+      Assert.AreEqual(LFromPrivate.Thumbprint.AsString, LFromPublic.Thumbprint.AsString,
+        'A key pair has a single thumbprint');
+
+      // And stripping the private key down has to land exactly on the published public key.
+      LDerivedPublic := LFromPrivate.ToPublicJWK;
+      try
+        Assert.AreEqual(LFromPublic.ToJSON, LDerivedPublic.ToJSON,
+          'ToPublicJWK should reproduce the key that the public PEM imports to');
+      finally
+        LDerivedPublic.Free;
+      end;
+    finally
+      LFromPublic.Free;
+    end;
+  finally
+    LFromPrivate.Free;
   end;
 end;
 
