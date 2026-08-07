@@ -436,6 +436,28 @@ const
     'sign', 'verify', 'encrypt', 'decrypt', 'wrapKey', 'unwrapKey', 'deriveKey', 'deriveBits'
   );
 
+/// <summary>
+///   Parses AJSON and returns it as a JSON object, raising AError if it is not one.
+/// </summary>
+/// <remarks>
+///   ParseJSONValue returns whatever the document happens to be, so a well-formed non-object
+///   ("[]", "123", a bare string) has to be freed here: a hard cast to TJSONObject would raise
+///   EInvalidCast - the wrong exception class for a malformed JWK - and leak the parsed value.
+///   Malformed JSON comes back as nil, which fails the same type test.
+/// </remarks>
+function ParseJSONObject(const AJSON, AError: string): TJSONObject;
+var
+  LParsed: TJSONValue;
+begin
+  LParsed := TJSONObject.ParseJSONValue(AJSON);
+  if not (LParsed is TJSONObject) then
+  begin
+    LParsed.Free;
+    raise EJOSEJWKException.Create(AError);
+  end;
+  Result := TJSONObject(LParsed);
+end;
+
 { TJSONWebKey }
 
 function TJSONWebKey.GetStringMember(const AName: string): string;
@@ -799,15 +821,10 @@ begin
 end;
 
 class function TJSONWebKey.FromJSON(const AJSON: string): TJSONWebKey;
-var
-  LParsed: TJSONObject;
 begin
   Result := TJSONWebKey.Create;
   try
-    LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
-    if not Assigned(LParsed) then
-      raise EJOSEJWKException.Create(SJOSEJWKInvalidJSON);
-    Result.SetNewJSON(LParsed);
+    Result.SetNewJSON(ParseJSONObject(AJSON, SJOSEJWKInvalidJSON));
     Result.Kty; // Validates that [kty] is present and recognized
   except
     Result.Free;
@@ -1033,9 +1050,7 @@ var
 begin
   Result := TJSONWebKeySet.Create;
   try
-    LParsed := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
-    if not Assigned(LParsed) then
-      raise EJOSEJWKException.Create(SJOSEJWKSInvalidJSON);
+    LParsed := ParseJSONObject(AJSON, SJOSEJWKSInvalidJSON);
     try
       LKeysValue := LParsed.GetValue('keys');
       if Assigned(LKeysValue) and (LKeysValue is TJSONArray) then
