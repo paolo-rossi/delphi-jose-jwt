@@ -219,6 +219,10 @@ MIIBCgKCAQEA3+fRbSnigY+ibVisHjAc/3nyv23y4kC4pCoyDWcX9jWqb3m04L9S
 -----END RSA PUBLIC KEY-----
 ```
 
+> :information_source: That `RSA PUBLIC KEY` header is what the OpenSSL-backed stacks emit. The
+> CryptoLib stack writes the same key as a `PUBLIC KEY` (SPKI) block instead — see
+> [`ToPEM` output format is provider-dependent](#topem-output-format-is-provider-dependent).
+
 `LSet.Keys` is a `TObjectList<TJSONWebKey>` — index it, enumerate it, `Count` it. The keys belong
 to the set: **do not free** what `FindByKid` or the enumeration hands you, and do not use them after
 the set is freed.
@@ -511,6 +515,29 @@ Everything that does **not** touch PEM — `CreateOct`, `CreateRSAPublic`, `From
 
 If a provider is registered without key-material support, `FromPEM`/`ToPEM` raise
 `EJOSEProvidersNotRegistered`; ordinary signing and verification are unaffected.
+
+### `ToPEM` output format is provider-dependent
+
+All three stacks write a PEM that all three can read back, but they do not agree on *which*
+encoding to write. If you hand the output to something outside this library — an external tool, a
+config file, a remote system — it is worth knowing which you will get:
+
+| `ToPEM` call | Default / TaurusTLS (OpenSSL) | CryptoLib |
+|---|---|---|
+| RSA, `ToPEM(True)` | `RSA PRIVATE KEY` (PKCS#1) | `RSA PRIVATE KEY` (PKCS#1) |
+| RSA, `ToPEM(False)` | `RSA PUBLIC KEY` (PKCS#1) | **`PUBLIC KEY` (SPKI)** |
+| EC, `ToPEM(True)` | `PRIVATE KEY` (PKCS#8) | **`EC PRIVATE KEY` (SEC1)** |
+| EC, `ToPEM(False)` | `PUBLIC KEY` (SPKI) | `PUBLIC KEY` (SPKI) |
+
+So the two that differ are the RSA public key and the EC private key. The difference is purely in
+the container: the key material is identical either way, and `FromPEM` on any stack accepts every
+one of these forms, so round trips and cross-provider exchange both work. The RSA public example
+further up this page shows the OpenSSL stacks' `RSA PUBLIC KEY` output; under CryptoLib the same
+call produces a `PUBLIC KEY` block.
+
+If you need one specific encoding regardless of the registered provider, convert the PEM yourself
+rather than relying on `ToPEM` — for instance `openssl rsa -RSAPublicKey_in -pubout` to go from
+PKCS#1 to SPKI.
 
 ---
 

@@ -237,6 +237,14 @@ type
     /// <summary>Loads an RSA or EC key (public or private, PKCS1/PKCS8/SPKI/traditional-EC) from PEM.</summary>
     class function FromPEM(const APEM: TJOSEBytes): TJSONWebKey;
     /// <summary>Rebuilds a PEM (RSA or EC) from this key's components.</summary>
+    /// <remarks>
+    ///   The encoding depends on the registered provider. The OpenSSL-backed stacks write an RSA
+    ///   public key as PKCS#1 (<c>RSA PUBLIC KEY</c>) and an EC private key as PKCS#8
+    ///   (<c>PRIVATE KEY</c>); CryptoLib writes them as SPKI (<c>PUBLIC KEY</c>) and SEC1
+    ///   (<c>EC PRIVATE KEY</c>) respectively. Only the container differs, and <c>FromPEM</c>
+    ///   reads every one of these forms on every stack - but do not depend on a particular
+    ///   header when handing the result to something outside this library.
+    /// </remarks>
     function ToPEM(AIncludePrivate: Boolean = True): TJOSEBytes;
 
     /// <summary>Bridges to the legacy raw-bytes key model consumed by TJWS/TJOSE/TJOSEProducer.</summary>
