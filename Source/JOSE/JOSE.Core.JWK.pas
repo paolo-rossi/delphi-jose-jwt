@@ -276,6 +276,7 @@ resourcestring
   SJOSEJWKToKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for ToKeyPair';
   SJOSEJWKFromKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for FromKeyPair';
   SJOSEJWKSInvalidJSON = '[JWK] Invalid JWKS JSON';
+  SJOSEJWKSInvalidKeyElement = '[JWK] The [keys] array contains a value that is not a JWK object';
 
 { TJWK }
 
@@ -1045,6 +1046,7 @@ var
   LParsed: TJSONObject;
   LKeysValue: TJSONValue;
   LKeysArray: TJSONArray;
+  LItem: TJSONValue;
   I: Integer;
   LKey: TJSONWebKey;
 begin
@@ -1058,9 +1060,22 @@ begin
         LKeysArray := LKeysValue as TJSONArray;
         for I := 0 to LKeysArray.Count - 1 do
         begin
+          // Checked before cloning: a hard cast on a non-object element would raise EInvalidCast
+          // and leak the clone.
+          LItem := LKeysArray.Items[I];
+          if not (LItem is TJSONObject) then
+            raise EJOSEJWKException.Create(SJOSEJWKSInvalidKeyElement);
+
+          // The key only belongs to the set once it is added, so anything that fails while it is
+          // being filled in has to free it here.
           LKey := TJSONWebKey.Create;
-          LKey.SetNewJSON(LKeysArray.Items[I].Clone as TJSONObject);
-          LKey.Kty; // Validates that [kty] is present and recognized
+          try
+            LKey.SetNewJSON(LItem.Clone as TJSONObject);
+            LKey.Kty; // Validates that [kty] is present and recognized
+          except
+            LKey.Free;
+            raise;
+          end;
           Result.FKeys.Add(LKey);
         end;
       end;
