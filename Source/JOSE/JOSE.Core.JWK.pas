@@ -324,10 +324,43 @@ type
     procedure AddKey(AKey: TJSONWebKey);
 
     /// <summary>
+    ///   Removes AKey from the set and **frees** it, returning False if it was not there. Passing
+    ///   nil is a no-op.
+    /// </summary>
+    /// <remarks>
+    ///   The set owns its keys, so the reference is dangling once this returns - do not use AKey
+    ///   afterwards. To move a key to another set, use <c>Keys.Extract</c> instead, which gives
+    ///   up ownership without destroying it.
+    /// </remarks>
+    function Remove(AKey: TJSONWebKey): Boolean;
+
+    /// <summary>Removes and frees every key in the set.</summary>
+    /// <remarks>
+    ///   Hides <c>TJOSEBase.Clear</c>, which empties only the JSON document and would leave a key
+    ///   set holding keys it had just claimed to have discarded.
+    /// </remarks>
+    procedure Clear;
+
+    /// <summary>
     ///   The key with this [kid], or nil. An empty AKid never matches,
     ///   including against keys that carry no [kid] of their own.
     /// </summary>
     function FindByKid(const AKid: string): TJSONWebKey;
+
+    /// <summary>
+    ///   The key with this [kid] that is usable with AAlg, or nil.
+    /// </summary>
+    /// <remarks>
+    ///   [alg] is optional in a JWK and most published sets omit it, so a key that does not
+    ///   declare one is treated as unconstrained and matches any AAlg - a strict comparison would
+    ///   return nil for very nearly every real-world JWKS. Passing <c>Unknown</c> as AAlg means
+    ///   the caller is not constraining either, making this equivalent to <c>FindByKid</c>. Only
+    ///   a key and a request that both name an algorithm, and disagree, fail to match.
+    ///   <para>This is key *selection*, not authorisation: it will hand back a key whose own
+    ///   [alg] is absent for whatever algorithm the token asked for, so keep enforcing an
+    ///   algorithm allowlist on the consumer side.</para>
+    /// </remarks>
+    function FindByKidAndAlg(const AKid: string; AAlg: TJOSEAlgorithmId): TJSONWebKey;
 
     class function FromJSON(const AJSON: string): TJSONWebKeySet;
     function ToJSON: string;
@@ -1289,6 +1322,18 @@ begin
   FKeys.Add(AKey);
 end;
 
+function TJSONWebKeySet.Remove(AKey: TJSONWebKey): Boolean;
+begin
+  // FKeys owns its items, so this destroys AKey rather than just unlinking it.
+  Result := Assigned(AKey) and (FKeys.Remove(AKey) >= 0);
+end;
+
+procedure TJSONWebKeySet.Clear;
+begin
+  FKeys.Clear;      // owns its items, so they are freed here
+  inherited Clear;  // and the document that described them goes too
+end;
+
 function TJSONWebKeySet.FindByKid(const AKid: string): TJSONWebKey;
 var
   LKey: TJSONWebKey;
@@ -1308,12 +1353,32 @@ begin
       Exit(LKey);
 end;
 
+function TJSONWebKeySet.FindByKidAndAlg(const AKid: string; AAlg: TJOSEAlgorithmId): TJSONWebKey;
+var
+  LKey: TJSONWebKey;
+begin
+  Result := nil;
+
+  // Same reasoning as FindByKid: an empty term would match the first key with no [kid] of its own.
+  if AKid = '' then
+    Exit;
+
+  for LKey in FKeys do
+    if LKey.Kid = AKid then
+      // Unknown on either side means "unconstrained", so only two stated algorithms can conflict.
+      if (AAlg = TJOSEAlgorithmId.Unknown) or (LKey.Alg = TJOSEAlgorithmId.Unknown) or
+         (LKey.Alg = AAlg) then
+        Exit(LKey);
+end;
+
 procedure TJSONWebKeySet.SyncJSON;
 var
   LArray: TJSONArray;
   LKey: TJSONWebKey;
 begin
-  Clear;
+  // Explicitly the base version: the Clear declared on this class discards the keys themselves,
+  // which is emphatically not what rebuilding the document from them should do.
+  inherited Clear;
   LArray := TJSONArray.Create;
   for LKey in FKeys do
     LArray.AddElement(LKey.Clone);

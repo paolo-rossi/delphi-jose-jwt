@@ -195,6 +195,15 @@ type
 
     [Test]
     procedure TestJWKS_FindByKid_EmptyKidNeverMatches;
+
+    [Test]
+    procedure TestJWKS_Remove;
+
+    [Test]
+    procedure TestJWKS_Clear;
+
+    [Test]
+    procedure TestJWKS_FindByKidAndAlg;
   end;
 
 implementation
@@ -1416,6 +1425,112 @@ begin
     Assert.IsNotNull(LSet.FindByKid('the-kid'),
       'A named key should still be found by its kid');
     Assert.AreEqual('identified', LSet.FindByKid('the-kid').K.AsString);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_Remove;
+var
+  LSet: TJSONWebKeySet;
+  LKept, LDropped, LOutsider: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKept := TJSONWebKey.CreateOct('secret-kept');
+    LKept.Kid := 'kept';
+    LSet.AddKey(LKept);
+
+    LDropped := TJSONWebKey.CreateOct('secret-dropped');
+    LDropped.Kid := 'dropped';
+    LSet.AddKey(LDropped);
+
+    Assert.IsTrue(LSet.Remove(LDropped), 'Removing a key that is in the set should report True');
+    Assert.AreEqual<Integer>(1, LSet.Keys.Count);
+    Assert.IsNull(LSet.FindByKid('dropped'));
+    Assert.IsNotNull(LSet.FindByKid('kept'));
+    Assert.IsTrue(Pos('"dropped"', LSet.ToJSON) = 0, 'The document should follow the removal');
+
+    // Nothing to remove: neither should touch the set, and neither should fault.
+    Assert.IsFalse(LSet.Remove(nil), 'Removing nil should report False');
+
+    LOutsider := TJSONWebKey.CreateOct('not-in-the-set');
+    try
+      Assert.IsFalse(LSet.Remove(LOutsider), 'Removing a key that is not in the set reports False');
+    finally
+      // Still ours to free - a failed Remove must not have taken ownership.
+      LOutsider.Free;
+    end;
+
+    Assert.AreEqual<Integer>(1, LSet.Keys.Count);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_Clear;
+var
+  LSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKey := TJSONWebKey.CreateOct('secret-one');
+    LKey.Kid := 'one';
+    LSet.AddKey(LKey);
+    LSet.AddKey(TJSONWebKey.CreateOct('secret-two'));
+    Assert.AreEqual<Integer>(2, LSet.Keys.Count);
+
+    LSet.Clear;
+
+    // The keys really are gone, not merely dropped from the cached document - which is what the
+    // inherited TJOSEBase.Clear would have done.
+    Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+    Assert.IsNull(LSet.FindByKid('one'));
+    Assert.IsTrue(Pos('"one"', LSet.ToJSON) = 0, 'A cleared set should serialise with no keys');
+
+    // And it is still a usable set afterwards.
+    LSet.AddKey(TJSONWebKey.CreateOct('secret-three'));
+    Assert.AreEqual<Integer>(1, LSet.Keys.Count);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FindByKidAndAlg;
+var
+  LSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKey := TJSONWebKey.CreateOct('secret-rs256');
+    LKey.Kid := 'declares-alg';
+    LKey.Alg := TJOSEAlgorithmId.RS256;
+    LSet.AddKey(LKey);
+
+    LKey := TJSONWebKey.CreateOct('secret-no-alg');
+    LKey.Kid := 'declares-nothing';
+    LSet.AddKey(LKey);
+
+    // Both sides state an algorithm and agree.
+    Assert.IsNotNull(LSet.FindByKidAndAlg('declares-alg', TJOSEAlgorithmId.RS256));
+
+    // Both state one and disagree - the only combination that fails.
+    Assert.IsNull(LSet.FindByKidAndAlg('declares-alg', TJOSEAlgorithmId.ES256),
+      'A key declaring RS256 should not answer a request for ES256');
+
+    // The key does not constrain itself, which is the common case in published sets.
+    Assert.IsNotNull(LSet.FindByKidAndAlg('declares-nothing', TJOSEAlgorithmId.RS256),
+      'A key with no [alg] should be usable with any algorithm');
+    Assert.IsNotNull(LSet.FindByKidAndAlg('declares-nothing', TJOSEAlgorithmId.ES256));
+
+    // The caller does not constrain either, so this degrades to FindByKid.
+    Assert.IsNotNull(LSet.FindByKidAndAlg('declares-alg', TJOSEAlgorithmId.Unknown));
+
+    // And it inherits FindByKid's refusal to match on an empty kid.
+    Assert.IsNull(LSet.FindByKidAndAlg('', TJOSEAlgorithmId.RS256));
+    Assert.IsNull(LSet.FindByKidAndAlg('no-such-kid', TJOSEAlgorithmId.RS256));
   finally
     LSet.Free;
   end;
