@@ -71,6 +71,12 @@ type
 
     [Test]
     procedure TestJWKS_RoundTrip;
+
+    [Test]
+    procedure TestJWKS_ReflectsEditsAfterAddKey;
+
+    [Test]
+    procedure TestJWKS_ReflectsRemovalThroughKeys;
   end;
 
 implementation
@@ -319,6 +325,57 @@ begin
     Assert.AreEqual(TJOSEKeyType.RSA, LFound.Kty);
   finally
     LParsed.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_ReflectsEditsAfterAddKey;
+var
+  LSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKey := TJSONWebKey.CreateOct('secret-one');
+    LKey.Kid := 'original';
+    LSet.AddKey(LKey);
+
+    // Keys hands out live, mutable keys, so the set cannot snapshot its JSON at AddKey time.
+    LKey.Kid := 'edited';
+
+    Assert.IsTrue(Pos('"edited"', LSet.ToJSON) > 0,
+      'ToJSON should reflect a kid changed after AddKey');
+    Assert.IsTrue(Pos('"original"', LSet.ToJSON) = 0,
+      'ToJSON should not still carry the kid the key had when it was added');
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_ReflectsRemovalThroughKeys;
+var
+  LSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKey := TJSONWebKey.CreateOct('secret-one');
+    LKey.Kid := 'removed-later';
+    LSet.AddKey(LKey);
+
+    LKey := TJSONWebKey.CreateOct('secret-two');
+    LKey.Kid := 'kept';
+    LSet.AddKey(LKey);
+
+    // Keys is the source of truth, including when it is mutated directly rather than via AddKey.
+    LSet.Keys.Delete(0);
+
+    Assert.AreEqual<Integer>(1, LSet.Keys.Count);
+    Assert.IsTrue(Pos('"removed-later"', LSet.ToJSON) = 0,
+      'ToJSON should reflect a key removed through Keys');
+    Assert.IsTrue(Pos('"kept"', LSet.ToJSON) > 0,
+      'ToJSON should still carry the remaining key');
+  finally
+    LSet.Free;
   end;
 end;
 

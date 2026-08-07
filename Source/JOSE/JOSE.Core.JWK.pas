@@ -250,18 +250,39 @@ type
   TJSONWebKeySet = class(TJOSEBase)
   private
     FKeys: TObjectList<TJSONWebKey>;
-    procedure RebuildJSON;
+    /// <summary>
+    ///   Rebuilds the underlying JSON document from <c>Keys</c>.
+    /// </summary>
+    /// <remarks>
+    ///   Called from every read path rather than from the mutators: <c>Keys</c>
+    ///   is a mutable list of mutable keys, so a caller can edit a key, or
+    ///   remove one, long after it was added. Nothing about the document can
+    ///   safely be cached across that.
+    /// </remarks>
+    procedure SyncJSON;
+    function GetSyncedJSON: TJSONObject;
+    function GetSyncedEncoded: TJOSEBytes;
+    function GetSyncedURLEncoded: TJOSEBytes;
   public
     constructor Create;
     destructor Destroy; override;
 
+    /// <summary>Appends AKey, taking ownership of it.</summary>
     procedure AddKey(AKey: TJSONWebKey);
     function FindByKid(const AKid: string): TJSONWebKey;
 
     class function FromJSON(const AJSON: string): TJSONWebKeySet;
     function ToJSON: string;
 
+    /// <summary>The keys in the set, owned by it. Freely mutable - the JSON output follows.</summary>
     property Keys: TObjectList<TJSONWebKey> read FKeys;
+
+    // Read-only, synchronising overrides of the TJOSEBase members. The inherited setters are
+    // deliberately not carried over: assigning a document straight to a key set would leave it
+    // disagreeing with Keys, which is the source of truth here.
+    property JSON: TJSONObject read GetSyncedJSON;
+    property Encoded: TJOSEBytes read GetSyncedEncoded;
+    property URLEncoded: TJOSEBytes read GetSyncedURLEncoded;
   end;
 
 implementation
@@ -1044,7 +1065,6 @@ end;
 procedure TJSONWebKeySet.AddKey(AKey: TJSONWebKey);
 begin
   FKeys.Add(AKey);
-  RebuildJSON;
 end;
 
 function TJSONWebKeySet.FindByKid(const AKid: string): TJSONWebKey;
@@ -1057,7 +1077,7 @@ begin
       Exit(LKey);
 end;
 
-procedure TJSONWebKeySet.RebuildJSON;
+procedure TJSONWebKeySet.SyncJSON;
 var
   LArray: TJSONArray;
   LKey: TJSONWebKey;
@@ -1067,6 +1087,22 @@ begin
   for LKey in FKeys do
     LArray.AddElement(LKey.Clone);
   TJSONUtils.SetJSONValue('keys', LArray, FJSON);
+end;
+
+function TJSONWebKeySet.GetSyncedJSON: TJSONObject;
+begin
+  SyncJSON;
+  Result := FJSON;
+end;
+
+function TJSONWebKeySet.GetSyncedEncoded: TJOSEBytes;
+begin
+  Result := TBase64.Encode(ToJSON);
+end;
+
+function TJSONWebKeySet.GetSyncedURLEncoded: TJOSEBytes;
+begin
+  Result := TBase64.URLEncode(ToJSON);
 end;
 
 class function TJSONWebKeySet.FromJSON(const AJSON: string): TJSONWebKeySet;
@@ -1107,7 +1143,6 @@ begin
           Result.FKeys.Add(LKey);
         end;
       end;
-      Result.RebuildJSON;
     finally
       LParsed.Free;
     end;
@@ -1119,6 +1154,7 @@ end;
 
 function TJSONWebKeySet.ToJSON: string;
 begin
+  SyncJSON;
   Result := JOSE.Core.Base.ToJSON(FJSON);
 end;
 
