@@ -274,6 +274,7 @@ resourcestring
   SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
   SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
   SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
+  SJOSEJWKThumbprintMissingMember = '[JWK] Unable to compute the thumbprint: missing required member [%s]';
   SJOSEJWKToPEMUnsupportedKeyType = '[JWK] ToPEM is only supported for RSA and EC keys';
   SJOSEJWKToKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for ToKeyPair';
   SJOSEJWKFromKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for FromKeyPair';
@@ -459,6 +460,21 @@ begin
     raise EJOSEJWKException.Create(AError);
   end;
   Result := TJSONObject(LParsed);
+end;
+
+/// <summary>
+///   Base64url-encodes a member that RFC 7638 3.2 requires in the thumbprint's canonical JSON,
+///   naming it in the error when it is absent.
+/// </summary>
+/// <remarks>
+///   An absent component would otherwise encode as "" and still produce a perfectly stable
+///   thumbprint - one that collides with every other incomplete key of the same type.
+/// </remarks>
+function RequiredThumbprintMember(const AValue: TJOSEBytes; const AName: string): string;
+begin
+  if AValue.IsEmpty then
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKThumbprintMissingMember, [AName]);
+  Result := TBase64.URLEncode(AValue).AsString;
 end;
 
 { TJSONWebKey }
@@ -855,13 +871,14 @@ function TJSONWebKey.BuildCanonicalJSON: string;
 begin
   case Kty of
     TJOSEKeyType.Oct:
-      Result := Format('{"k":"%s","kty":"oct"}', [TBase64.URLEncode(K).AsString]);
+      Result := Format('{"k":"%s","kty":"oct"}', [RequiredThumbprintMember(K, 'k')]);
     TJOSEKeyType.RSA:
       Result := Format('{"e":"%s","kty":"RSA","n":"%s"}',
-        [TBase64.URLEncode(E).AsString, TBase64.URLEncode(N).AsString]);
+        [RequiredThumbprintMember(E, 'e'), RequiredThumbprintMember(N, 'n')]);
     TJOSEKeyType.EC:
+      // Crv itself raises SJOSEJWKMissingCrv when [crv] is absent.
       Result := Format('{"crv":"%s","kty":"EC","x":"%s","y":"%s"}',
-        [Crv.AsString, TBase64.URLEncode(X).AsString, TBase64.URLEncode(Y).AsString]);
+        [Crv.AsString, RequiredThumbprintMember(X, 'x'), RequiredThumbprintMember(Y, 'y')]);
   else
     raise EJOSEJWKException.Create(SJOSEJWKThumbprintUnsupportedKeyType);
   end;

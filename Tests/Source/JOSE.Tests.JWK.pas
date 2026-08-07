@@ -51,6 +51,15 @@ type
     procedure TestRSA_Thumbprint_RFC7638Vector;
 
     [Test]
+    procedure TestEC_Thumbprint_Vector;
+
+    [Test]
+    procedure TestOct_Thumbprint_Vector;
+
+    [Test]
+    procedure TestThumbprint_IncompleteKeyRaises;
+
+    [Test]
     procedure TestRSA_FromPEM_ToPEM_SignVerify;
 
     [Test]
@@ -117,6 +126,75 @@ begin
   finally
     LJWK.Free;
   end;
+end;
+
+procedure TTestJWK.TestEC_Thumbprint_Vector;
+const
+  // es256-private.pem, whose public point is
+  //   x = a938f2836cfae62fb36f25195bc050f8af3b0cdb080916841fb172ed19b732c7
+  //   y = 97cbd22d48241455e25bb4eea4614034d26c7b6caa02d6cc79b1bb451319d83d
+  // giving the RFC 7638 canonical form
+  //   {"crv":"P-256","kty":"EC","x":"qTjyg2z65i-zbyUZW8BQ-K87DNsICRaEH7Fy7Rm3Msc",
+  //    "y":"l8vSLUgkFFXiW7TupGFANNJse2yqAtbMebG7RRMZ2D0"}
+  EXPECTED_THUMBPRINT = '2f6OViCVGhmX1WmwiXSQ-K66UWtUtCKjvC8YMI9yv5A';
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-private.pem')));
+  try
+    // RFC 7638 hashes the public members only, so the private key's thumbprint is its public
+    // twin's.
+    Assert.AreEqual(EXPECTED_THUMBPRINT, LJWK.Thumbprint.AsString);
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestOct_Thumbprint_Vector;
+const
+  // Canonical form {"k":"bXktc2hhcmVkLXNlY3JldC0wMTIzNDU2Nzg5","kty":"oct"}
+  EXPECTED_THUMBPRINT = '3sA40wYq1zJmPWHN9axHbLnbvNigRxfiwkBrjjdjWgI';
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.CreateOct('my-shared-secret-0123456789');
+  try
+    Assert.AreEqual(EXPECTED_THUMBPRINT, LJWK.Thumbprint.AsString);
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestThumbprint_IncompleteKeyRaises;
+
+  procedure CheckRaises(const AJson: string);
+  var
+    LJWK: TJSONWebKey;
+  begin
+    LJWK := TJSONWebKey.FromJSON(AJson);
+    try
+      // An absent member used to base64url-encode as "", producing a stable but meaningless
+      // thumbprint shared by every other incomplete key of the same type.
+      Assert.WillRaise(
+        procedure
+        begin
+          LJWK.Thumbprint;
+        end,
+        EJOSEJWKException,
+        'Thumbprint should reject the incomplete key ' + AJson);
+    finally
+      LJWK.Free;
+    end;
+  end;
+
+begin
+  CheckRaises('{"kty":"RSA"}');
+  CheckRaises('{"kty":"RSA","n":"AQAB"}');
+  CheckRaises('{"kty":"RSA","e":"AQAB"}');
+  CheckRaises('{"kty":"EC","crv":"P-256"}');
+  CheckRaises('{"kty":"EC","crv":"P-256","x":"AQAB"}');
+  CheckRaises('{"kty":"EC","x":"AQAB","y":"AQAB"}');
+  CheckRaises('{"kty":"oct"}');
 end;
 
 procedure TTestJWK.TestRSA_FromPEM_ToPEM_SignVerify;
