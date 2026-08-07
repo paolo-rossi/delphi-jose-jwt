@@ -297,6 +297,7 @@ resourcestring
   SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
   SJOSEJWKThumbprintMissingMember = '[JWK] Unable to compute the thumbprint: missing required member [%s]';
   SJOSEJWKToPEMUnsupportedKeyType = '[JWK] ToPEM is only supported for RSA and EC keys';
+  SJOSEJWKFromPEMUnrecognized = '[JWK] The PEM data was read neither as an RSA key (%s) nor as an EC key (%s)';
   SJOSEJWKToKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for ToKeyPair';
   SJOSEJWKFromKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for FromKeyPair';
   SJOSEJWKSInvalidJSON = '[JWK] Invalid JWKS JSON';
@@ -921,26 +922,49 @@ end;
 class function TJSONWebKey.FromPEM(const APEM: TJOSEBytes): TJSONWebKey;
 var
   LData: TBytes;
+  LRSAKeys: IJOSERSAKeyMaterialProvider;
+  LECKeys: IJOSEECKeyMaterialProvider;
   LRSAMaterial: TJOSERSAKeyMaterial;
   LECMaterial: TJOSEECKeyMaterial;
+  LIsRSA: Boolean;
+  LRSAError: string;
 begin
   LData := APEM.AsBytes;
 
-  try
-    LRSAMaterial := TJOSEProviders.RSAKeyMaterial.ImportPEM(LData);
-  except
-    // Not an RSA key (or an unsupported format for RSA) - try EC. If this also fails,
-    // its exception is the more relevant one and is left to propagate.
-    LECMaterial := TJOSEProviders.ECKeyMaterial.ImportPEM(LData);
+  // Resolved outside the handler below on purpose. The property getter raises when the slot is
+  // empty, and a missing provider registration is a configuration error - it must not be read as
+  // "this PEM is not RSA" and quietly retried as EC.
+  LRSAKeys := TJOSEProviders.RSAKeyMaterial;
 
+  LIsRSA := True;
+  try
+    LRSAMaterial := LRSAKeys.ImportPEM(LData);
+  except
+    on E: Exception do
+    begin
+      // Any read failure here means "not an RSA key, or not in a format this provider reads".
+      // The message is kept so it can still be reported if the EC attempt fails as well.
+      LIsRSA := False;
+      LRSAError := E.Message;
+    end;
+  end;
+
+  if LIsRSA then
+  begin
     Result := TJSONWebKey.Create;
     try
-      Result.Kty := TJOSEKeyType.EC;
-      Result.Crv := TJOSEEllipticCurve.FromECCurve(LECMaterial.Curve);
-      Result.X := LECMaterial.X;
-      Result.Y := LECMaterial.Y;
-      if LECMaterial.IsPrivate then
-        Result.D := LECMaterial.D;
+      Result.Kty := TJOSEKeyType.RSA;
+      Result.N := LRSAMaterial.Modulus;
+      Result.E := LRSAMaterial.PublicExponent;
+      if LRSAMaterial.IsPrivate then
+      begin
+        Result.D := LRSAMaterial.PrivateExponent;
+        Result.P := LRSAMaterial.P;
+        Result.Q := LRSAMaterial.Q;
+        Result.DP := LRSAMaterial.DP;
+        Result.DQ := LRSAMaterial.DQ;
+        Result.QI := LRSAMaterial.QI;
+      end;
     except
       Result.Free;
       raise;
@@ -948,20 +972,27 @@ begin
     Exit;
   end;
 
+  // Also outside the handler: without an EC reader there is no way to tell whether this is an EC
+  // key, so the registration error is the accurate thing to report.
+  LECKeys := TJOSEProviders.ECKeyMaterial;
+
+  try
+    LECMaterial := LECKeys.ImportPEM(LData);
+  except
+    on E: Exception do
+      // Neither reader recognised the data. Both messages go into the error: whichever attempt
+      // happened to run second is not necessarily the one that explains the input.
+      raise EJOSEJWKException.CreateFmt(SJOSEJWKFromPEMUnrecognized, [LRSAError, E.Message]);
+  end;
+
   Result := TJSONWebKey.Create;
   try
-    Result.Kty := TJOSEKeyType.RSA;
-    Result.N := LRSAMaterial.Modulus;
-    Result.E := LRSAMaterial.PublicExponent;
-    if LRSAMaterial.IsPrivate then
-    begin
-      Result.D := LRSAMaterial.PrivateExponent;
-      Result.P := LRSAMaterial.P;
-      Result.Q := LRSAMaterial.Q;
-      Result.DP := LRSAMaterial.DP;
-      Result.DQ := LRSAMaterial.DQ;
-      Result.QI := LRSAMaterial.QI;
-    end;
+    Result.Kty := TJOSEKeyType.EC;
+    Result.Crv := TJOSEEllipticCurve.FromECCurve(LECMaterial.Curve);
+    Result.X := LECMaterial.X;
+    Result.Y := LECMaterial.Y;
+    if LECMaterial.IsPrivate then
+      Result.D := LECMaterial.D;
   except
     Result.Free;
     raise;

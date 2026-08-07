@@ -63,6 +63,12 @@ type
     procedure TestThumbprint_IncompleteKeyRaises;
 
     [Test]
+    procedure TestFromPEM_RejectsUnreadableData;
+
+    [Test]
+    procedure TestFromPEM_UnreadableData_ReportsBothAttempts;
+
+    [Test]
     procedure TestRSA_FromPEM_ToPEM_SignVerify;
 
     [Test]
@@ -240,6 +246,52 @@ begin
   CheckRaises('{"kty":"EC","crv":"P-256","x":"AQAB"}');
   CheckRaises('{"kty":"EC","x":"AQAB","y":"AQAB"}');
   CheckRaises('{"kty":"oct"}');
+end;
+
+procedure TTestJWK.TestFromPEM_RejectsUnreadableData;
+
+  procedure CheckRaises(const APem: TJOSEBytes; const AWhy: string);
+  begin
+    // EJOSEJWKException, not whatever the second reader happened to raise: input neither reader
+    // recognises is a JWK-level failure, not an EC-specific one.
+    Assert.WillRaise(
+      procedure
+      begin
+        TJSONWebKey.FromPEM(APem).Free;
+      end,
+      EJOSEJWKException, AWhy);
+  end;
+
+begin
+  CheckRaises('', 'Empty data');
+  CheckRaises('not a pem at all', 'Data that is not PEM');
+  CheckRaises(
+    '-----BEGIN PUBLIC KEY-----'#13#10 +
+    'bm90IGEga2V5'#13#10 +
+    '-----END PUBLIC KEY-----'#13#10,
+    'PEM framing around a body that is not a key');
+  CheckRaises(
+    TFile.ReadAllBytes(TPath.Combine(TPath.Combine(FKeysPath, 'cert'), 'rsa-x509.pem')),
+    'An X.509 certificate is not a bare key PEM');
+end;
+
+procedure TTestJWK.TestFromPEM_UnreadableData_ReportsBothAttempts;
+var
+  LMessage: string;
+begin
+  LMessage := '';
+  try
+    TJSONWebKey.FromPEM('not a pem at all').Free;
+  except
+    on E: EJOSEJWKException do
+      LMessage := E.Message;
+  end;
+
+  // The RSA attempt's reason used to be discarded, leaving only the EC reader's complaint -
+  // which for genuinely-RSA-but-malformed input says the opposite of what is wrong.
+  Assert.IsTrue(LMessage <> '', 'FromPEM should have raised EJOSEJWKException');
+  Assert.IsTrue(Pos('RSA', LMessage) > 0, 'The error should mention the RSA attempt: ' + LMessage);
+  Assert.IsTrue(Pos('EC', LMessage) > 0, 'The error should mention the EC attempt: ' + LMessage);
 end;
 
 procedure TTestJWK.TestRSA_FromPEM_ToPEM_SignVerify;
