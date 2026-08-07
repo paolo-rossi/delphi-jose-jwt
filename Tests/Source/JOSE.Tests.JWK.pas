@@ -63,6 +63,24 @@ type
     procedure TestThumbprint_IncompleteKeyRaises;
 
     [Test]
+    procedure TestToPublicJWK_RSA_DropsEveryPrivateMember;
+
+    [Test]
+    procedure TestToPublicJWK_EC_DropsEveryPrivateMember;
+
+    [Test]
+    procedure TestToPublicJWK_CarriesMetadata;
+
+    [Test]
+    procedure TestToPublicJWK_ThumbprintIsUnchanged;
+
+    [Test]
+    procedure TestToPublicJWK_RejectsOct;
+
+    [Test]
+    procedure TestToPublicJWKSet_SkipsOctAndStripsPrivateMembers;
+
+    [Test]
     procedure TestValidate_RejectsIncompleteKeys;
 
     [Test]
@@ -258,6 +276,177 @@ begin
   CheckRaises('{"kty":"EC","crv":"P-256","x":"AQAB"}');
   CheckRaises('{"kty":"EC","x":"AQAB","y":"AQAB"}');
   CheckRaises('{"kty":"oct"}');
+end;
+
+// The assertion that matters most for ToPublicJWK: no private member survives into the document
+// that gets published. Checked on the serialised JSON, not just the properties, because that is
+// what actually leaves the process.
+procedure AssertNoPrivateMembers(const AJson: string);
+const
+  PRIVATE_MEMBERS: array[0..6] of string = ('"d":', '"p":', '"q":', '"dp":', '"dq":', '"qi":', '"k":');
+var
+  LMember: string;
+begin
+  for LMember in PRIVATE_MEMBERS do
+    Assert.IsTrue(Pos(LMember, AJson) = 0,
+      'A public JWK must not carry ' + LMember + ' - got ' + AJson);
+end;
+
+procedure TTestJWK.TestToPublicJWK_RSA_DropsEveryPrivateMember;
+var
+  LPrivate, LPublic: TJSONWebKey;
+begin
+  LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem')));
+  try
+    Assert.IsTrue(LPrivate.IsPrivate, 'Precondition: the fixture is a private key');
+
+    LPublic := LPrivate.ToPublicJWK;
+    try
+      Assert.IsFalse(LPublic.IsPrivate);
+      AssertNoPrivateMembers(LPublic.ToJSON);
+
+      // The public half has to survive intact, or the twin is useless for verification.
+      Assert.AreEqual(LPrivate.N.AsString, LPublic.N.AsString, '[n] should carry across');
+      Assert.AreEqual(LPrivate.E.AsString, LPublic.E.AsString, '[e] should carry across');
+      Assert.AreEqual(TJOSEKeyType.RSA, LPublic.Kty);
+
+      // The original must not be modified in the process.
+      Assert.IsTrue(LPrivate.IsPrivate, 'ToPublicJWK should not strip the key it was called on');
+    finally
+      LPublic.Free;
+    end;
+  finally
+    LPrivate.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToPublicJWK_EC_DropsEveryPrivateMember;
+var
+  LPrivate, LPublic: TJSONWebKey;
+begin
+  LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-private.pem')));
+  try
+    Assert.IsTrue(LPrivate.IsPrivate, 'Precondition: the fixture is a private key');
+
+    LPublic := LPrivate.ToPublicJWK;
+    try
+      Assert.IsFalse(LPublic.IsPrivate);
+      AssertNoPrivateMembers(LPublic.ToJSON);
+
+      Assert.AreEqual(TJOSEEllipticCurve.P256, LPublic.Crv);
+      Assert.AreEqual(LPrivate.X.AsString, LPublic.X.AsString, '[x] should carry across');
+      Assert.AreEqual(LPrivate.Y.AsString, LPublic.Y.AsString, '[y] should carry across');
+    finally
+      LPublic.Free;
+    end;
+  finally
+    LPrivate.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToPublicJWK_CarriesMetadata;
+var
+  LPrivate, LPublic: TJSONWebKey;
+begin
+  LPrivate := TJSONWebKey.FromJSON(
+    '{"kty":"RSA","n":"AQAB","e":"AQAB","d":"AQAB",' +
+    '"kid":"my-signing-key","use":"sig","alg":"RS256","x5t":"thumb"}');
+  try
+    LPublic := LPrivate.ToPublicJWK;
+    try
+      // Publishing a key without its kid would make the whole set unusable for key selection.
+      Assert.AreEqual('my-signing-key', LPublic.Kid);
+      Assert.AreEqual(TJOSEKeyUse.Signature, LPublic.Use);
+      Assert.AreEqual(TJOSEAlgorithmId.RS256, LPublic.Alg);
+      Assert.AreEqual('thumb', LPublic.X5t);
+      AssertNoPrivateMembers(LPublic.ToJSON);
+    finally
+      LPublic.Free;
+    end;
+  finally
+    LPrivate.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToPublicJWK_ThumbprintIsUnchanged;
+var
+  LPrivate, LPublic: TJSONWebKey;
+begin
+  LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem')));
+  try
+    LPublic := LPrivate.ToPublicJWK;
+    try
+      // RFC 7638 hashes the public members only, so a key and its public twin are the same key
+      // as far as the thumbprint is concerned. If this ever diverges, ToPublicJWK has altered
+      // something it should have copied verbatim.
+      Assert.AreEqual(LPrivate.Thumbprint.AsString, LPublic.Thumbprint.AsString);
+    finally
+      LPublic.Free;
+    end;
+  finally
+    LPrivate.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToPublicJWK_RejectsOct;
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.CreateOct('my-shared-secret-0123456789');
+  try
+    // Returning a copy here would be the worst outcome: the caller believes it is holding
+    // something publishable when it is holding the secret itself.
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWK.ToPublicJWK.Free;
+      end,
+      EJOSEJWKException, 'An oct key has no public half');
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestToPublicJWKSet_SkipsOctAndStripsPrivateMembers;
+var
+  LSet, LPublicSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    LKey := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem')));
+    LKey.Kid := 'rsa-key';
+    LSet.AddKey(LKey);
+
+    LKey := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-private.pem')));
+    LKey.Kid := 'ec-key';
+    LSet.AddKey(LKey);
+
+    // A symmetric key in the same set must not block publication of the other two.
+    LKey := TJSONWebKey.CreateOct('hmac-secret');
+    LKey.Kid := 'oct-key';
+    LSet.AddKey(LKey);
+
+    LPublicSet := LSet.ToPublicJWKSet;
+    try
+      Assert.AreEqual<Integer>(2, LPublicSet.Keys.Count, 'The oct key should have been skipped');
+      Assert.IsNull(LPublicSet.FindByKid('oct-key'));
+      Assert.IsNotNull(LPublicSet.FindByKid('rsa-key'));
+      Assert.IsNotNull(LPublicSet.FindByKid('ec-key'));
+
+      AssertNoPrivateMembers(LPublicSet.ToJSON);
+      // The encoded form, since that is how [k] would actually appear had the key survived.
+      Assert.IsTrue(Pos(TBase64.URLEncode('hmac-secret').AsString, LPublicSet.ToJSON) = 0,
+        'The symmetric secret must not appear anywhere in a published JWKS');
+
+      // The source set is untouched and still holds everything.
+      Assert.AreEqual<Integer>(3, LSet.Keys.Count);
+    finally
+      LPublicSet.Free;
+    end;
+  finally
+    LSet.Free;
+  end;
 end;
 
 procedure TTestJWK.TestValidate_RejectsIncompleteKeys;

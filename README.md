@@ -232,7 +232,7 @@ begin
 end;
 ```
 
-> **Note:** `TJSONWebKeySet.AddKey` snapshots the key's JSON representation at the moment it's added. Set properties like `Kid` on the `TJSONWebKey` *before* calling `AddKey`, not after.
+> **Note:** to publish a JWKS, strip the private material first: `TJSONWebKey.ToPublicJWK` returns the public half of an RSA or EC key (carrying `kid`/`use`/`alg` across), and `TJSONWebKeySet.ToPublicJWKSet` does the same for a whole set, skipping `oct` keys — which have no public half.
 
 ## Projects using Delphi JOSE and JWT
 

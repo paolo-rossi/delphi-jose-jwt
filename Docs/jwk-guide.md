@@ -227,26 +227,8 @@ the set is freed.
 
 ## Publishing your own JWKS
 
-Load your private signing key, strip it down to its public half, and publish that. There is no
-`ToPublicJWK` method, but building the public twin is three lines:
-
-```delphi
-function ExtractPublicKey(AKey: TJSONWebKey): TJSONWebKey;
-begin
-  case AKey.Kty of
-    TJOSEKeyType.RSA:
-      Result := TJSONWebKey.CreateRSAPublic(AKey.N, AKey.E);
-    TJOSEKeyType.EC:
-      Result := TJSONWebKey.CreateECPublic(AKey.Crv, AKey.X, AKey.Y);
-  else
-    raise EJOSEJWKException.Create('Only RSA and EC keys have a public half');
-  end;
-
-  Result.Kid := AKey.Kid;
-  Result.Use := AKey.Use;
-  Result.Alg := AKey.Alg;
-end;
-```
+Load your private signing key, strip it down to its public half with `ToPublicJWK`, and publish
+that:
 
 ```delphi
 var
@@ -257,11 +239,12 @@ begin
   try
     LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes('rsa-private.pem'));
     try
-      LPublic := ExtractPublicKey(LPrivate);
-      LPublic.Kid := LPrivate.Thumbprint;      // set members BEFORE AddKey
-      LPublic.Use := TJOSEKeyUse.Signature;
-      LPublic.Alg := TJOSEAlgorithmId.RS256;
-      LSet.AddKey(LPublic);                    // the set now owns LPublic
+      LPrivate.Kid := LPrivate.Thumbprint;
+      LPrivate.Use := TJOSEKeyUse.Signature;
+      LPrivate.Alg := TJOSEAlgorithmId.RS256;
+
+      LPublic := LPrivate.ToPublicJWK;   // kid/use/alg come across; d, p, q, dp, dq, qi do not
+      LSet.AddKey(LPublic);              // the set now owns LPublic
     finally
       LPrivate.Free;
     end;
@@ -279,9 +262,25 @@ Produces:
 {"keys":[{"kty":"RSA","n":"3-fRbSnigY-ibVisHjAc_3ny...","e":"AQAB","kid":"QkmVSGf0ngVOZXj1EyLfAYHJ_I44aOCaMnq47Jy3Hbc","use":"sig","alg":"RS256"}]}
 ```
 
-> :warning: **`AddKey` snapshots the key's JSON at the moment it is added.** Mutating a key after
-> `AddKey` changes the object but not what `ToJSON` emits. Always finish configuring a key
-> (especially `Kid`) *before* adding it to the set.
+`ToPublicJWK` copies members by allowlist rather than by deleting the private ones from a clone,
+so a member it does not recognise is dropped instead of published. `kid`, `use`, `alg`,
+`key_ops` and the `x5*` members carry across; unknown extension members do not. An `oct` key has
+no public half at all — `k` *is* the secret — so `ToPublicJWK` raises for one.
+
+If you already hold a whole set, `ToPublicJWKSet` does the same across it, skipping any `oct`
+keys rather than refusing the lot:
+
+```delphi
+LPublicSet := LSet.ToPublicJWKSet;
+try
+  Writeln(LPublicSet.ToJSON);
+finally
+  LPublicSet.Free;
+end;
+```
+
+> :bulb: The key set reads `Keys` afresh every time you serialise it, so you can keep configuring
+> a key after `AddKey` and `ToJSON` will reflect it.
 
 ---
 

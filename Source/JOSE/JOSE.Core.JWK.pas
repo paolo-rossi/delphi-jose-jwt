@@ -189,6 +189,7 @@ type
 
     function BuildCanonicalJSON: string;
     procedure CheckMember(const AValue: TJOSEBytes; const AName: string);
+    procedure CopyPublicMetadataTo(ATarget: TJSONWebKey);
   public
     constructor CreateOct(const ASecret: TJOSEBytes);
     constructor CreateRSAPublic(const AModulus, AExponent: TJOSEBytes);
@@ -215,6 +216,20 @@ type
     procedure Validate;
     /// <summary><c>Validate</c> as a test rather than an exception.</summary>
     function IsValid: Boolean;
+
+    /// <summary>
+    ///   A new key holding only this one's public half - the members that are safe to publish in
+    ///   a JWKS. Raises for <c>oct</c>, which has no public half.
+    /// </summary>
+    /// <remarks>
+    ///   Members are copied by allowlist, never by removing the private ones from a clone: an
+    ///   unrecognised member is dropped rather than published, so a future addition to the type
+    ///   cannot leak by omission. The cost is that unknown extension members do not survive.
+    ///   <c>kid</c>, <c>use</c>, <c>alg</c>, <c>key_ops</c> and the <c>x5*</c> members do; note
+    ///   that <c>key_ops</c> is carried verbatim, so a value such as <c>sign</c> follows the key
+    ///   onto its public twin and may want adjusting.
+    /// </remarks>
+    function ToPublicJWK: TJSONWebKey;
     /// <seealso href="https://tools.ietf.org/html/rfc7638">RFC 7638 JWK Thumbprint</seealso>
     function Thumbprint: TJOSEBytes;
 
@@ -294,6 +309,18 @@ type
     class function FromJSON(const AJSON: string): TJSONWebKeySet;
     function ToJSON: string;
 
+    /// <summary>
+    ///   A new set holding the public half of every RSA and EC key in this one - the JWKS you can
+    ///   publish. <c>oct</c> keys are skipped, not rejected.
+    /// </summary>
+    /// <remarks>
+    ///   Skipping rather than raising is what makes this usable on a mixed set: a symmetric
+    ///   secret has no public half and must never be published, but its presence is no reason to
+    ///   refuse to publish the asymmetric keys alongside it. See <c>TJSONWebKey.ToPublicJWK</c>
+    ///   for what each key carries across.
+    /// </remarks>
+    function ToPublicJWKSet: TJSONWebKeySet;
+
     /// <summary>The keys in the set, owned by it. Freely mutable - the JSON output follows.</summary>
     property Keys: TObjectList<TJSONWebKey> read FKeys;
 
@@ -314,6 +341,7 @@ resourcestring
   SJOSEJWKMissingKty = '[JWK] Missing required JWK member [kty]';
   SJOSEJWKMissingMember = '[JWK] Missing required member [%s] for a key of type [%s]';
   SJOSEJWKIncompleteRSACRT = '[JWK] An RSA private key must carry either all of [p, q, dp, dq, qi] or none of them';
+  SJOSEJWKNoPublicHalf = '[JWK] Only RSA and EC keys have a public half - an [oct] key is entirely secret';
   SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
   SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
   SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
@@ -976,6 +1004,44 @@ begin
   end;
 end;
 
+procedure TJSONWebKey.CopyPublicMetadataTo(ATarget: TJSONWebKey);
+begin
+  // Every setter here removes its member when handed an empty value, so metadata this key does
+  // not carry is simply not written to the target.
+  ATarget.Kid := Kid;
+  ATarget.Use := Use;
+  ATarget.Alg := Alg;
+  ATarget.KeyOps := KeyOps;
+  ATarget.X5u := X5u;
+  ATarget.X5c := X5c;
+  ATarget.X5t := X5t;
+  ATarget.X5tS256 := X5tS256;
+end;
+
+function TJSONWebKey.ToPublicJWK: TJSONWebKey;
+begin
+  // Refuses to build a public twin out of an incomplete key, rather than publishing a broken one.
+  Validate;
+
+  case Kty of
+    TJOSEKeyType.RSA:
+      Result := TJSONWebKey.CreateRSAPublic(N, E);
+    TJOSEKeyType.EC:
+      Result := TJSONWebKey.CreateECPublic(Crv, X, Y);
+  else
+    // [k] is the key itself, so an oct key is secret all the way down: there is nothing here to
+    // hand out, and silently returning a copy would be the worst possible answer.
+    raise EJOSEJWKException.Create(SJOSEJWKNoPublicHalf);
+  end;
+
+  try
+    CopyPublicMetadataTo(Result);
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
 function TJSONWebKey.BuildCanonicalJSON: string;
 begin
   case Kty of
@@ -1295,6 +1361,21 @@ function TJSONWebKeySet.ToJSON: string;
 begin
   SyncJSON;
   Result := JOSE.Core.Base.ToJSON(FJSON);
+end;
+
+function TJSONWebKeySet.ToPublicJWKSet: TJSONWebKeySet;
+var
+  LKey: TJSONWebKey;
+begin
+  Result := TJSONWebKeySet.Create;
+  try
+    for LKey in FKeys do
+      if LKey.Kty <> TJOSEKeyType.Oct then
+        Result.AddKey(LKey.ToPublicJWK);
+  except
+    Result.Free;
+    raise;
+  end;
 end;
 
 end.
