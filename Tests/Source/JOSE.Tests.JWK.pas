@@ -95,6 +95,9 @@ type
 
     [Test]
     procedure TestJWKS_AddKey_RejectsNil;
+
+    [Test]
+    procedure TestJWKS_FindByKid_EmptyKidNeverMatches;
   end;
 
 implementation
@@ -526,6 +529,35 @@ begin
       end,
       EJOSEJWKException);
     Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FindByKid_EmptyKidNeverMatches;
+var
+  LSet: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    // Carries no [kid] at all, so its Kid property reports ''.
+    LSet.AddKey(TJSONWebKey.CreateOct('unidentified'));
+
+    LKey := TJSONWebKey.CreateOct('identified');
+    LKey.Kid := 'the-kid';
+    LSet.AddKey(LKey);
+
+    // The empty term is what a JWS header with no [kid] yields. Matching it against the
+    // unidentified key would silently pick a key by position rather than by identity.
+    Assert.IsNull(LSet.FindByKid(''),
+      'An empty kid should not match the key that merely has no kid of its own');
+    Assert.IsNull(LSet.FindByKid('absent'),
+      'An unknown kid should not match anything');
+
+    Assert.IsNotNull(LSet.FindByKid('the-kid'),
+      'A named key should still be found by its kid');
+    Assert.AreEqual('identified', LSet.FindByKid('the-kid').K.AsString);
   finally
     LSet.Free;
   end;

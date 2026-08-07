@@ -269,6 +269,11 @@ type
 
     /// <summary>Appends AKey, taking ownership of it.</summary>
     procedure AddKey(AKey: TJSONWebKey);
+
+    /// <summary>
+    ///   The key with this [kid], or nil. An empty AKid never matches,
+    ///   including against keys that carry no [kid] of their own.
+    /// </summary>
     function FindByKid(const AKid: string): TJSONWebKey;
 
     class function FromJSON(const AJSON: string): TJSONWebKeySet;
@@ -1109,6 +1114,15 @@ var
   LKey: TJSONWebKey;
 begin
   Result := nil;
+
+  // A key carrying no [kid] reports '', so an empty search term would match the first
+  // unidentified key in the set - handing an arbitrary key to a caller that asked for a named
+  // one. The usual source of an empty term is a JWS header with no [kid] at all, which is
+  // precisely when picking a key by identity must fail rather than guess. Callers that want the
+  // lone key of a single-key set should read Keys directly.
+  if AKid = '' then
+    Exit;
+
   for LKey in FKeys do
     if LKey.Kid = AKid then
       Exit(LKey);
