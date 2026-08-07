@@ -301,6 +301,8 @@ resourcestring
   SJOSEJWKFromKeyPairUnsupportedKeyType = '[JWK] Unsupported key type for FromKeyPair';
   SJOSEJWKSInvalidJSON = '[JWK] Invalid JWKS JSON';
   SJOSEJWKSInvalidKeyElement = '[JWK] The [keys] array contains a value that is not a JWK object';
+  SJOSEJWKSMissingKeys = '[JWK] Missing or malformed required JWKS member [keys]';
+  SJOSEJWKSNilKey = '[JWK] Cannot add a nil key to the key set';
 
 { TJWK }
 
@@ -1064,6 +1066,10 @@ end;
 
 procedure TJSONWebKeySet.AddKey(AKey: TJSONWebKey);
 begin
+  // Rejected here rather than at the next read, where a nil entry would fault inside SyncJSON
+  // with nothing left to point at the call that put it there.
+  if not Assigned(AKey) then
+    raise EJOSEJWKException.Create(SJOSEJWKSNilKey);
   FKeys.Add(AKey);
 end;
 
@@ -1118,30 +1124,34 @@ begin
   try
     LParsed := ParseJSONObject(AJSON, SJOSEJWKSInvalidJSON);
     try
+      // RFC 7517 5 makes [keys] required, so an absent or non-array member is a malformed
+      // document, not a set that happens to be empty - the two read very differently when what
+      // you are looking at is an errored JWKS endpoint response. An empty array is legal and
+      // does yield an empty set. (nil is TJSONArray is False, covering the absent case too.)
       LKeysValue := LParsed.GetValue('keys');
-      if Assigned(LKeysValue) and (LKeysValue is TJSONArray) then
-      begin
-        LKeysArray := LKeysValue as TJSONArray;
-        for I := 0 to LKeysArray.Count - 1 do
-        begin
-          // Checked before cloning: a hard cast on a non-object element would raise EInvalidCast
-          // and leak the clone.
-          LItem := LKeysArray.Items[I];
-          if not (LItem is TJSONObject) then
-            raise EJOSEJWKException.Create(SJOSEJWKSInvalidKeyElement);
+      if not (LKeysValue is TJSONArray) then
+        raise EJOSEJWKException.Create(SJOSEJWKSMissingKeys);
 
-          // The key only belongs to the set once it is added, so anything that fails while it is
-          // being filled in has to free it here.
-          LKey := TJSONWebKey.Create;
-          try
-            LKey.SetNewJSON(LItem.Clone as TJSONObject);
-            LKey.Kty; // Validates that [kty] is present and recognized
-          except
-            LKey.Free;
-            raise;
-          end;
-          Result.FKeys.Add(LKey);
+      LKeysArray := TJSONArray(LKeysValue);
+      for I := 0 to LKeysArray.Count - 1 do
+      begin
+        // Checked before cloning: a hard cast on a non-object element would raise EInvalidCast
+        // and leak the clone.
+        LItem := LKeysArray.Items[I];
+        if not (LItem is TJSONObject) then
+          raise EJOSEJWKException.Create(SJOSEJWKSInvalidKeyElement);
+
+        // The key only belongs to the set once it is added, so anything that fails while it is
+        // being filled in has to free it here.
+        LKey := TJSONWebKey.Create;
+        try
+          LKey.SetNewJSON(LItem.Clone as TJSONObject);
+          LKey.Kty; // Validates that [kty] is present and recognized
+        except
+          LKey.Free;
+          raise;
         end;
+        Result.FKeys.Add(LKey);
       end;
     finally
       LParsed.Free;

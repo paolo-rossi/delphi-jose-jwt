@@ -48,6 +48,9 @@ type
     procedure TestOct_CreateAndJSONRoundTrip;
 
     [Test]
+    procedure TestJWK_FromJSON_RejectsMalformedDocuments;
+
+    [Test]
     procedure TestRSA_Thumbprint_RFC7638Vector;
 
     [Test]
@@ -77,6 +80,15 @@ type
 
     [Test]
     procedure TestJWKS_ReflectsRemovalThroughKeys;
+
+    [Test]
+    procedure TestJWKS_FromJSON_RejectsMalformedDocuments;
+
+    [Test]
+    procedure TestJWKS_FromJSON_AcceptsEmptyKeysArray;
+
+    [Test]
+    procedure TestJWKS_AddKey_RejectsNil;
   end;
 
 implementation
@@ -132,6 +144,33 @@ begin
   finally
     LJWK.Free;
   end;
+end;
+
+procedure TTestJWK.TestJWK_FromJSON_RejectsMalformedDocuments;
+
+  procedure CheckRaises(const AJson, AWhy: string);
+  begin
+    Assert.WillRaise(
+      procedure
+      begin
+        TJSONWebKey.FromJSON(AJson).Free;
+      end,
+      EJOSEJWKException, AWhy + ': ' + AJson);
+  end;
+
+begin
+  CheckRaises('not json', 'Malformed JSON');
+
+  // Well-formed JSON that is not an object: these used to escape as EInvalidCast, leaking the
+  // parsed value.
+  CheckRaises('[]', 'A JSON array is not a JWK');
+  CheckRaises('123', 'A JSON number is not a JWK');
+  CheckRaises('"a string"', 'A JSON string is not a JWK');
+
+  // RFC 7517 4.1: [kty] is required and has to be one this library knows.
+  CheckRaises('{}', 'Missing [kty]');
+  CheckRaises('{"use":"sig"}', 'Missing [kty]');
+  CheckRaises('{"kty":"XYZ"}', 'Unrecognized [kty]');
 end;
 
 procedure TTestJWK.TestEC_Thumbprint_Vector;
@@ -374,6 +413,67 @@ begin
       'ToJSON should reflect a key removed through Keys');
     Assert.IsTrue(Pos('"kept"', LSet.ToJSON) > 0,
       'ToJSON should still carry the remaining key');
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FromJSON_RejectsMalformedDocuments;
+
+  procedure CheckRaises(const AJson, AWhy: string);
+  begin
+    Assert.WillRaise(
+      procedure
+      begin
+        TJSONWebKeySet.FromJSON(AJson).Free;
+      end,
+      EJOSEJWKException, AWhy + ': ' + AJson);
+  end;
+
+begin
+  // Not a JSON object at all.
+  CheckRaises('not json', 'Malformed JSON');
+  CheckRaises('[]', 'A JSON array is not a JWKS document');
+  CheckRaises('123', 'A JSON number is not a JWKS document');
+
+  // RFC 7517 5: [keys] is required, and it has to be an array.
+  CheckRaises('{}', 'Missing [keys]');
+  CheckRaises('{"keys":{}}', '[keys] is an object, not an array');
+  CheckRaises('{"keys":"nope"}', '[keys] is a string, not an array');
+
+  // Elements have to be JWK objects.
+  CheckRaises('{"keys":[1,2]}', '[keys] holds numbers, not JWK objects');
+  CheckRaises('{"keys":[{"kty":"XYZ"}]}', 'Unrecognized [kty]');
+  CheckRaises('{"keys":[{"use":"sig"}]}', 'Missing [kty]');
+end;
+
+procedure TTestJWK.TestJWKS_FromJSON_AcceptsEmptyKeysArray;
+var
+  LSet: TJSONWebKeySet;
+begin
+  // A JWKS with no keys is a valid document - only an absent or non-array [keys] is malformed.
+  LSet := TJSONWebKeySet.FromJSON('{"keys":[]}');
+  try
+    Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_AddKey_RejectsNil;
+var
+  LSet: TJSONWebKeySet;
+begin
+  LSet := TJSONWebKeySet.Create;
+  try
+    // Rejected at the call, not later inside the JSON synchronisation.
+    Assert.WillRaise(
+      procedure
+      begin
+        LSet.AddKey(nil);
+      end,
+      EJOSEJWKException);
+    Assert.AreEqual<Integer>(0, LSet.Keys.Count);
   finally
     LSet.Free;
   end;
