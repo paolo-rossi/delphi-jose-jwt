@@ -188,6 +188,7 @@ type
     procedure SetY(const AValue: TJOSEBytes);
 
     function BuildCanonicalJSON: string;
+    procedure CheckMember(const AValue: TJOSEBytes; const AName: string);
   public
     constructor CreateOct(const ASecret: TJOSEBytes);
     constructor CreateRSAPublic(const AModulus, AExponent: TJOSEBytes);
@@ -200,6 +201,20 @@ type
 
     /// <summary>True if the type-appropriate private component(s) are present.</summary>
     function IsPrivate: Boolean;
+
+    /// <summary>
+    ///   Checks that the members RFC 7517/7518 require for this key's [kty] are present, raising
+    ///   <c>EJOSEJWKException</c> naming the first one that is not.
+    /// </summary>
+    /// <remarks>
+    ///   Deliberately not called from <c>FromJSON</c>: JWKS documents in the wild carry keys this
+    ///   library has no use for, and refusing to parse a whole set over one of them would be
+    ///   worse than letting the caller decide. <c>ToPEM</c> does call it, since it needs a
+    ///   complete key anyway and the provider's own complaint arrives with far less context.
+    /// </remarks>
+    procedure Validate;
+    /// <summary><c>Validate</c> as a test rather than an exception.</summary>
+    function IsValid: Boolean;
     /// <seealso href="https://tools.ietf.org/html/rfc7638">RFC 7638 JWK Thumbprint</seealso>
     function Thumbprint: TJOSEBytes;
 
@@ -297,6 +312,8 @@ resourcestring
   SJOSEJWKUnknownCurve = '[JWK] Unknown elliptic curve [crv]: %s';
   SJOSEJWKUnsupportedCurve = '[JWK] Unsupported EC curve';
   SJOSEJWKMissingKty = '[JWK] Missing required JWK member [kty]';
+  SJOSEJWKMissingMember = '[JWK] Missing required member [%s] for a key of type [%s]';
+  SJOSEJWKIncompleteRSACRT = '[JWK] An RSA private key must carry either all of [p, q, dp, dq, qi] or none of them';
   SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
   SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
   SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
@@ -896,6 +913,69 @@ begin
   end;
 end;
 
+procedure TJSONWebKey.CheckMember(const AValue: TJOSEBytes; const AName: string);
+begin
+  if AValue.IsEmpty then
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKMissingMember, [AName, Kty.AsString]);
+end;
+
+procedure TJSONWebKey.Validate;
+var
+  LPresentCRT: Integer;
+begin
+  // Reading Kty validates that [kty] itself is present and recognized.
+  case Kty of
+    TJOSEKeyType.Oct:
+      CheckMember(K, 'k');
+
+    TJOSEKeyType.RSA:
+    begin
+      CheckMember(N, 'n');
+      CheckMember(E, 'e');
+
+      if IsPrivate then
+      begin
+        // RFC 7518 6.3.2: the CRT parameters are optional as a group, but a producer that
+        // includes any of them has to include all of them.
+        LPresentCRT := 0;
+        if not P.IsEmpty then
+          Inc(LPresentCRT);
+        if not Q.IsEmpty then
+          Inc(LPresentCRT);
+        if not DP.IsEmpty then
+          Inc(LPresentCRT);
+        if not DQ.IsEmpty then
+          Inc(LPresentCRT);
+        if not QI.IsEmpty then
+          Inc(LPresentCRT);
+
+        if not (LPresentCRT in [0, 5]) then
+          raise EJOSEJWKException.Create(SJOSEJWKIncompleteRSACRT);
+      end;
+    end;
+
+    TJOSEKeyType.EC:
+    begin
+      // Reading Crv raises SJOSEJWKMissingCrv when [crv] is absent, and rejects a curve this
+      // library does not know, so the check below can never actually be the one that fires.
+      CheckMember(Crv.AsString, 'crv');
+      CheckMember(X, 'x');
+      CheckMember(Y, 'y');
+    end;
+  end;
+end;
+
+function TJSONWebKey.IsValid: Boolean;
+begin
+  try
+    Validate;
+    Result := True;
+  except
+    on EJOSEJWKException do
+      Result := False;
+  end;
+end;
+
 function TJSONWebKey.BuildCanonicalJSON: string;
 begin
   case Kty of
@@ -1010,6 +1090,10 @@ var
   LECMaterial: TJOSEECKeyMaterial;
   LWritePrivate: Boolean;
 begin
+  // Up front, so a key missing a component is named here rather than reported by the provider as
+  // a bare "missing key component" from somewhere inside its PEM writer.
+  Validate;
+
   LWritePrivate := AIncludePrivate and IsPrivate;
 
   case Kty of

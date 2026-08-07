@@ -63,6 +63,15 @@ type
     procedure TestThumbprint_IncompleteKeyRaises;
 
     [Test]
+    procedure TestValidate_RejectsIncompleteKeys;
+
+    [Test]
+    procedure TestValidate_AcceptsCompleteKeys;
+
+    [Test]
+    procedure TestToPEM_NamesTheMissingMember;
+
+    [Test]
     procedure TestFromPEM_RejectsUnreadableData;
 
     [Test]
@@ -249,6 +258,97 @@ begin
   CheckRaises('{"kty":"EC","crv":"P-256","x":"AQAB"}');
   CheckRaises('{"kty":"EC","x":"AQAB","y":"AQAB"}');
   CheckRaises('{"kty":"oct"}');
+end;
+
+procedure TTestJWK.TestValidate_RejectsIncompleteKeys;
+
+  procedure CheckInvalid(const AJson, AWhy: string);
+  var
+    LJWK: TJSONWebKey;
+  begin
+    LJWK := TJSONWebKey.FromJSON(AJson);
+    try
+      Assert.IsFalse(LJWK.IsValid, AWhy + ': ' + AJson);
+      Assert.WillRaise(
+        procedure
+        begin
+          LJWK.Validate;
+        end,
+        EJOSEJWKException, AWhy + ': ' + AJson);
+    finally
+      LJWK.Free;
+    end;
+  end;
+
+begin
+  CheckInvalid('{"kty":"oct"}', 'oct without [k]');
+
+  CheckInvalid('{"kty":"RSA"}', 'RSA without [n] and [e]');
+  CheckInvalid('{"kty":"RSA","n":"AQAB"}', 'RSA without [e]');
+  CheckInvalid('{"kty":"RSA","e":"AQAB"}', 'RSA without [n]');
+
+  // RFC 7518 6.3.2: a private RSA key includes all of the CRT parameters or none of them.
+  CheckInvalid('{"kty":"RSA","n":"AQAB","e":"AQAB","d":"AQAB","p":"AQAB"}',
+    'RSA private key with a partial CRT set');
+
+  CheckInvalid('{"kty":"EC"}', 'EC without [crv], [x] and [y]');
+  CheckInvalid('{"kty":"EC","crv":"P-256"}', 'EC without [x] and [y]');
+  CheckInvalid('{"kty":"EC","crv":"P-256","x":"AQAB"}', 'EC without [y]');
+  CheckInvalid('{"kty":"EC","x":"AQAB","y":"AQAB"}', 'EC without [crv]');
+end;
+
+procedure TTestJWK.TestValidate_AcceptsCompleteKeys;
+
+  procedure CheckValid(const AJson, AWhat: string);
+  var
+    LJWK: TJSONWebKey;
+  begin
+    LJWK := TJSONWebKey.FromJSON(AJson);
+    try
+      Assert.IsTrue(LJWK.IsValid, AWhat + ' should validate: ' + AJson);
+    finally
+      LJWK.Free;
+    end;
+  end;
+
+begin
+  CheckValid('{"kty":"oct","k":"AQAB"}', 'An oct key');
+  CheckValid('{"kty":"RSA","n":"AQAB","e":"AQAB"}', 'A public RSA key');
+
+  // The CRT parameters are optional as a group, so [d] on its own is legal.
+  CheckValid('{"kty":"RSA","n":"AQAB","e":"AQAB","d":"AQAB"}',
+    'A private RSA key carrying no CRT parameters');
+  CheckValid('{"kty":"RSA","n":"AQAB","e":"AQAB","d":"AQAB",' +
+    '"p":"AQAB","q":"AQAB","dp":"AQAB","dq":"AQAB","qi":"AQAB"}',
+    'A private RSA key carrying the full CRT set');
+
+  CheckValid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"AQAB"}', 'A public EC key');
+  CheckValid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"AQAB","d":"AQAB"}', 'A private EC key');
+end;
+
+procedure TTestJWK.TestToPEM_NamesTheMissingMember;
+var
+  LJWK: TJSONWebKey;
+  LMessage: string;
+begin
+  // [e] is absent, which used to surface from inside the provider's PEM writer as a bare
+  // "missing key component" with nothing tying it back to the JWK.
+  LJWK := TJSONWebKey.FromJSON('{"kty":"RSA","n":"AQAB"}');
+  try
+    LMessage := '';
+    try
+      LJWK.ToPEM(False);
+    except
+      on E: EJOSEJWKException do
+        LMessage := E.Message;
+    end;
+
+    Assert.IsTrue(LMessage <> '', 'ToPEM should raise EJOSEJWKException for an incomplete key');
+    Assert.IsTrue(Pos('[e]', LMessage) > 0,
+      'The error should name the missing member: ' + LMessage);
+  finally
+    LJWK.Free;
+  end;
 end;
 
 procedure TTestJWK.TestFromPEM_RejectsUnreadableData;
