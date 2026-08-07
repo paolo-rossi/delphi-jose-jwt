@@ -210,6 +210,8 @@ type
     function ToPEM(AIncludePrivate: Boolean = True): TJOSEBytes;
 
     /// <summary>Bridges to the legacy raw-bytes key model consumed by TJWS/TJOSE/TJOSEProducer.</summary>
+    /// <remarks>For a public-only RSA/EC key the returned pair has an empty <c>PrivateKey</c>: it
+    ///   can verify, but signing with it raises.</remarks>
     function ToKeyPair: TKeyPair;
     class function FromKeyPair(AKeyPair: TKeyPair; AKty: TJOSEKeyType): TJSONWebKey;
     {$ENDIF}
@@ -966,19 +968,28 @@ begin
 end;
 
 function TJSONWebKey.ToKeyPair: TKeyPair;
-var
-  LPublicPEM: TJOSEBytes;
 begin
   case Kty of
     TJOSEKeyType.Oct:
       Result := TKeyPair.Create(K, K);
     TJOSEKeyType.RSA, TJOSEKeyType.EC:
     begin
-      LPublicPEM := ToPEM(False);
-      if IsPrivate then
-        Result := TKeyPair.Create(LPublicPEM, ToPEM(True))
-      else
-        Result := TKeyPair.Create(LPublicPEM, LPublicPEM);
+      Result := TKeyPair.Create;
+      try
+        // SetAsymmetricKeys rather than the two-argument constructor: that one infers the key type
+        // by comparing the halves, so a public-only key - which would otherwise have to carry the
+        // same PEM twice - comes back labelled Symmetric.
+        if IsPrivate then
+          Result.SetAsymmetricKeys(ToPEM(False), ToPEM(True))
+        else
+          // Left empty on purpose. Repeating the public PEM here would claim a private key this
+          // JWK does not have; empty makes PrivateKey.Key.IsEmpty a reliable "cannot sign" test
+          // and makes TJWS raise its plain "Key is null" instead of a PEM-parsing error.
+          Result.SetAsymmetricKeys(ToPEM(False), TJOSEBytes.Empty);
+      except
+        Result.Free;
+        raise;
+      end;
     end;
   else
     raise EJOSEJWKException.Create(SJOSEJWKToKeyPairUnsupportedKeyType);
