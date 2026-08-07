@@ -130,6 +130,20 @@ type
     procedure TestEC_LeadingZeroCoordinateKeepsItsPadding;
 
     [Test]
+    [TestCase('RSA private', 'rsa-private.pem')]
+    [TestCase('RSA public', 'rsa-public.pem')]
+    [TestCase('ES256 private', 'es256-private.pem')]
+    [TestCase('ES256 public', 'es256-public.pem')]
+    [TestCase('ES256K private', 'es256k-private.pem')]
+    [TestCase('ES256K public', 'es256k-public.pem')]
+    [TestCase('ES384 private', 'es384-private.pem')]
+    [TestCase('ES384 public', 'es384-public.pem')]
+    [TestCase('ES512 private', 'es512-private.pem')]
+    [TestCase('ES512 public', 'es512-public.pem')]
+    [TestCase('P-256 leading-zero x', 'es256-leadzero-private.pem')]
+    procedure TestPEMRoundTripIsIdempotent(const AKeyFile: string);
+
+    [Test]
     [TestCase('ES256', 'ES256,es256,P256')]
     [TestCase('ES256K', 'ES256K,es256k,secp256k1')]
     [TestCase('ES384', 'ES384,es384,P384')]
@@ -835,6 +849,41 @@ begin
       'A key and its public PEM are the same key, so they share a thumbprint');
   finally
     LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestPEMRoundTripIsIdempotent(const AKeyFile: string);
+var
+  LOriginal, LRoundTripped: TJSONWebKey;
+  LPem: TJOSEBytes;
+begin
+  LOriginal := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFile)));
+  try
+    // ToPEM(True) writes whichever halves the key actually has, so the public-only fixtures need
+    // no separate branch here.
+    LPem := LOriginal.ToPEM(True);
+
+    LRoundTripped := TJSONWebKey.FromPEM(LPem);
+    try
+      // Both keys were built by FromPEM, which writes its members in a fixed order, so the
+      // serialised documents are directly comparable.
+      Assert.AreEqual(LOriginal.ToJSON, LRoundTripped.ToJSON,
+        'A JWK should survive a PEM round trip unchanged');
+      Assert.AreEqual<Boolean>(LOriginal.IsPrivate, LRoundTripped.IsPrivate,
+        'The round trip should not gain or lose the private half');
+      Assert.AreEqual(LOriginal.Thumbprint.AsString, LRoundTripped.Thumbprint.AsString,
+        'A round trip must not change the key''s RFC 7638 identity');
+
+      // And the PEM has to be stable, not merely equivalent: a second export should reproduce
+      // the first byte for byte. This is the assertion that would catch an EC key coming back
+      // carrying explicit domain parameters instead of its named-curve OID.
+      Assert.AreEqual(LPem.AsString, LRoundTripped.ToPEM(True).AsString,
+        'Re-exporting should reproduce the same PEM');
+    finally
+      LRoundTripped.Free;
+    end;
+  finally
+    LOriginal.Free;
   end;
 end;
 
