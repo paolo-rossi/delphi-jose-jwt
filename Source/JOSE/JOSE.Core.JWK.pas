@@ -233,6 +233,21 @@ type
     /// <seealso href="https://tools.ietf.org/html/rfc7638">RFC 7638 JWK Thumbprint</seealso>
     function Thumbprint: TJOSEBytes;
 
+    /// <summary>
+    ///   Sets [kid] to this key's RFC 7638 thumbprint: an identifier derived from the key itself,
+    ///   so two parties arrive at the same one without having to agree on it first.
+    /// </summary>
+    /// <remarks>
+    ///   The thumbprint covers the public members only, so a key and its <c>ToPublicJWK</c> twin
+    ///   get the same [kid] - which is what makes it useful for matching a token against a
+    ///   published JWKS - and rotating to a new key necessarily changes it.
+    ///   <para>Think twice before using this on an <c>oct</c> key: its thumbprint is a hash of
+    ///   the secret itself, and a [kid] travels in cleartext in every JWS header. Against a
+    ///   guessable secret that is an offline oracle.</para>
+    ///   Raises when the key is missing a member the thumbprint needs, leaving [kid] untouched.
+    /// </remarks>
+    procedure SetKidFromThumbprint;
+
     {$IFDEF RSA_SIGNING}
     /// <summary>Loads an RSA or EC key (public or private, PKCS1/PKCS8/SPKI/traditional-EC) from PEM.</summary>
     class function FromPEM(const APEM: TJOSEBytes): TJSONWebKey;
@@ -1074,6 +1089,13 @@ begin
   LHasher := THashSHA2.Create(THashSHA2.TSHA2Version.SHA256);
   LHasher.Update(TEncoding.UTF8.GetBytes(BuildCanonicalJSON));
   Result := TBase64.URLEncode(LHasher.HashAsBytes);
+end;
+
+procedure TJSONWebKey.SetKidFromThumbprint;
+begin
+  // Thumbprint raises when a required member is missing, so a key too incomplete to identify
+  // keeps whatever [kid] it already had rather than gaining a misleading one.
+  Kid := Thumbprint.AsString;
 end;
 
 {$IFDEF RSA_SIGNING}

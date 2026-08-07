@@ -243,7 +243,7 @@ begin
   try
     LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes('rsa-private.pem'));
     try
-      LPrivate.Kid := LPrivate.Thumbprint;
+      LPrivate.SetKidFromThumbprint;     // RFC 7638: the key names itself
       LPrivate.Use := TJOSEKeyUse.Signature;
       LPrivate.Alg := TJOSEAlgorithmId.RS256;
 
@@ -265,6 +265,15 @@ Produces:
 ```json
 {"keys":[{"kty":"RSA","n":"3-fRbSnigY-ibVisHjAc_3ny...","e":"AQAB","kid":"QkmVSGf0ngVOZXj1EyLfAYHJ_I44aOCaMnq47Jy3Hbc","use":"sig","alg":"RS256"}]}
 ```
+
+`SetKidFromThumbprint` applies the RFC 7638 convention of naming a key after itself, so whoever
+holds the private key and whoever fetches the published one arrive at the same `kid` without
+agreeing on it in advance. Because the thumbprint covers only the public members, the `kid`
+survives `ToPublicJWK` unchanged.
+
+> :warning: Avoid it on `oct` keys. A symmetric key's thumbprint is a hash of the secret, and a
+> `kid` travels in cleartext in every JWS header — against a guessable secret that hands an
+> attacker an offline oracle.
 
 `ToPublicJWK` copies members by allowlist rather than by deleting the private ones from a clone,
 so a member it does not recognise is dropped instead of published. `kid`, `use`, `alg`,

@@ -27,6 +27,7 @@ uses
   System.SysUtils, System.Rtti, DUnitX.TestFramework,
 
   JOSE.Types.Bytes,
+  JOSE.Signing.Base,
   JOSE.Core.Base,
   JOSE.Core.JWT,
   JOSE.Core.JWA,
@@ -67,6 +68,15 @@ type
 
     [Test]
     procedure TestThumbprint_IncompleteKeyRaises;
+
+    [Test]
+    procedure TestSetKidFromThumbprint;
+
+    [Test]
+    procedure TestSetKidFromThumbprint_SurvivesToPublicJWK;
+
+    [Test]
+    procedure TestSetKidFromThumbprint_IncompleteKeyLeavesKidAlone;
 
     [Test]
     procedure TestToPublicJWK_RSA_DropsEveryPrivateMember;
@@ -191,6 +201,24 @@ implementation
 
 uses
   System.IOUtils;
+
+const
+  // RFC 7517 Appendix A.1 and RFC 7638 Appendix A.1 carry the same RSA public key.
+  RFC7517_A1_MODULUS =
+    '0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJ' +
+    'ECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW' +
+    '2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQ' +
+    'Fh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw';
+  RFC7517_A1_THUMBPRINT = 'NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs';
+
+  // RFC 7515 Appendix A.3, the ES256 worked example. Confirmed out-of-band: the point lies on
+  // P-256 and d regenerates it, so the three components are mutually consistent.
+  RFC7515_A3_EC_JWK =
+    '{"kty":"EC","crv":"P-256",' +
+    '"x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",' +
+    '"y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",' +
+    '"d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}';
+  RFC7515_A3_THUMBPRINT = 'oKIywvGUpTVTyxMQ3bwIIeQUudfr_CkLMjCE19ECD-U';
 
 procedure TTestJWK.Setup;
 begin
@@ -334,24 +362,6 @@ begin
   CheckRaises('{"kty":"oct"}');
 end;
 
-const
-  // RFC 7517 Appendix A.1 and RFC 7638 Appendix A.1 carry the same RSA public key.
-  RFC7517_A1_MODULUS =
-    '0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJ' +
-    'ECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW' +
-    '2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQ' +
-    'Fh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw';
-  RFC7517_A1_THUMBPRINT = 'NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs';
-
-  // RFC 7515 Appendix A.3, the ES256 worked example. Confirmed out-of-band: the point lies on
-  // P-256 and d regenerates it, so the three components are mutually consistent.
-  RFC7515_A3_EC_JWK =
-    '{"kty":"EC","crv":"P-256",' +
-    '"x":"f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU",' +
-    '"y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",' +
-    '"d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}';
-  RFC7515_A3_THUMBPRINT = 'oKIywvGUpTVTyxMQ3bwIIeQUudfr_CkLMjCE19ECD-U';
-
 /// <summary>
 ///   Base64url form of a key component, for comparing two of them.
 /// </summary>
@@ -377,6 +387,85 @@ begin
   for LMember in PRIVATE_MEMBERS do
     Assert.IsTrue(Pos(LMember, AJson) = 0,
       'A public JWK must not carry ' + LMember + ' - got ' + AJson);
+end;
+
+procedure TTestJWK.TestSetKidFromThumbprint;
+var
+  LJWK: TJSONWebKey;
+begin
+  // RSA, against the RFC 7638 published value.
+  LJWK := TJSONWebKey.CreateRSAPublic(
+    TBase64.URLDecode(RFC7517_A1_MODULUS), TBase64.URLDecode('AQAB'));
+  try
+    Assert.AreEqual('', LJWK.Kid, 'Precondition: no kid yet');
+    LJWK.SetKidFromThumbprint;
+    Assert.AreEqual(RFC7517_A1_THUMBPRINT, LJWK.Kid);
+  finally
+    LJWK.Free;
+  end;
+
+  // EC, over the es256 fixture.
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'es256-private.pem')));
+  try
+    LJWK.SetKidFromThumbprint;
+    Assert.AreEqual('2f6OViCVGhmX1WmwiXSQ-K66UWtUtCKjvC8YMI9yv5A', LJWK.Kid);
+  finally
+    LJWK.Free;
+  end;
+
+  // oct is supported too, though the doc comment warns against publishing it.
+  LJWK := TJSONWebKey.CreateOct('my-shared-secret-0123456789');
+  try
+    LJWK.SetKidFromThumbprint;
+    Assert.AreEqual('3sA40wYq1zJmPWHN9axHbLnbvNigRxfiwkBrjjdjWgI', LJWK.Kid);
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestSetKidFromThumbprint_SurvivesToPublicJWK;
+var
+  LPrivate, LPublic: TJSONWebKey;
+begin
+  LPrivate := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem')));
+  try
+    LPrivate.SetKidFromThumbprint;
+
+    LPublic := LPrivate.ToPublicJWK;
+    try
+      // The point of the convention: the kid on a published key matches the one the holder of
+      // the private key computes, with nothing agreed in advance.
+      Assert.AreEqual(LPrivate.Kid, LPublic.Kid,
+        'A key and its public twin should carry the same thumbprint kid');
+      Assert.AreEqual(LPublic.Thumbprint.AsString, LPublic.Kid,
+        'The published kid should still be the published key''s own thumbprint');
+    finally
+      LPublic.Free;
+    end;
+  finally
+    LPrivate.Free;
+  end;
+end;
+
+procedure TTestJWK.TestSetKidFromThumbprint_IncompleteKeyLeavesKidAlone;
+var
+  LJWK: TJSONWebKey;
+begin
+  // [e] is missing, so there is no thumbprint to derive an identifier from.
+  LJWK := TJSONWebKey.FromJSON('{"kty":"RSA","n":"AQAB","kid":"the-original-kid"}');
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWK.SetKidFromThumbprint;
+      end,
+      EJOSEJWKException, 'An incomplete key has no thumbprint to take a kid from');
+
+    Assert.AreEqual('the-original-kid', LJWK.Kid,
+      'A failed call should not have overwritten the existing kid');
+  finally
+    LJWK.Free;
+  end;
 end;
 
 procedure TTestJWK.TestToPublicJWK_RSA_DropsEveryPrivateMember;
@@ -803,15 +892,17 @@ begin
       try
         LToken.Claims.Subject := 'should-not-be-signable';
 
-        // The empty private half makes this fail on the key itself. The pair used to carry the
-        // public PEM here instead, which reads as a perfectly valid PEM that merely happens not
-        // to be a private key - so the failure surfaced from inside the PEM reader.
+        // Note this does NOT come from ValidateSigningKey's "Key is null" check: the
+        // TJOSE.SerializeCompact overloads without an explicit flag pass ASkipValidation = True
+        // (JOSE.Core.Builder.pas), so the empty key reaches the provider and fails there. What
+        // bug 3's fix changed is that PrivateKey is now empty rather than holding the public PEM
+        // - the failure itself was always a provider-level one.
         Assert.WillRaise(
           procedure
           begin
             TJOSE.SerializeCompact(LKeyPair.PrivateKey, TJOSEAlgorithmId.RS256, LToken);
           end,
-          EJOSEException, 'Signing with a public-only key pair should raise');
+          ESignException, 'Signing with a public-only key pair should raise');
       finally
         LToken.Free;
       end;
