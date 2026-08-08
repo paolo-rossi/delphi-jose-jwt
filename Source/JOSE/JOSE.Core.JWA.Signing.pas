@@ -102,6 +102,11 @@ type
     class function RSA384: IJOSESigningAlgorithm;
     class function RSA512: IJOSESigningAlgorithm;
 
+    /// <summary>RSASSA-PSS (RFC 7518 3.5). Same keys as RS*, different padding.</summary>
+    class function PSS256: IJOSESigningAlgorithm;
+    class function PSS384: IJOSESigningAlgorithm;
+    class function PSS512: IJOSESigningAlgorithm;
+
     function VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
     function Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
     procedure ValidateSigningKey(const AKey: TJOSEBytes);
@@ -270,6 +275,7 @@ end;
 
 resourcestring
   SJOSEKeyNotRSAPem = 'Key is not RSA key in PEM format';
+  SJOSEUnsupportedRSAAlgorithmId = 'Not an RSA signing algorithm: %s';
   SJOSEKeyNotECDSAPem = 'Key is not ECDSA key in PEM format';
 
 { TRSAAlgorithm }
@@ -282,6 +288,13 @@ begin
     TJOSEAlgorithmId.RS256: FRSAAlgorithm := TRSAAlgorithm.RS256;
     TJOSEAlgorithmId.RS384: FRSAAlgorithm := TRSAAlgorithm.RS384;
     TJOSEAlgorithmId.RS512: FRSAAlgorithm := TRSAAlgorithm.RS512;
+    TJOSEAlgorithmId.PS256: FRSAAlgorithm := TRSAAlgorithm.PS256;
+    TJOSEAlgorithmId.PS384: FRSAAlgorithm := TRSAAlgorithm.PS384;
+    TJOSEAlgorithmId.PS512: FRSAAlgorithm := TRSAAlgorithm.PS512;
+  else
+    // Without this the field would keep its zero value (RS256) and the algorithm would sign with
+    // PKCS#1 v1.5 while announcing something else in the header.
+    raise EJOSEException.CreateFmt(SJOSEUnsupportedRSAAlgorithmId, [AAlgorithmId.AsString]);
   end;
   FKeyCategory := TJOSEKeyCategory.Asymmetric;
   FKeyType := 'pem';
@@ -301,6 +314,21 @@ end;
 class function TRSAUsingSHAAlgorithm.RSA512: IJOSESigningAlgorithm;
 begin
   Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.RS512, 512);
+end;
+
+class function TRSAUsingSHAAlgorithm.PSS256: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.PS256, 256);
+end;
+
+class function TRSAUsingSHAAlgorithm.PSS384: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.PS384, 384);
+end;
+
+class function TRSAUsingSHAAlgorithm.PSS512: IJOSESigningAlgorithm;
+begin
+  Result := TRSAUsingSHAAlgorithm.Create(TJOSEAlgorithmId.PS512, 512);
 end;
 
 function TRSAUsingSHAAlgorithm.Sign(const AKey, AInput: TJOSEBytes): TJOSEBytes;
@@ -333,7 +361,9 @@ function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: T
 var
   LDecodedSignature: TJOSEBytes;
 begin
-  ValidateVerificationKey(AKey);
+  // Key validation belongs to the caller (TJWS.VerifySignature), which owns the SkipKeyValidation
+  // policy - as it already does for HMAC. Validating here as well ignored that flag and parsed the
+  // PEM twice per verification.
   LDecodedSignature := TBase64.URLDecode(ASignature);
   Result := TRSA.Verify(AInput, LDecodedSignature, AKey, FRSAAlgorithm);
 end;

@@ -90,7 +90,7 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 | --------- | ---------- |
 | `IJOSEBase64Provider` | Base64 / Base64Url encode/decode |
 | `IJOSEHmacProvider` | HMAC signing (HS256/384/512) |
-| `IJOSESignerRSA` | RSA signing/verification (RS256/384/512) |
+| `IJOSESignerRSA` | RSA signing/verification (RS256/384/512, PS256/384/512) |
 | `IJOSESignerECDSA` | ECDSA signing/verification (ES256/384/512/256K) |
 | `IJOSECertificateProvider` | Public key extraction/verification from an X.509 certificate |
 | `IJOSERSAKeyMaterialProvider` | Raw RSA key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
@@ -151,6 +151,15 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 |  `ES384`     | ✔️ new! 🌟      |
 |  `ES512`     | ✔️ new! 🌟      |
 |  `ES256K`    | ✔️ new! 🌟      |
+|  `PS256`     | ✔️ new! 🌟      |
+|  `PS384`     | ✔️ new! 🌟      |
+|  `PS512`     | ✔️ new! 🌟      |
+
+`PS*` is RSASSA-PSS ([RFC 7518 §3.5](https://tools.ietf.org/html/rfc7518#section-3.5)): the same
+RSA keys as `RS*`, with PSS padding — MGF1 over the same hash and a salt the size of the digest.
+PSS signatures are randomised, so signing the same input twice gives different (equally valid)
+signatures. All three provider stacks implement it; on the OpenSSL-backed stacks a build without
+the PSS entry points reports that plainly instead of failing at load time.
 
 #### Security notes
 - This library is not affected by the `None` algorithm vulnerability

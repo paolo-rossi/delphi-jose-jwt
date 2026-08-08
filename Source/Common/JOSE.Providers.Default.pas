@@ -169,6 +169,9 @@ resourcestring
   SJOSERSAExtractFromEVPError = '[RSA] Error extracting RSA key from EVP_PKEY';
   SJOSERSAUnsupportedAlgorithm = '[RSA] Unsupported signing algorithm!';
   SJOSERSASignFailed = '[RSA] Unable to sign RSA message digest';
+  SJOSERSAPSSUnavailable = '[RSA] The loaded OpenSSL library does not provide the RSASSA-PSS functions';
+  SJOSERSAPSSPaddingFailed = '[RSA] Unable to apply RSASSA-PSS padding';
+  SJOSERSAPSSKeyTooSmall = '[RSA] %s needs an RSA key of at least %d bytes, this one is %d';
   SJOSERSALoadPrivateKeyError = '[RSA] Unable to load private key: %s';
   SJOSERSALoadPublicKeyError = '[RSA] Unable to load public key: %s';
   SJOSEECDSAUnsupportedAlgorithm = '[ECDSA] Unsupported signing algorithm!';
@@ -412,80 +415,120 @@ begin
     raise ESignException.Create(SJOSERSAExtractFromEVPError);
 end;
 
-function TDefaultRSAProvider.InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
-var
-  LHash: TBytes;
-  LNID: Integer;
-  LRsaLen: Integer;
-  LShaLen: Integer;
+/// <summary>
+///   Digests AInput with the hash AAlg names, producing both identifiers the two padding schemes
+///   want: PKCS#1 v1.5 signs by NID, PSS by EVP_MD.
+/// </summary>
+procedure DigestForRSA(const AInput: TBytes; AAlg: TRSAAlgorithm; out AHash: TBytes;
+  out ANID: Integer; out AMd: PEVP_MD);
 begin
+  SetLength(AHash, AAlg.DigestBytes);
+  AMd := nil;
   case AAlg of
-    RS256:
+    RS256, PS256:
     begin
-      LNID := JoseSSL.NID_sha256;
-      LShaLen := SHA256_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA256(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := JoseSSL.NID_sha256;
+      JoseSSL.SHA256(@AInput[0], Length(AInput), @AHash[0]);
     end;
-    RS384:
+    RS384, PS384:
     begin
-      LNID := JoseSSL.NID_sha384;
-      LShaLen := SHA384_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA384(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := JoseSSL.NID_sha384;
+      JoseSSL.SHA384(@AInput[0], Length(AInput), @AHash[0]);
     end;
-    RS512:
+    RS512, PS512:
     begin
-      LNID := JoseSSL.NID_sha512;
-      LShaLen := SHA512_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := JoseSSL.NID_sha512;
+      JoseSSL.SHA512(@AInput[0], Length(AInput), @AHash[0]);
     end;
   else
     raise ESignException.Create(SJOSERSAUnsupportedAlgorithm);
   end;
 
+  // Only resolved for PSS, since EVP_sha* live behind the lazily-loaded capability and an
+  // RS*-only caller must never be made to depend on them.
+  if AAlg.IsPSS then
+  begin
+    if not JoseSSL.EnsurePSSSupport then
+      raise ESignException.Create(SJOSERSAPSSUnavailable);
+    case AAlg of
+      PS256: AMd := JoseSSL.EVP_sha256();
+      PS384: AMd := JoseSSL.EVP_sha384();
+    else
+      AMd := JoseSSL.EVP_sha512();
+    end;
+  end;
+end;
+
+function TDefaultRSAProvider.InternalSign(const AInput: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): TBytes;
+var
+  LHash, LEM: TBytes;
+  LNID: Integer;
+  LMd: PEVP_MD;
+  LRsaLen: Integer;
+  LWritten: Integer;
+  LSigLen: Cardinal;
+begin
+  DigestForRSA(AInput, AAlg, LHash, LNID, LMd);
   LRsaLen := JoseSSL.RSA_size(AKey);
+
+  if AAlg.IsPSS then
+  begin
+    // OpenSSL's own complaint about an undersized key here is opaque, so say it plainly.
+    if LRsaLen < AAlg.MinPSSKeyBytes then
+      raise ESignException.CreateFmt(SJOSERSAPSSKeyTooSmall,
+        [AAlg.ToString, AAlg.MinPSSKeyBytes, LRsaLen]);
+
+    // PSS has no one-call signing primitive: build the encoded message, then apply the private
+    // key to it raw. The salt length is the digest size, per RFC 7518 3.5.
+    SetLength(LEM, LRsaLen);
+    if JoseSSL.RSA_padding_add_PKCS1_PSS(AKey, @LEM[0], @LHash[0], LMd, AAlg.DigestBytes) <> 1 then
+      raise ESignException.Create(SJOSERSAPSSPaddingFailed);
+
+    SetLength(Result, LRsaLen);
+    LWritten := JoseSSL.RSA_private_encrypt(LRsaLen, @LEM[0], @Result[0], AKey, RSA_NO_PADDING);
+    if LWritten < 0 then
+      raise ESignException.Create(SJOSERSASignFailed);
+    SetLength(Result, LWritten);
+    Exit;
+  end;
+
+  // RSA_size is the buffer RSA_sign needs, but it reports the bytes it actually wrote through
+  // siglen - which is what the result has to be trimmed to. PKCS#1 v1.5 always fills the modulus,
+  // so the two agree today; trusting RSA_size instead would be a latent bug the day they don't.
+  LSigLen := LRsaLen;
   SetLength(Result, LRsaLen);
-  if JoseSSL.RSA_sign(LNID, @LHash[0], LShaLen, @Result[0], @LRsaLen, AKey) = 0 then
+  if JoseSSL.RSA_sign(LNID, @LHash[0], Length(LHash), @Result[0], @LSigLen, AKey) = 0 then
     raise ESignException.Create(SJOSERSASignFailed);
+  SetLength(Result, LSigLen);
 end;
 
 function TDefaultRSAProvider.InternalVerify(const AInput, ASignature: TBytes; AKey: PRSA; AAlg: TRSAAlgorithm): Boolean;
 var
-  LResult: Integer;
-  LHash: TBytes;
+  LHash, LEM: TBytes;
   LNID: Integer;
-  LShaLen: Integer;
+  LMd: PEVP_MD;
+  LRsaLen: Integer;
 begin
-  case AAlg of
-    RS256:
-    begin
-      LNID := JoseSSL.NID_sha256;
-      LShaLen := SHA256_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA256(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-    RS384:
-    begin
-      LNID := JoseSSL.NID_sha384;
-      LShaLen := SHA384_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA384(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-    RS512:
-    begin
-      LNID := JoseSSL.NID_sha512;
-      LShaLen := SHA512_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      JoseSSL.SHA512(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-  else
-    raise ESignException.Create(SJOSERSAUnsupportedAlgorithm);
-  end;
-  LResult := JoseSSL.RSA_verify(LNID, @LHash[0], LShaLen, @ASignature[0], Length(ASignature), AKey);
+  DigestForRSA(AInput, AAlg, LHash, LNID, LMd);
 
-  Result := LResult = 1;
+  if AAlg.IsPSS then
+  begin
+    LRsaLen := JoseSSL.RSA_size(AKey);
+
+    // A signature of the wrong width simply is not one this key produced. Checked here because
+    // RSA_public_decrypt would report it as an error rather than a mismatch, and because it
+    // guards the fixed-size buffer below.
+    if Length(ASignature) <> LRsaLen then
+      Exit(False);
+
+    SetLength(LEM, LRsaLen);
+    if JoseSSL.RSA_public_decrypt(Length(ASignature), @ASignature[0], @LEM[0], AKey, RSA_NO_PADDING) < 0 then
+      Exit(False);
+
+    Exit(JoseSSL.RSA_verify_PKCS1_PSS(AKey, @LHash[0], LMd, @LEM[0], AAlg.DigestBytes) = 1);
+  end;
+
+  Result := JoseSSL.RSA_verify(LNID, @LHash[0], Length(LHash), @ASignature[0], Length(ASignature), AKey) = 1;
 end;
 
 function TDefaultRSAProvider.LoadPrivateKey(const AKey: TBytes): PRSA;

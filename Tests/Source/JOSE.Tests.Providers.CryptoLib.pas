@@ -61,6 +61,30 @@ type
     procedure TestHMAC_SHA256_Vector;
     [Test]
     procedure TestRSA_RS256_SignVerifyRoundTrip;
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestRSA_PSS_SignVerifyRoundTrip(AAlg: TRSAAlgorithm);
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestRSA_PSS_SignaturesAreNonDeterministic(AAlg: TRSAAlgorithm);
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestInterop_PSS_CryptoLibSignature_VerifiedByDefaultStack(AAlg: TRSAAlgorithm);
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestInterop_PSS_DefaultSignature_VerifiedByCryptoLib(AAlg: TRSAAlgorithm);
     [Test]
     procedure TestECDSA_Verify_ES256_Token;
 
@@ -177,6 +201,81 @@ begin
   LSig := THMAC.Sign(TEncoding.ANSI.GetBytes('plaintext'), TEncoding.ANSI.GetBytes('secret'), THMACAlgorithm.SHA256);
   LExpected := TBase64.Decode('XXv4q83DfQItSR7PCiZwWFlG10ah668c1cRsrKh6Ylg=').AsBytes;
   Assert.AreEqualMemory(@LExpected[0], @LSig[0], Length(LExpected));
+end;
+
+procedure TTestCryptoLibProviders.TestRSA_PSS_SignVerifyRoundTrip(AAlg: TRSAAlgorithm);
+var
+  LPriv, LPub, LInput, LSig: TBytes;
+begin
+  LPriv := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPub := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox');
+
+  LSig := TRSA.Sign(LInput, LPriv, AAlg);
+  Assert.IsTrue(TRSA.Verify(LInput, LSig, LPub, AAlg));
+
+  // The padding scheme has to be part of the identity of the signature, not just of the header.
+  Assert.IsFalse(TRSA.Verify(LInput, LSig, LPub, TRSAAlgorithm.RS256),
+    'A PSS signature must not verify as PKCS#1 v1.5');
+end;
+
+procedure TTestCryptoLibProviders.TestRSA_PSS_SignaturesAreNonDeterministic(AAlg: TRSAAlgorithm);
+var
+  LPriv, LPub, LInput, LFirst, LSecond: TBytes;
+begin
+  LPriv := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPub := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox');
+
+  LFirst := TRSA.Sign(LInput, LPriv, AAlg);
+  LSecond := TRSA.Sign(LInput, LPriv, AAlg);
+
+  // PSS draws a fresh salt per signature. Identical output would mean CryptoLib had been asked
+  // for a deterministic (PKCS#1 v1.5) mechanism by mistake.
+  Assert.AreNotEqual<TBytes>(LFirst, LSecond,
+    'PSS signatures must differ between signings');
+  Assert.IsTrue(TRSA.Verify(LInput, LFirst, LPub, AAlg));
+  Assert.IsTrue(TRSA.Verify(LInput, LSecond, LPub, AAlg));
+end;
+
+procedure TTestCryptoLibProviders.TestInterop_PSS_CryptoLibSignature_VerifiedByDefaultStack(AAlg: TRSAAlgorithm);
+var
+  LPriv, LPub, LInput, LSig: TBytes;
+begin
+  LPriv := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPub := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox');
+
+  // Signed by CryptoLib (registered in Setup)...
+  LSig := TRSA.Sign(LInput, LPriv, AAlg);
+
+  // ...and verified by the OpenSSL stack. Two independent PSS implementations have to agree on
+  // the salt length and MGF1 hash or this fails.
+  TJOSEDefaultProviders.Register;
+  try
+    Assert.IsTrue(TRSA.Verify(LInput, LSig, LPub, AAlg));
+  finally
+    TJOSECryptoLibProviders.Register;
+  end;
+end;
+
+procedure TTestCryptoLibProviders.TestInterop_PSS_DefaultSignature_VerifiedByCryptoLib(AAlg: TRSAAlgorithm);
+var
+  LPriv, LPub, LInput, LSig: TBytes;
+begin
+  LPriv := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPub := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox');
+
+  TJOSEDefaultProviders.Register;
+  try
+    LSig := TRSA.Sign(LInput, LPriv, AAlg);
+  finally
+    TJOSECryptoLibProviders.Register;
+  end;
+
+  Assert.IsTrue(TRSA.Verify(LInput, LSig, LPub, AAlg),
+    'CryptoLib should verify what the OpenSSL stack signed');
 end;
 
 procedure TTestCryptoLibProviders.TestRSA_RS256_SignVerifyRoundTrip;

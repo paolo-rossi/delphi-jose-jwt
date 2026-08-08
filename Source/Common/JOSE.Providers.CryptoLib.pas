@@ -604,6 +604,16 @@ begin
       Result := 'SHA-384withRSA';
     TRSAAlgorithm.RS512:
       Result := 'SHA-512withRSA';
+
+    // RFC 7518 3.5: RSASSA-PSS, MGF1 with the same hash and a salt the size of the digest.
+    // TSignerUtilities maps these to a TPssSigner whose two-argument constructor defaults the
+    // salt length to the digest size (ClpPssSigner.pas:183), which is exactly what the RFC wants.
+    TRSAAlgorithm.PS256:
+      Result := 'SHA-256withRSAandMGF1';
+    TRSAAlgorithm.PS384:
+      Result := 'SHA-384withRSAandMGF1';
+    TRSAAlgorithm.PS512:
+      Result := 'SHA-512withRSAandMGF1';
   else
     raise ESignException.Create(SJOSECryptoLibUnsupportedRSAAlg);
   end;

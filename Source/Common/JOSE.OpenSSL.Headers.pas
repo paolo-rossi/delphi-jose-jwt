@@ -80,6 +80,15 @@ type
     fn_RSA_sign = 'RSA_sign';
     fn_RSA_verify = 'RSA_verify';
 
+    // RSASSA-PSS (RFC 7518 3.5). Loaded lazily and non-fatally - see EnsurePSSSupport.
+    fn_RSA_padding_add_PKCS1_PSS = 'RSA_padding_add_PKCS1_PSS';
+    fn_RSA_verify_PKCS1_PSS = 'RSA_verify_PKCS1_PSS';
+    fn_RSA_private_encrypt = 'RSA_private_encrypt';
+    fn_RSA_public_decrypt = 'RSA_public_decrypt';
+    fn_EVP_sha256 = 'EVP_sha256';
+    fn_EVP_sha384 = 'EVP_sha384';
+    fn_EVP_sha512 = 'EVP_sha512';
+
     // ECDSA related functions
     fn_ECDSA_size = 'ECDSA_size';
     fn_ECDSA_SIG_new = 'ECDSA_SIG_new';
@@ -198,10 +207,20 @@ type
     BN_new: function(): PBIGNUM cdecl;
     BN_free: procedure(a: PBIGNUM) cdecl;
 
+    RSA_padding_add_PKCS1_PSS: function(rsa: PRSA; EM: PByte; const mHash: PByte; const Hash: PEVP_MD; sLen: Integer): Integer cdecl;
+    RSA_verify_PKCS1_PSS: function(rsa: PRSA; const mHash: PByte; const Hash: PEVP_MD; const EM: PByte; sLen: Integer): Integer cdecl;
+    RSA_private_encrypt: function(flen: Integer; const from: PByte; _to: PByte; rsa: PRSA; padding: Integer): Integer cdecl;
+    RSA_public_decrypt: function(flen: Integer; const from: PByte; _to: PByte; rsa: PRSA; padding: Integer): Integer cdecl;
+    EVP_sha256: function(): PEVP_MD cdecl;
+    EVP_sha384: function(): PEVP_MD cdecl;
+    EVP_sha512: function(): PEVP_MD cdecl;
+
   public class var
     FLoadErrors: Integer;
     FECKeySupportLoaded: Boolean;
     FECKeySupportAvailable: Boolean;
+    FPSSSupportLoaded: Boolean;
+    FPSSSupportAvailable: Boolean;
   private
     class function LoadFunctionCLib(const AFunctionName: string; const ARaiseException: Boolean = True): Pointer;
   public
@@ -219,6 +238,13 @@ type
     ///   oct/RSA-only consumers are never affected by a missing EC symbol.
     /// </summary>
     class function EnsureECKeySupport: Boolean;
+    /// <summary>
+    ///   Lazily loads the RSASSA-PSS symbols (RSA_padding_add_PKCS1_PSS, RSA_verify_PKCS1_PSS,
+    ///   the raw RSA primitives and EVP_sha*). Non-fatal in exactly the same way as
+    ///   <c>EnsureECKeySupport</c>: returns False rather than raising, so an OpenSSL build
+    ///   without them leaves RS/ES/oct users completely unaffected.
+    /// </summary>
+    class function EnsurePSSSupport: Boolean;
   end;
 
 {$ENDIF}
@@ -325,6 +351,35 @@ begin
   FECKeySupportAvailable := LErrors = 0;
   FECKeySupportLoaded := True;
   Result := FECKeySupportAvailable;
+end;
+
+class function JoseSSL.EnsurePSSSupport: Boolean;
+var
+  LErrors: Integer;
+begin
+  if FPSSSupportLoaded then
+    Exit(FPSSSupportAvailable);
+
+  LErrors := 0;
+
+  @RSA_padding_add_PKCS1_PSS := LoadFunctionCLib(fn_RSA_padding_add_PKCS1_PSS, False);
+  if not Assigned(RSA_padding_add_PKCS1_PSS) then Inc(LErrors);
+  @RSA_verify_PKCS1_PSS := LoadFunctionCLib(fn_RSA_verify_PKCS1_PSS, False);
+  if not Assigned(RSA_verify_PKCS1_PSS) then Inc(LErrors);
+  @RSA_private_encrypt := LoadFunctionCLib(fn_RSA_private_encrypt, False);
+  if not Assigned(RSA_private_encrypt) then Inc(LErrors);
+  @RSA_public_decrypt := LoadFunctionCLib(fn_RSA_public_decrypt, False);
+  if not Assigned(RSA_public_decrypt) then Inc(LErrors);
+  @EVP_sha256 := LoadFunctionCLib(fn_EVP_sha256, False);
+  if not Assigned(EVP_sha256) then Inc(LErrors);
+  @EVP_sha384 := LoadFunctionCLib(fn_EVP_sha384, False);
+  if not Assigned(EVP_sha384) then Inc(LErrors);
+  @EVP_sha512 := LoadFunctionCLib(fn_EVP_sha512, False);
+  if not Assigned(EVP_sha512) then Inc(LErrors);
+
+  FPSSSupportAvailable := LErrors = 0;
+  FPSSSupportLoaded := True;
+  Result := FPSSSupportAvailable;
 end;
 
 class function JoseSSL.GetLastError: string;
@@ -443,6 +498,16 @@ begin
   @BN_free := nil;
   FECKeySupportLoaded := False;
   FECKeySupportAvailable := False;
+
+  @RSA_padding_add_PKCS1_PSS := nil;
+  @RSA_verify_PKCS1_PSS := nil;
+  @RSA_private_encrypt := nil;
+  @RSA_public_decrypt := nil;
+  @EVP_sha256 := nil;
+  @EVP_sha384 := nil;
+  @EVP_sha512 := nil;
+  FPSSSupportLoaded := False;
+  FPSSSupportAvailable := False;
 end;
 
 {$ENDIF}

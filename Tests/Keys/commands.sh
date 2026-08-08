@@ -3,6 +3,12 @@ openssl genrsa -out rs256-private.pem
 openssl rsa -pubout -in rs256-private.pem -out rs-public.pem
 openssl req -new -x509 -key rs-private.pem -out rs-x509.pem -days 360
 
+# An unrelated RSA public key, for the RS* "must not verify under the wrong key" tests.
+# Only the public half is kept - nothing ever needs to sign with it.
+openssl genrsa -out rsa-other-private.pem 2048
+openssl rsa -pubout -in rsa-other-private.pem -out rsa-other-public.pem
+rm rsa-other-private.pem
+
 # Keys for ES256 Algorithm (NID: 408)
 openssl ecparam -name prime256v1 -genkey -noout -out es256-private.pem             
 openssl ec -in es256-private.pem -pubout -out es256-public.pem                    

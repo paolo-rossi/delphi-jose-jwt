@@ -154,6 +154,9 @@ resourcestring
   SJOSETaurusTLSCertExtractPublicKeyError = '[TaurusTLS] Error extracting public key from X509 certificate';
   SJOSETaurusTLSRSAUnsupportedAlgorithm = '[RSA] Unsupported signing algorithm!';
   SJOSETaurusTLSRSASignFailed = '[RSA] Unable to sign RSA message digest';
+  SJOSETaurusTLSRSAPSSUnavailable = '[RSA] The loaded OpenSSL library does not provide the RSASSA-PSS functions';
+  SJOSETaurusTLSRSAPSSPaddingFailed = '[RSA] Unable to apply RSASSA-PSS padding';
+  SJOSETaurusTLSRSAPSSKeyTooSmall = '[RSA] %s needs an RSA key of at least %d bytes, this one is %d';
   SJOSETaurusTLSRSALoadPrivateKeyError = '[RSA] Unable to load private key';
   SJOSETaurusTLSRSALoadPublicKeyError = '[RSA] Unable to load public key';
   SJOSETaurusTLSRSAExtractFromEVPError = '[RSA] Error extracting RSA key from EVP_PKEY';
@@ -449,79 +452,115 @@ begin
   Result := (Length(ABuf) >= Length(APrefix)) and CompareMem(@APrefix[0], @ABuf[0], Length(APrefix));
 end;
 
-function TTaurusTLSRSAProvider.InternalSign(const AInput: TBytes; AKey: Pointer; AAlg: TRSAAlgorithm): TBytes;
-var
-  LHash: TBytes;
-  LNID: Integer;
-  LRsaLen: TIdC_UINT;
-  LShaLen: Integer;
+/// <summary>
+///   Digests AInput with the hash AAlg names, producing both identifiers the two padding schemes
+///   want: PKCS#1 v1.5 signs by NID, PSS by EVP_MD.
+/// </summary>
+procedure DigestForRSA(const AInput: TBytes; AAlg: TRSAAlgorithm; out AHash: TBytes;
+  out ANID: Integer; out AMd: PEVP_MD);
 begin
+  SetLength(AHash, AAlg.DigestBytes);
   case AAlg of
-    RS256:
+    RS256, PS256:
     begin
-      LNID := NID_sha256;
-      LShaLen := SHA256_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA256(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := NID_sha256;
+      AMd := EVP_sha256();
+      SHA256(@AInput[0], Length(AInput), @AHash[0]);
     end;
-    RS384:
+    RS384, PS384:
     begin
-      LNID := NID_sha384;
-      LShaLen := SHA384_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA384(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := NID_sha384;
+      AMd := EVP_sha384();
+      SHA384(@AInput[0], Length(AInput), @AHash[0]);
     end;
-    RS512:
+    RS512, PS512:
     begin
-      LNID := NID_sha512;
-      LShaLen := SHA512_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA512(@AInput[0], Length(AInput), @LHash[0]);
+      ANID := NID_sha512;
+      AMd := EVP_sha512();
+      SHA512(@AInput[0], Length(AInput), @AHash[0]);
     end;
   else
     raise ESignException.Create(SJOSETaurusTLSRSAUnsupportedAlgorithm);
   end;
+end;
 
-  LRsaLen := RSA_size(AKey);
-  SetLength(Result, LRsaLen);
-  if RSA_sign(LNID, @LHash[0], LShaLen, @Result[0], @LRsaLen, AKey) = 0 then
+/// <summary>Fails before any of the PSS entry points is called through a nil pointer.</summary>
+procedure RequirePSSSupport;
+begin
+  if not (Assigned(RSA_padding_add_PKCS1_PSS) and Assigned(RSA_verify_PKCS1_PSS) and
+          Assigned(RSA_private_encrypt) and Assigned(RSA_public_decrypt) and
+          Assigned(EVP_sha256) and Assigned(EVP_sha384) and Assigned(EVP_sha512)) then
+    raise ESignException.Create(SJOSETaurusTLSRSAPSSUnavailable);
+end;
+
+function TTaurusTLSRSAProvider.InternalSign(const AInput: TBytes; AKey: Pointer; AAlg: TRSAAlgorithm): TBytes;
+var
+  LHash, LEM: TBytes;
+  LNID: Integer;
+  LMd: PEVP_MD;
+  LSize, LWritten: Integer;
+  LSigLen: TIdC_UINT;
+begin
+  DigestForRSA(AInput, AAlg, LHash, LNID, LMd);
+  LSize := RSA_size(AKey);
+
+  if AAlg.IsPSS then
+  begin
+    RequirePSSSupport;
+    // OpenSSL's own complaint about an undersized key here is opaque, so say it plainly.
+    if LSize < AAlg.MinPSSKeyBytes then
+      raise ESignException.CreateFmt(SJOSETaurusTLSRSAPSSKeyTooSmall,
+        [AAlg.ToString, AAlg.MinPSSKeyBytes, LSize]);
+
+    // PSS has no one-call signing primitive: build the encoded message, then apply the private
+    // key to it raw. The salt length is the digest size, per RFC 7518 3.5.
+    SetLength(LEM, LSize);
+    if RSA_padding_add_PKCS1_PSS(AKey, @LEM[0], @LHash[0], LMd, AAlg.DigestBytes) <> 1 then
+      raise ESignException.Create(SJOSETaurusTLSRSAPSSPaddingFailed);
+
+    SetLength(Result, LSize);
+    LWritten := RSA_private_encrypt(LSize, @LEM[0], @Result[0], AKey, RSA_NO_PADDING);
+    if LWritten < 0 then
+      raise ESignException.Create(SJOSETaurusTLSRSASignFailed);
+    SetLength(Result, LWritten);
+    Exit;
+  end;
+
+  LSigLen := LSize;
+  SetLength(Result, LSize);
+  if RSA_sign(LNID, @LHash[0], Length(LHash), @Result[0], @LSigLen, AKey) = 0 then
     raise ESignException.Create(SJOSETaurusTLSRSASignFailed);
-  SetLength(Result, LRsaLen);
+  SetLength(Result, LSigLen);
 end;
 
 function TTaurusTLSRSAProvider.InternalVerify(const AInput, ASignature: TBytes; AKey: Pointer; AAlg: TRSAAlgorithm): Boolean;
 var
-  LHash: TBytes;
+  LHash, LEM: TBytes;
   LNID: Integer;
-  LShaLen: Integer;
+  LMd: PEVP_MD;
+  LSize: Integer;
 begin
-  case AAlg of
-    RS256:
-    begin
-      LNID := NID_sha256;
-      LShaLen := SHA256_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA256(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-    RS384:
-    begin
-      LNID := NID_sha384;
-      LShaLen := SHA384_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA384(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-    RS512:
-    begin
-      LNID := NID_sha512;
-      LShaLen := SHA512_DIGEST_LENGTH;
-      SetLength(LHash, LShaLen);
-      SHA512(@AInput[0], Length(AInput), @LHash[0]);
-    end;
-  else
-    raise ESignException.Create(SJOSETaurusTLSRSAUnsupportedAlgorithm);
+  DigestForRSA(AInput, AAlg, LHash, LNID, LMd);
+
+  if AAlg.IsPSS then
+  begin
+    RequirePSSSupport;
+    LSize := RSA_size(AKey);
+
+    // A signature of the wrong width simply is not one this key produced. Checked here because
+    // RSA_public_decrypt would report it as an error rather than a mismatch, and because it
+    // guards the fixed-size buffer below.
+    if Length(ASignature) <> LSize then
+      Exit(False);
+
+    SetLength(LEM, LSize);
+    if RSA_public_decrypt(Length(ASignature), @ASignature[0], @LEM[0], AKey, RSA_NO_PADDING) < 0 then
+      Exit(False);
+
+    Exit(RSA_verify_PKCS1_PSS(AKey, @LHash[0], LMd, @LEM[0], AAlg.DigestBytes) = 1);
   end;
 
-  Result := RSA_verify(LNID, @LHash[0], LShaLen, @ASignature[0], Length(ASignature), AKey) = 1;
+  Result := RSA_verify(LNID, @LHash[0], Length(LHash), @ASignature[0], Length(ASignature), AKey) = 1;
 end;
 
 function TTaurusTLSRSAProvider.LoadPrivateKey(const AKey: TBytes): Pointer;

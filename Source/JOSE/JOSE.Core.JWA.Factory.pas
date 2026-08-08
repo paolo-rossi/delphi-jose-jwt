@@ -137,6 +137,10 @@ begin
     .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA384)
     .RegisterAlgorithm(TRSAUsingShaAlgorithm.RSA512)
 
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.PSS256)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.PSS384)
+    .RegisterAlgorithm(TRSAUsingShaAlgorithm.PSS512)
+
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA256)
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA256K)
     .RegisterAlgorithm(TECDSAUsingSHAAlgorithm.ECDSA384)

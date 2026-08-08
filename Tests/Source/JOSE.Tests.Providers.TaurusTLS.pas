@@ -70,6 +70,24 @@ type
     procedure TestRSA_Verify_RejectsTamperedSignature;
 
     [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestRSA_PSS_SignVerifyRoundTrip(AAlg: TRSAAlgorithm);
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestRSA_PSS_SignaturesAreNonDeterministic(AAlg: TRSAAlgorithm);
+
+    [Test]
+    [TestCase('PS256', 'PS256')]
+    [TestCase('PS384', 'PS384')]
+    [TestCase('PS512', 'PS512')]
+    procedure TestInterop_PSS_TaurusTLSSignature_VerifiedByDefaultStack(AAlg: TRSAAlgorithm);
+
+    [Test]
     [TestCase('ES256', 'es256')]
     [TestCase('ES256K', 'es256k')]
     [TestCase('ES384', 'es384')]
@@ -95,7 +113,8 @@ type
 implementation
 
 uses
-  System.SysUtils, System.IOUtils;
+  System.SysUtils, System.IOUtils,
+  JOSE.Providers.Default;   // for the cross-stack PSS interop test
 
 procedure TTestTaurusTLSProviders.Setup;
 begin
@@ -120,6 +139,60 @@ begin
   Assert.IsNotNull(TJOSEProviders.ECDSA, 'ECDSA should be registered');
   Assert.IsNotNull(TJOSEProviders.RSAKeyMaterial, 'RSAKeyMaterial should be registered');
   Assert.IsNotNull(TJOSEProviders.ECKeyMaterial, 'ECKeyMaterial should be registered');
+end;
+
+procedure TTestTaurusTLSProviders.TestRSA_PSS_SignVerifyRoundTrip(AAlg: TRSAAlgorithm);
+var
+  LPrivateKey, LPublicKey, LInput, LSignature: TBytes;
+begin
+  LPrivateKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPublicKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox jumps over the lazy dog');
+
+  LSignature := TJOSEProviders.RSA.Sign(LInput, LPrivateKey, AAlg);
+  Assert.IsTrue(TJOSEProviders.RSA.Verify(LInput, LSignature, LPublicKey, AAlg));
+
+  // The padding scheme has to be part of the identity of the signature, not just of the header.
+  Assert.IsFalse(TJOSEProviders.RSA.Verify(LInput, LSignature, LPublicKey, TRSAAlgorithm.RS256),
+    'A PSS signature must not verify as PKCS#1 v1.5');
+end;
+
+procedure TTestTaurusTLSProviders.TestRSA_PSS_SignaturesAreNonDeterministic(AAlg: TRSAAlgorithm);
+var
+  LPrivateKey, LPublicKey, LInput, LFirst, LSecond: TBytes;
+begin
+  LPrivateKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPublicKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox jumps over the lazy dog');
+
+  LFirst := TJOSEProviders.RSA.Sign(LInput, LPrivateKey, AAlg);
+  LSecond := TJOSEProviders.RSA.Sign(LInput, LPrivateKey, AAlg);
+
+  // PSS draws a fresh salt per signature. Identical output would mean the provider had fallen
+  // back to the deterministic PKCS#1 v1.5 path.
+  Assert.AreNotEqual<TBytes>(LFirst, LSecond, 'PSS signatures must differ between signings');
+  Assert.IsTrue(TJOSEProviders.RSA.Verify(LInput, LFirst, LPublicKey, AAlg));
+  Assert.IsTrue(TJOSEProviders.RSA.Verify(LInput, LSecond, LPublicKey, AAlg));
+end;
+
+procedure TTestTaurusTLSProviders.TestInterop_PSS_TaurusTLSSignature_VerifiedByDefaultStack(AAlg: TRSAAlgorithm);
+var
+  LPrivateKey, LPublicKey, LInput, LSignature: TBytes;
+begin
+  LPrivateKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-private.pem'));
+  LPublicKey := TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem'));
+  LInput := TEncoding.UTF8.GetBytes('The quick brown fox jumps over the lazy dog');
+
+  // Signed by TaurusTLS (registered in Setup)...
+  LSignature := TJOSEProviders.RSA.Sign(LInput, LPrivateKey, AAlg);
+
+  // ...verified by the Default stack, which reaches OpenSSL through entirely separate bindings.
+  TJOSEDefaultProviders.Register;
+  try
+    Assert.IsTrue(TJOSEProviders.RSA.Verify(LInput, LSignature, LPublicKey, AAlg));
+  finally
+    TJOSETaurusTLSProviders.Register;
+  end;
 end;
 
 procedure TTestTaurusTLSProviders.TestRSA_SignVerify_RoundTrips;

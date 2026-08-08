@@ -267,7 +267,7 @@ begin
   FExpectedAlgorithms := [TJOSEAlgorithmId.None,
     TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.HS384, TJOSEAlgorithmId.HS512,
     TJOSEAlgorithmId.RS256, TJOSEAlgorithmId.RS384, TJOSEAlgorithmId.RS512,
-    TJOSEAlgorithmId.ES256, TJOSEAlgorithmId.ES384, TJOSEAlgorithmId.ES512,
+    TJOSEAlgorithmId.ES256, TJOSEAlgorithmId.ES256K, TJOSEAlgorithmId.ES384, TJOSEAlgorithmId.ES512,
     TJOSEAlgorithmId.PS256, TJOSEAlgorithmId.PS384, TJOSEAlgorithmId.PS512];
 end;
 
