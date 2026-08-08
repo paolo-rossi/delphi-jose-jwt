@@ -27,6 +27,10 @@ uses
   System.Classes, System.Rtti, System.SysUtils, DUnitX.TestFramework,
 
   JOSE.Types.Bytes,
+  JOSE.Encoding.Base64,
+  JOSE.Hashing.HMAC,
+  JOSE.Crypto.Algorithms,
+  JOSE.Core.Base,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWK,
@@ -144,6 +148,9 @@ type
 
     [Test]
     procedure TestRSARejectsSwappedHeaderAlgorithm;
+
+    [Test]
+    procedure TestRSAPublicKeyIsRejectedAsHmacSecret;
   end;
 
 implementation
@@ -387,6 +394,45 @@ begin
   Assert.IsFalse(
     VerifyCompact(FKeys.PublicKey, HEADER_RS256 + '.' + COMPACT_PAYLOAD + '.' + SIGN_RS512),
     'An RS512 signature must not verify under an RS256 header');
+end;
+
+procedure TTestJWA.TestRSAPublicKeyIsRejectedAsHmacSecret;
+var
+  LToken: TJWT;
+  LJWS: TJWS;
+  LSigningInput, LSignature: TJOSEBytes;
+  LForged: string;
+begin
+  // The RS256 -> HS256 substitution attack. The verifier holds an RSA public key; the attacker,
+  // who by definition also holds it, re-signs claims of their choosing as HS256 using that key's
+  // PEM text as the HMAC secret. Since TJWS takes the algorithm from the token header, only the
+  // key check stands between this token and a successful verification.
+  LSigningInput := TBase64.URLEncode('{"typ":"JWT","alg":"HS256"}') + '.' +
+    TBase64.URLEncode('{"iss":"Delphi JOSE and JWT Library","sub":"attacker"}');
+  LSignature := THMAC.Sign(LSigningInput, FKeys.PublicKey.Key, THMACAlgorithm.SHA256);
+  LForged := LSigningInput + '.' + TBase64.URLEncode(LSignature.AsBytes);
+
+  LToken := TJWT.Create;
+  try
+    LJWS := TJWS.Create(LToken);
+    try
+      LJWS.SetKey(FKeys.PublicKey);
+      // Deliberately NOT SkipKeyValidation - that flag opts out of this defence, as documented.
+      LJWS.CompactToken := LForged;
+
+      Assert.WillRaise(
+        procedure
+        begin
+          LJWS.VerifySignature;
+        end,
+        EJOSEException,
+        'PEM key material must be refused as an HMAC secret');
+    finally
+      LJWS.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
 end;
 
 initialization

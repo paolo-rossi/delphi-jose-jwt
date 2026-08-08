@@ -145,6 +145,41 @@ resourcestring
   SJOSEKeyTooShort = 'Key is too short (%dbit), expected (%dbit)';
   SJOSENotImplemented = 'Not implemented';
   SJOSEUnsecureAlgorithmMustNotUseKey = 'Unsecure JWS (alg=None) must not use a key';
+  SJOSEHmacKeyIsPEM = 'HMAC key is PEM-armoured key material, not a shared secret. ' +
+    'Refusing it: an attacker holding the matching public key could forge tokens (RS256/HS256 ' +
+    'algorithm substitution)';
+
+/// <summary>
+///   True when AKey opens - leading whitespace aside - with PEM armour ("-----BEGIN").
+/// </summary>
+/// <remarks>
+///   Compared as raw bytes rather than through a string: an HMAC secret is arbitrary binary and
+///   need not survive a text decode.
+/// </remarks>
+function JOSEKeyLooksLikePEM(const AKey: TJOSEBytes): Boolean;
+const
+  PEM_ARMOUR: array [0..9] of Byte = (
+    Ord('-'), Ord('-'), Ord('-'), Ord('-'), Ord('-'),
+    Ord('B'), Ord('E'), Ord('G'), Ord('I'), Ord('N'));
+var
+  LBytes: TBytes;
+  LStart, LIndex: Integer;
+begin
+  LBytes := AKey.AsBytes;
+
+  LStart := 0;
+  while (LStart < Length(LBytes)) and (LBytes[LStart] in [9, 10, 13, 32]) do
+    Inc(LStart);
+
+  if Length(LBytes) - LStart < Length(PEM_ARMOUR) then
+    Exit(False);
+
+  for LIndex := 0 to High(PEM_ARMOUR) do
+    if LBytes[LStart + LIndex] <> PEM_ARMOUR[LIndex] then
+      Exit(False);
+
+  Result := True;
+end;
 
 constructor THmacUsingShaAlgorithm.Create(const AAlgorithmId: TJOSEAlgorithmId; AKeyMinLength: Integer);
 begin
@@ -187,6 +222,16 @@ procedure THmacUsingShaAlgorithm.ValidateKey(const AKey: TJOSEBytes);
 begin
   if AKey.IsEmpty then
     raise EJOSEException.Create(SJOSEKeyIsNull);
+
+  // Defence in depth against algorithm substitution. TJWS picks the algorithm from the token's own
+  // header, so a verifier holding an RSA/EC *public* key can be handed an HS256 token that was
+  // HMACed with that very key - which the attacker also has. Nothing legitimate uses PEM armour as
+  // a shared secret, so refusing it costs nothing and closes the classic RS256 -> HS256 swap.
+  // The real control is still TJOSEConsumer.SetExpectedAlgorithms; this only narrows the blast
+  // radius when that list is left wide, and is bypassed along with every other key check when the
+  // caller opts out via SkipKeyValidation.
+  if JOSEKeyLooksLikePEM(AKey) then
+    raise EJOSEException.Create(SJOSEHmacKeyIsPEM);
 
   if AKey.Size * 8 < FKeyMinLength then
     raise EJOSEException.CreateFmt(SJOSEKeyTooShort,

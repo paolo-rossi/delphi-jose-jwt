@@ -162,8 +162,33 @@ signatures. All three provider stacks implement it; on the OpenSSL-backed stacks
 the PSS entry points reports that plainly instead of failing at load time.
 
 #### Security notes
-- This library is not affected by the `None` algorithm vulnerability
-- This library is not susceptible to the [recently discussed encryption vulnerability](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
+
+**`alg: none` is rejected.** `TUnsecureNoneAlgorithm` is not registered in the algorithm factory,
+so a token claiming `none` fails to verify whatever the configuration — the first of the two issues
+in Auth0's [Critical vulnerabilities in JSON Web Token libraries](https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/).
+
+**Algorithm substitution — always call `SetExpectedAlgorithms`.** That article's second issue needs
+care from you. As RFC 7515 requires, `TJWS.VerifySignature` takes the algorithm from the token's own
+header, and a `TJWK` is an opaque byte blob with no key-type metadata to cross-check it against. So
+if you verify with an RSA or EC **public** key and leave the consumer's algorithm list at its
+default — which permits every algorithm — an attacker can re-sign claims of their choosing as
+`HS256`, using that public key (which they have too) as the HMAC secret. Narrow the list to what you
+actually issue:
+
+```delphi
+TJOSEConsumerBuilder.NewConsumer
+  .SetVerificationKey(LPublicKey)
+  .SetExpectedAlgorithms([TJOSEAlgorithmId.RS256])   // <-- do this
+  .SetExpectedIssuer(True, 'my-issuer')
+  .Build
+  .Process(LCompactToken);
+```
+
+As defence in depth the `HS*` algorithms refuse a key carrying PEM armour, so the classic
+RS256 → HS256 swap fails even with a wide algorithm list. That is a backstop, not the control: it is
+bypassed along with every other key check by `SetSkipVerificationKeyValidation` /
+`TJWS.SkipKeyValidation`, and it cannot help when both the expected and the substituted algorithm
+are asymmetric. The algorithm allowlist is what you rely on.
 
 ## :key: JSON Web Key (JWK) support
 
