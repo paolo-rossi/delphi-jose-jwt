@@ -1,3 +1,13 @@
+{******************************************************************************}
+{                                                                              }
+{  Delphi JOSE-JWT Library                                                     }
+{  Copyright (c) 2015 Paolo Rossi                                              }
+{  https://github.com/paolo-rossi/delphi-jose-jwt                              }
+{                                                                              }
+{  Licensed under the MIT license                                              }
+{                                                                              }
+{******************************************************************************}
+
 unit JOSE.Tests.TimeUnit;
 
 interface
