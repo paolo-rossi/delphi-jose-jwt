@@ -26,8 +26,19 @@ type
   ///   Global crypto/encoding providers. Default stack is registered from <c>initialization</c>;
   ///   call <c>TJOSEProviders.RegisterDefault</c> again if you use <c>UnregisterDefault</c>.
   /// </summary>
+  /// <remarks>
+  ///   Threading model: registering a stack is a startup operation. The slots
+  ///   are read on every signing and verification without locking - which is
+  ///   what keeps those paths cheap - so swapping a provider while other
+  ///   threads are working is not supported and can hand a worker a half
+  ///   swapped stack (say a CryptoLib certificate provider next to the default
+  ///   RSA one). Registration itself is serialized, so two threads racing to
+  ///   install different stacks cannot interleave their slots, but the winner
+  ///   is whichever finishes last. Register once, before starting workers.
+  /// </remarks>
   TJOSEProviders = class
   private
+    class var FLock: TObject;
     class var FBase64: IJOSEBase64Provider;
     class var FHMAC: IJOSEHmacProvider;
 {$IFDEF RSA_SIGNING}
@@ -127,12 +138,24 @@ end;
 
 class procedure TJOSEProviders.RegisterProvider;
 begin
-  TJOSEDefaultProviders.Register;
+  // Serialized so that two stacks being installed at once cannot end up
+  // interleaved slot by slot. It does not make swapping safe for readers
+  TMonitor.Enter(FLock);
+  try
+    TJOSEDefaultProviders.Register;
+  finally
+    TMonitor.Exit(FLock);
+  end;
 end;
 
 class procedure TJOSEProviders.UnregisterProvider;
 begin
-  TJOSEDefaultProviders.Unregister;
+  TMonitor.Enter(FLock);
+  try
+    TJOSEDefaultProviders.Unregister;
+  finally
+    TMonitor.Exit(FLock);
+  end;
 end;
 
 {$IFDEF RSA_SIGNING}
@@ -218,6 +241,11 @@ end;
 {$ENDIF}
 
 initialization
+  TJOSEProviders.FLock := TObject.Create;
   TJOSEProviders.RegisterProvider;
+
+finalization
+  TJOSEProviders.FLock.Free;
+  TJOSEProviders.FLock := nil;
 
 end.

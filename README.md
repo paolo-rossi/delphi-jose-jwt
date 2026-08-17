@@ -190,6 +190,16 @@ bypassed along with every other key check by `SetSkipVerificationKeyValidation` 
 `TJWS.SkipKeyValidation`, and it cannot help when both the expected and the substituted algorithm
 are asymmetric. The algorithm allowlist is what you rely on.
 
+**Threading model.** Signing and verifying are safe to do from several threads at once: the
+algorithm registry is built during unit initialization and only read afterwards, the lazy OpenSSL
+entry-point loads are serialized, and consumers, producers and validators hold no shared state.
+What is *not* safe is reconfiguring the library while those threads run — installing a provider
+stack (`TJOSEProviders`/`TCryptoLibProviders`/`TTaurusTLSProviders`), registering your own
+algorithm, or flipping `TBase64.StrictURLDecoding`. Those are startup operations: do them once,
+before the workers start. Registration itself is serialized, so two stacks cannot end up
+interleaved, but readers are deliberately lock-free and a swap mid-flight can hand a worker half of
+each stack.
+
 **Token segments must be strict base64url.** RFC 7515 allows only the `A-Za-z0-9-_` alphabet, with
 no padding, no whitespace and no line breaks, and `TBase64` enforces that before any decoding
 happens — the underlying decoders are lenient in ways that differ between provider stacks and Delphi

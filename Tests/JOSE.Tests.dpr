@@ -26,6 +26,7 @@ uses
   JOSE.Tests.Consumer in 'Source\JOSE.Tests.Consumer.pas',
   JOSE.Tests.Context in 'Source\JOSE.Tests.Context.pas',
   JOSE.Tests.Validators in 'Source\JOSE.Tests.Validators.pas',
+  JOSE.Tests.Concurrency in 'Source\JOSE.Tests.Concurrency.pas',
   JOSE.Tests.JWK in 'Source\JOSE.Tests.JWK.pas',
   JOSE.Tests.JWS in 'Source\JOSE.Tests.JWS.pas',
   JOSE.Tests.JWT in 'Source\JOSE.Tests.JWT.pas',

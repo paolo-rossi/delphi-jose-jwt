@@ -209,6 +209,9 @@ type
     FECKeySupportAvailable: Boolean;
     FPSSSupportLoaded: Boolean;
     FPSSSupportAvailable: Boolean;
+    /// <summary>Serializes the lazy Ensure*Support loads, which resolve dozens
+    ///   of entry points into shared variables on first use</summary>
+    FLoadLock: TObject;
   private
     class function LoadFunctionCLib(const AFunctionName: string; const ARaiseException: Boolean = True): Pointer;
   public
@@ -290,10 +293,16 @@ class function JoseSSL.EnsureECKeySupport: Boolean;
 var
   LErrors: Integer;
 begin
-  if FECKeySupportLoaded then
-    Exit(FECKeySupportAvailable);
+  // Locked unconditionally rather than double-checked: resolving the entry
+  // points once costs far less than the crypto operation that follows, and two
+  // threads reaching this together used to run the whole sequence twice while
+  // a third could observe FECKeySupportLoaded before FECKeySupportAvailable
+  TMonitor.Enter(FLoadLock);
+  try
+    if FECKeySupportLoaded then
+      Exit(FECKeySupportAvailable);
 
-  LErrors := 0;
+    LErrors := 0;
 
   @EC_KEY_new := LoadFunctionCLib(fn_EC_KEY_new, False);
   if not Assigned(EC_KEY_new) then Inc(LErrors);
@@ -336,19 +345,25 @@ begin
   @BN_free := LoadFunctionCLib(fn_BN_free, False);
   if not Assigned(BN_free) then Inc(LErrors);
 
-  FECKeySupportAvailable := LErrors = 0;
-  FECKeySupportLoaded := True;
-  Result := FECKeySupportAvailable;
+    FECKeySupportAvailable := LErrors = 0;
+    FECKeySupportLoaded := True;
+    Result := FECKeySupportAvailable;
+  finally
+    TMonitor.Exit(FLoadLock);
+  end;
 end;
 
 class function JoseSSL.EnsurePSSSupport: Boolean;
 var
   LErrors: Integer;
 begin
-  if FPSSSupportLoaded then
-    Exit(FPSSSupportAvailable);
+  // Same reasoning as EnsureECKeySupport
+  TMonitor.Enter(FLoadLock);
+  try
+    if FPSSSupportLoaded then
+      Exit(FPSSSupportAvailable);
 
-  LErrors := 0;
+    LErrors := 0;
 
   @RSA_padding_add_PKCS1_PSS := LoadFunctionCLib(fn_RSA_padding_add_PKCS1_PSS, False);
   if not Assigned(RSA_padding_add_PKCS1_PSS) then Inc(LErrors);
@@ -365,9 +380,12 @@ begin
   @EVP_sha512 := LoadFunctionCLib(fn_EVP_sha512, False);
   if not Assigned(EVP_sha512) then Inc(LErrors);
 
-  FPSSSupportAvailable := LErrors = 0;
-  FPSSSupportLoaded := True;
-  Result := FPSSSupportAvailable;
+    FPSSSupportAvailable := LErrors = 0;
+    FPSSSupportLoaded := True;
+    Result := FPSSSupportAvailable;
+  finally
+    TMonitor.Exit(FLoadLock);
+  end;
 end;
 
 class function JoseSSL.GetLastError: string;
@@ -498,6 +516,17 @@ begin
   FPSSSupportAvailable := False;
 end;
 
+{$ENDIF}
+
+initialization
+{$IFDEF RSA_SIGNING}
+  JoseSSL.FLoadLock := TObject.Create;
+{$ENDIF}
+
+finalization
+{$IFDEF RSA_SIGNING}
+  JoseSSL.FLoadLock.Free;
+  JoseSSL.FLoadLock := nil;
 {$ENDIF}
 
 end.

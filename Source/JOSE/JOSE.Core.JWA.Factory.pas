@@ -46,9 +46,20 @@ type
     procedure UnregisterAlgorithm(AAlgId: TJOSEAlgorithmId); overload;
   end;
 
+  /// <summary>
+  ///   Process-wide registry of the JOSE algorithms
+  /// </summary>
+  /// <remarks>
+  ///   The instance is created during unit initialization and is then read-only
+  ///   as far as this library is concerned, so concurrent verification is safe.
+  ///   RegisterAlgorithm/UnregisterAlgorithm mutate a shared dictionary and are
+  ///   not synchronised: register your own algorithms at startup, before any
+  ///   worker thread runs.
+  /// </remarks>
   TJOSEAlgorithmRegistryFactory = class
   private class var
     FInstance: TJOSEAlgorithmRegistryFactory;
+    FInstanceLock: TObject;
   private
     FSigningAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSESigningAlgorithm>;
     FEncryptionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>;
@@ -152,14 +163,36 @@ end;
 
 class function TJOSEAlgorithmRegistryFactory.GetInstance: TJOSEAlgorithmRegistryFactory;
 begin
+  // The singleton is built during unit initialization, which the RTL runs
+  // before any user code, so the common path is a plain read. The guarded
+  // branch below only covers a call that arrives after finalization freed it:
+  // unguarded lazy construction let two threads verifying their first token
+  // each build a registry, one of which was then leaked along with anything
+  // registered on it
   if not Assigned(FInstance) then
-    FInstance := TJOSEAlgorithmRegistryFactory.Create;
+  begin
+    TMonitor.Enter(FInstanceLock);
+    try
+      if not Assigned(FInstance) then
+        FInstance := TJOSEAlgorithmRegistryFactory.Create;
+    finally
+      TMonitor.Exit(FInstanceLock);
+    end;
+  end;
+
   Result := FInstance;
 end;
 
 initialization
+  TJOSEAlgorithmRegistryFactory.FInstanceLock := TObject.Create;
+  // Eagerly, so that the first token verified by a worker thread does not have
+  // to build it - and so that two of them cannot build it at the same time
+  TJOSEAlgorithmRegistryFactory.GetInstance;
 
 finalization
   TJOSEAlgorithmRegistryFactory.FInstance.Free;
+  TJOSEAlgorithmRegistryFactory.FInstance := nil;
+  TJOSEAlgorithmRegistryFactory.FInstanceLock.Free;
+  TJOSEAlgorithmRegistryFactory.FInstanceLock := nil;
 
 end.
