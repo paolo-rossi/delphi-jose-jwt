@@ -24,6 +24,7 @@ uses
   System.SysUtils,
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
+  JOSE.Crypto.Algorithms,
   JOSE.Signing.RSA,
   JOSE.Signing.ECDSA,
   JOSE.Core.Base,
@@ -300,7 +301,8 @@ end;
 
 function TUnsecureNoneAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;
 begin
-  ValidateKey(AKey);
+  // Key validation belongs to TJWS.VerifySignature, which owns the
+  // SkipKeyValidation policy - as it does for HMAC, RSA and ECDSA
   Result := ASignature.IsEmpty;
 end;
 
@@ -310,6 +312,7 @@ resourcestring
   SJOSEKeyNotRSAPem = 'Key is not RSA key in PEM format';
   SJOSEUnsupportedRSAAlgorithmId = 'Not an RSA signing algorithm: %s';
   SJOSEKeyNotECDSAPem = 'Key is not ECDSA key in PEM format';
+  SJOSEECDSASignatureLength = '%s requires a %d byte signature (RFC 7518 par. 3.4), got %d bytes';
 
 { TRSAAlgorithm }
 
@@ -472,6 +475,15 @@ begin
   // policy - as it already does for HMAC and RSA. Validating here as well ignored that flag and
   // parsed the PEM twice per verification.
   LDecodedSignature := TBase64.URLDecode(ASignature);
+
+  // RFC 7518 par. 3.4 fixes the signature to R||S with each half padded to the curve's field
+  // size. Checked here, in the algorithm, so that it holds for every provider stack: the
+  // providers split whatever they are handed in half, so a wrong-width signature would reach
+  // the curve arithmetic and come back as a plain "invalid signature"
+  if LDecodedSignature.Size <> FECDSAAlgorithm.SignatureLength then
+    raise EJOSEException.CreateFmt(SJOSEECDSASignatureLength,
+      [FECDSAAlgorithm.ToString, FECDSAAlgorithm.SignatureLength, LDecodedSignature.Size]);
+
   Result := TECDSA.Verify(AInput, LDecodedSignature, AKey, FECDSAAlgorithm);
 end;
 

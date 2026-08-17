@@ -156,21 +156,13 @@ begin
 end;
 
 procedure TJOSEArray<T>.Join(const AValue: TJOSEArray<T>);
-var
-  LSizeSource, LSizeDest: NativeInt;
 begin
-  LSizeSource := AValue.Size;
-  if LSizeSource = 0 then
-    Exit;
-
-  LSizeDest := Size;
-  Size := LSizeDest + LSizeSource;
-  Move(AValue.FPayload[0], FPayload[LSizeDest], SizeOf(T) * LSizeSource);
+  Join(AValue.FPayload);
 end;
 
 procedure TJOSEArray<T>.Join(const AValue: TArray<T>);
 var
-  LSizeSource, LSizeDest: NativeInt;
+  LSizeSource, LSizeDest, LIndex: NativeInt;
 begin
   LSizeSource := Length(AValue);
   if LSizeSource = 0 then
@@ -178,7 +170,12 @@ begin
 
   LSizeDest := Size;
   Size := LSizeDest + LSizeSource;
-  Move(AValue[0], FPayload[LSizeDest], SizeOf(T) * LSizeSource);
+
+  // Assigned element by element, not moved: T is frequently a managed type
+  // (TJOSEStringArray is TJOSEArray<string>), and copying those as raw bytes
+  // leaves the refcount untouched, so the same string is released twice
+  for LIndex := 0 to LSizeSource - 1 do
+    FPayload[LSizeDest + LIndex] := AValue[LIndex];
 end;
 
 function TJOSEArray<T>.Pop: T;

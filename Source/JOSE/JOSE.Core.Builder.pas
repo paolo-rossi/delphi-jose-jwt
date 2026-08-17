@@ -33,7 +33,7 @@ type
     class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes;
       AVerify, ARaiseOnInvalidSignature: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
-    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean; static;
+    class function CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 
     /// <summary>
     ///   Signs AToken and returns the *signature*. To get the compact token use
@@ -55,6 +55,13 @@ type
     /// </remarks>
     class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     class function Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    /// <summary>Verifies with a JSON Web Key, using its public half</summary>
+    class function Verify(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    /// <summary>
+    ///   Verifies with the key of AKeySet that the token's header points at.
+    ///   See SelectKey for how that key is chosen
+    /// </summary>
+    class function Verify(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
 
     /// <summary>
     ///   Same as Verify, but raises EJOSEException when the signature does not
@@ -63,6 +70,23 @@ type
     /// </summary>
     class function VerifyOrRaise(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     class function VerifyOrRaise(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    class function VerifyOrRaise(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    class function VerifyOrRaise(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+
+    /// <summary>
+    ///   The key of AKeySet that ACompactToken's header points at: the one
+    ///   whose [kid] matches, provided its [alg] does not contradict the
+    ///   header's. A token with no [kid] resolves only when the set holds
+    ///   exactly one key. Raises EJOSEException when no single key can be
+    ///   chosen - a token that names no usable key is a configuration problem,
+    ///   not an unreadable token, so it is reported rather than returned as nil
+    /// </summary>
+    /// <remarks>
+    ///   The header is read without verifying anything: [kid] and [alg] are
+    ///   hints for choosing a key, never a reason to trust the token. The
+    ///   signature check that follows is what decides.
+    /// </remarks>
+    class function SelectKey(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes): TJSONWebKey;
 
     /// <summary>
     ///   Serializes and signs AToken. The key is validated for the chosen
@@ -90,10 +114,12 @@ uses
   System.StrUtils;
 
 resourcestring
-  SJOSEJWENotSupported = 'Compact Serialization appears to be a JWE Token which is not (yet) supported';
-  SJOSEMalformedCompactSerialization = 'Malformed Compact Serialization';
+  // The compact-serialization messages now live in JOSE.Core.Base, next to the
+  // record that decides when to use them
   SJOSEInvalidSignature = 'The JWS signature is invalid';
   SJOSEVerificationKeyRequired = 'A verification key is required to verify the token';
+  SJOSEJWKSNoMatchingKey = 'No key in the key set matches the token header [kid=%s]';
+  SJOSEJWKSCannotChooseKey = 'The token header carries no [kid] and the key set holds %d keys: cannot choose one';
 
 { TJOSE }
 
@@ -129,61 +155,52 @@ end;
 class function TJOSE.DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes;
     AVerify, ARaiseOnInvalidSignature: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
 var
-  LRes: TStringDynArray;
   LSigner: TJWS;
   LVerified: Boolean;
 begin
   Result := nil;
-  LRes := SplitString(ACompactToken, PART_SEPARATOR);
 
-  case Length(LRes) of
-    3:
-    begin
-      // Without this, SetKey below would dereference nil and the failure would
-      // be reported as an unreadable token
-      if AVerify and not Assigned(AKey) then
-        raise EJOSEException.Create(SJOSEVerificationKeyRequired);
+  // Raises for a JWE, for a wrong part count and for a part that is not
+  // base64url: the same rules TJOSEContext and TJWS apply
+  TJOSECompactSerialization.Split(ACompactToken).CheckIsJWS;
 
-      LVerified := False;
-      Result := TJWT.Create(AClaimsClass);
-      try
-        LSigner := TJWS.Create(Result);
-        try
-          LSigner.CompactToken := ACompactToken;
-          if AVerify then
-          begin
-            LSigner.SetKey(AKey);
-            LVerified := LSigner.VerifySignature;
-          end;
-        finally
-          LSigner.Free;
-        end;
-      except
-        on E: Exception do
-        begin
-          FreeAndNil(Result);
-          // "nil means the token could not be read" is the documented contract
-          // of Verify/DeserializeCompact, but only for JOSE-level errors: any
-          // other exception is a fault and must not be turned into a nil
-          if (E is EJOSEException) and not ARaiseOnInvalidSignature then
-            Exit(nil);
-          raise;
-        end;
-      end;
+  // Without this, SetKey below would dereference nil and the failure would
+  // be reported as an unreadable token
+  if AVerify and not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEVerificationKeyRequired);
 
-      if AVerify and not LVerified and ARaiseOnInvalidSignature then
+  LVerified := False;
+  Result := TJWT.Create(AClaimsClass);
+  try
+    LSigner := TJWS.Create(Result);
+    try
+      LSigner.CompactToken := ACompactToken;
+      if AVerify then
       begin
-        FreeAndNil(Result);
-        raise EJOSEException.Create(SJOSEInvalidSignature);
+        LSigner.SetKey(AKey);
+        LVerified := LSigner.VerifySignature;
       end;
+    finally
+      LSigner.Free;
     end;
-    5:
+  except
+    on E: Exception do
     begin
-      raise EJOSEException.Create(SJOSEJWENotSupported);
+      FreeAndNil(Result);
+      // "nil means the token could not be read" is the documented contract
+      // of Verify/DeserializeCompact, but only for JOSE-level errors: any
+      // other exception is a fault and must not be turned into a nil
+      if (E is EJOSEException) and not ARaiseOnInvalidSignature then
+        Exit(nil);
+      raise;
     end;
-    else
-      raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
-  end
+  end;
+
+  if AVerify and not LVerified and ARaiseOnInvalidSignature then
+  begin
+    FreeAndNil(Result);
+    raise EJOSEException.Create(SJOSEInvalidSignature);
+  end;
 end;
 
 class function TJOSE.SerializeCompact(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJOSEBytes;
@@ -275,6 +292,84 @@ class function TJOSE.VerifyOrRaise(AKey: TJWK; const ACompactToken: TJOSEBytes;
   AClaimsClass: TJWTClaimsClass): TJWT;
 begin
   Result := DeserializeVerify(AKey, ACompactToken, True, True, AClaimsClass);
+end;
+
+class function TJOSE.SelectKey(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes): TJSONWebKey;
+var
+  LToken: TJWT;
+  LKid: string;
+  LAlg: TJOSEAlgorithmId;
+begin
+  if not Assigned(AKeySet) then
+    raise EJOSEException.Create(SJOSEVerificationKeyRequired);
+
+  LToken := DeserializeOnly(ACompactToken);
+  if not Assigned(LToken) then
+    raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
+  try
+    LKid := LToken.Header.KeyID;
+    LAlg.AsString := LToken.Header.Algorithm;
+  finally
+    LToken.Free;
+  end;
+
+  if LKid <> '' then
+    // Rejects a key whose own [alg] contradicts the header's; Unknown on
+    // either side means unconstrained
+    Result := AKeySet.FindByKidAndAlg(LKid, LAlg)
+  else if AKeySet.Keys.Count = 1 then
+    Result := AKeySet.Keys[0]
+  else
+    raise EJOSEException.CreateFmt(SJOSEJWKSCannotChooseKey, [AKeySet.Keys.Count]);
+
+  if not Assigned(Result) then
+    raise EJOSEException.CreateFmt(SJOSEJWKSNoMatchingKey, [LKid]);
+end;
+
+class function TJOSE.Verify(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LKeyPair: TKeyPair;
+begin
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEVerificationKeyRequired);
+
+  // PublicKey carries the verification material for every key type: the secret
+  // for oct, the public PEM for RSA and EC
+  LKeyPair := AKey.ToKeyPair;
+  try
+    Result := Verify(LKeyPair.PublicKey, ACompactToken, AClaimsClass);
+  finally
+    LKeyPair.Free;
+  end;
+end;
+
+class function TJOSE.VerifyOrRaise(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LKeyPair: TKeyPair;
+begin
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEVerificationKeyRequired);
+
+  LKeyPair := AKey.ToKeyPair;
+  try
+    Result := VerifyOrRaise(LKeyPair.PublicKey, ACompactToken, AClaimsClass);
+  finally
+    LKeyPair.Free;
+  end;
+end;
+
+class function TJOSE.Verify(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+begin
+  Result := Verify(SelectKey(AKeySet, ACompactToken), ACompactToken, AClaimsClass);
+end;
+
+class function TJOSE.VerifyOrRaise(AKeySet: TJSONWebKeySet; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+begin
+  Result := VerifyOrRaise(SelectKey(AKeySet, ACompactToken), ACompactToken, AClaimsClass);
 end;
 
 class function TJOSE.VerifyOrRaise(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;

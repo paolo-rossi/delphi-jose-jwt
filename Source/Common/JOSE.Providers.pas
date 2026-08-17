@@ -191,7 +191,14 @@ end;
 class procedure TJOSEProviders.SetCertificate(const AValue: IJOSECertificateProvider);
 begin
   FCertificate := AValue;
+
+  // Both signers capture the certificate provider at construction (they use it
+  // to accept a certificate where a public key is expected), so both go stale
+  // when it changes. Only RSA used to be invalidated, which left ECDSA quietly
+  // using the previous one. Every stack registers Certificate before RSA and
+  // ECDSA, so a normal registration re-fills these two lines later
   FRSA := nil;
+  FECDSA := nil;
 end;
 
 class procedure TJOSEProviders.SetRSA(const AValue: IJOSESignerRSA);

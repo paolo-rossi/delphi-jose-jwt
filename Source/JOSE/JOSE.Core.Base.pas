@@ -30,10 +30,56 @@ uses
 const
   PART_SEPARATOR: Char = '.';
 
+resourcestring
+  // Shared by every path that parses a compact serialization, so that the same
+  // token is refused with the same words wherever it enters the library
+  SJOSEJWENotSupported = 'Compact Serialization appears to be a JWE Token which is not (yet) supported';
+  SJOSEMalformedCompactSerialization = 'Malformed Compact Serialization';
+  SJOSECompactPartNotBase64URL = 'Part %d of the Compact Serialization is not valid base64url';
+
 type
   EJOSEException = class(Exception);
 
   TJOSEStringArray = TJOSEArray<string>;
+
+  /// <summary>What a compact serialization's part count says it is</summary>
+  TJOSECompactKind = (Unknown, JWS, JWE);
+
+  /// <summary>
+  ///   A compact serialization split into its parts, with the rules that decide
+  ///   whether it is usable
+  /// </summary>
+  /// <remarks>
+  ///   The same "3 parts means JWS, 5 means JWE, anything else is malformed"
+  ///   decision used to be written out in TJOSEContext, TJOSE.DeserializeVerify
+  ///   and TJWS.CheckCompactToken, each slightly differently - which is how a
+  ///   token rejected by one path came to be accepted by another. It lives here
+  ///   so the three cannot drift again
+  /// </remarks>
+  TJOSECompactSerialization = record
+  public const
+    JWS_PARTS = 3;
+    JWE_PARTS = 5;
+  private
+    FParts: TArray<string>;
+    function GetCount: Integer;
+    function GetKind: TJOSECompactKind;
+    function GetPart(AIndex: Integer): string;
+  public
+    class function Split(const ACompactToken: TJOSEBytes): TJOSECompactSerialization; static;
+
+    /// <summary>True when every part is strict base64url (RFC 7515 par. 2)</summary>
+    function PartsAreBase64URL: Boolean;
+    /// <summary>
+    ///   Raises EJOSEException unless the part count says JWS, with the message
+    ///   that tells a JWE apart from a malformed token
+    /// </summary>
+    procedure CheckIsJWS;
+
+    property Count: Integer read GetCount;
+    property Kind: TJOSECompactKind read GetKind;
+    property Parts[AIndex: Integer]: string read GetPart; default;
+  end;
 
   TJOSETimeUnit = (Days, Hours, Minutes, Seconds, Milliseconds);
   TJOSETimeUnitHelper = record helper for TJOSETimeUnit
@@ -109,11 +155,64 @@ function JSONDate(ADate: TDateTime): Int64;
 implementation
 
 uses
+  System.Types,
+  System.StrUtils,
   System.DateUtils,
   JOSE.Encoding.Base64;
 
 resourcestring
   SJOSEInvalidJSONSegment = 'The token segment is not a valid JSON object';
+
+{ TJOSECompactSerialization }
+
+class function TJOSECompactSerialization.Split(const ACompactToken: TJOSEBytes): TJOSECompactSerialization;
+begin
+  Result.FParts := SplitString(ACompactToken, PART_SEPARATOR);
+end;
+
+function TJOSECompactSerialization.GetCount: Integer;
+begin
+  Result := Length(FParts);
+end;
+
+function TJOSECompactSerialization.GetKind: TJOSECompactKind;
+begin
+  case Count of
+    JWS_PARTS: Result := TJOSECompactKind.JWS;
+    JWE_PARTS: Result := TJOSECompactKind.JWE;
+  else
+    Result := TJOSECompactKind.Unknown;
+  end;
+end;
+
+function TJOSECompactSerialization.GetPart(AIndex: Integer): string;
+begin
+  Result := FParts[AIndex];
+end;
+
+function TJOSECompactSerialization.PartsAreBase64URL: Boolean;
+var
+  LIndex: Integer;
+begin
+  for LIndex := 0 to Count - 1 do
+    if not TBase64.IsValidURLEncoded(FParts[LIndex]) then
+      Exit(False);
+
+  Result := True;
+end;
+
+procedure TJOSECompactSerialization.CheckIsJWS;
+begin
+  // Deliberately about the shape only. Whether the parts decode, and what
+  // happens when they do not, is the parser's business: TJWS.SetCompactToken
+  // reports it, and TJOSE.Verify turns that into its documented nil
+  case Kind of
+    TJOSECompactKind.JWE:
+      raise EJOSEException.Create(SJOSEJWENotSupported);
+    TJOSECompactKind.Unknown:
+      raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
+  end;
+end;
 
 {$IF CompilerVersion >= 28}  // Delphi XE7
 function ToJSON(Value: TJSONAncestor): string;

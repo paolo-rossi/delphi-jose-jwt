@@ -431,11 +431,29 @@ begin
 end;
 ```
 
+Steps 1 to 3 are common enough that the library does them for you:
+
+```delphi
+// Same rules: match on kid, refuse a key whose alg contradicts the header, and
+// accept a missing kid only when the set holds exactly one key
+LKey := TJOSE.SelectKey(AKeySet, ACompactToken);
+```
+
+and when you only need the signature checked — no claim validation — the whole function collapses
+to one call, which raises `EJOSEException` if the token does not verify:
+
+```delphi
+LToken := TJOSE.VerifyOrRaise(AKeySet, ACompactToken);
+```
+
+Keep the longer form when you want `TJOSEConsumer` to validate the claims as well, since that is
+what enforces `iss`, `aud`, expiry and the algorithm allowlist.
+
 Notes on the flow:
 
 - **`TJOSEContext` parses without verifying**, which is exactly what you need to read `kid` before
   you know the key. Everything read at that point is *untrusted*: use it only to select a key,
-  never as data.
+  never as data. `TJOSE.SelectKey` reads the same header under the same rule.
 - Reusing the same context for `ProcessContext` avoids parsing the token twice.
 - `SetVerificationKey` takes `TJOSEBytes`, so you pass `LKeyPair.PublicKey.Key` (the raw PEM /
   secret bytes), not the `TJWK` object.

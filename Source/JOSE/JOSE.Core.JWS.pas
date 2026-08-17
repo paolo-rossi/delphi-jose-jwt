@@ -105,11 +105,10 @@ resourcestring
   SJOSESigningAlgorithmNotSupported = 'Signing algorithm (%s) is not supported.';
   SJOSECompactSerializationEmpty = 'The JWS Compact Serialization is empty';
   SJOSECompactSerializationPartCount = 'A JWS Compact Serialization must have %d parts';
-  SJOSECompactSerializationNotBase64URL = 'Part %d of the JWS Compact Serialization is not valid base64url';
 
 class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 var
-  LRes: TStringDynArray;
+  LCompact: TJOSECompactSerialization;
   LIndex: Integer;
   LPart: TJOSEBytes;
 begin
@@ -118,17 +117,20 @@ begin
   if AValue.IsEmpty then
     Exit(False);
 
-  LRes := SplitString(AValue, PART_SEPARATOR);
-  if not (Length(LRes) = COMPACT_PARTS) then
+  LCompact := TJOSECompactSerialization.Split(AValue);
+  if LCompact.Kind <> TJOSECompactKind.JWS then
     Exit(False);
 
-  for LIndex := 0 to Length(LRes) - 1 do
+  for LIndex := 0 to LCompact.Count - 1 do
   begin
-    if LRes[LIndex].IsEmpty then
+    if LCompact[LIndex].IsEmpty then
       Exit(False);
   end;
 
-  LPart := TBase64.TryURLDecode(LRes[0]);
+  if not LCompact.PartsAreBase64URL then
+    Exit(False);
+
+  LPart := TBase64.TryURLDecode(LCompact[0]);
   if LPart.IsEmpty then
     Exit(False);
 
@@ -138,7 +140,7 @@ begin
   if not TJSONUtils.IsValidJSONObject(LPart) then
     Exit(False);
 
-  LPart := TBase64.TryURLDecode(LRes[1]);
+  LPart := TBase64.TryURLDecode(LCompact[1]);
   if LPart.IsEmpty then
     Exit(False);
 
@@ -220,7 +222,7 @@ begin
     // it (a lenient decoder would let several texts stand for one signature)
     for LIndex := 0 to COMPACT_PARTS - 1 do
       if not TBase64.IsValidURLEncoded(LRes[LIndex]) then
-        raise EJOSEException.CreateFmt(SJOSECompactSerializationNotBase64URL, [LIndex + 1]);
+        raise EJOSEException.CreateFmt(SJOSECompactPartNotBase64URL, [LIndex + 1]);
 
     FParts[0] := LRes[0];
     FParts[1] := LRes[1];

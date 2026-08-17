@@ -58,6 +58,14 @@ type
   TECDSAAlgorithmHelper = record helper for TECDSAAlgorithm
     procedure FromString(const AValue: string);
     function ToString: string;
+    /// <summary>
+    ///   Size in bytes of each of the two signature components, which RFC 7518
+    ///   par. 3.4 fixes to the curve's field size: 32 for P-256 and secp256k1,
+    ///   48 for P-384, 66 for P-521
+    /// </summary>
+    function ComponentLength: Integer;
+    /// <summary>Size in bytes of the R||S signature: twice ComponentLength</summary>
+    function SignatureLength: Integer;
   end;
 
   /// <summary>Elliptic curve identifier used at the key-material provider boundary (not JSON-facing).</summary>
@@ -204,6 +212,22 @@ begin
     ES384: Result := 'ES384';
     ES512: Result := 'ES512';
   end;
+end;
+
+function TECDSAAlgorithmHelper.ComponentLength: Integer;
+begin
+  Result := 0;
+  case Self of
+    ES256:  Result := 32;   // P-256
+    ES256K: Result := 32;   // secp256k1
+    ES384:  Result := 48;   // P-384
+    ES512:  Result := 66;   // P-521, 521 bits rounded up
+  end;
+end;
+
+function TECDSAAlgorithmHelper.SignatureLength: Integer;
+begin
+  Result := ComponentLength * 2;
 end;
 
 { TJOSERSAKeyMaterial }

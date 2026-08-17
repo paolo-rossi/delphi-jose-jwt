@@ -51,6 +51,9 @@ type
     procedure TestKeyMaterialSlots_CanBeClearedIndependentlyOfSigningStack;
 
     [Test]
+    procedure TestSettingTheCertificateProviderInvalidatesBothSigners;
+
+    [Test]
     procedure TestRSAKeyMaterial_ImportPEM_ExtractsComponents;
     [Test]
     procedure TestRSAKeyMaterial_ExportPEM_RoundTrips;
@@ -315,6 +318,28 @@ begin
     end,
     ESignException
   );
+end;
+
+procedure TTestKeyMaterialProviders.TestSettingTheCertificateProviderInvalidatesBothSigners;
+begin
+  // Both signers hold the certificate provider they were built with, so both
+  // have to be re-registered when it changes. ECDSA used to be left alone,
+  // quietly keeping the previous one
+  TJOSEProviders.Certificate := TDefaultCertificateProvider.Create;
+  try
+    Assert.WillRaise(
+      procedure begin TJOSEProviders.RSA end,
+      EJOSEProvidersNotRegistered, 'RSA must be invalidated');
+    Assert.WillRaise(
+      procedure begin TJOSEProviders.ECDSA end,
+      EJOSEProvidersNotRegistered, 'ECDSA must be invalidated too');
+  finally
+    TJOSEProviders.RegisterProvider;
+  end;
+
+  // ... and a normal registration puts the stack back
+  Assert.IsNotNull(TJOSEProviders.RSA);
+  Assert.IsNotNull(TJOSEProviders.ECDSA);
 end;
 
 { TTestCertificateProvider }

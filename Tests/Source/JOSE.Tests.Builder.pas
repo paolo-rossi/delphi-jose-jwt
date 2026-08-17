@@ -45,6 +45,8 @@ type
     function NewToken: TJWT;
     function SignedToken: TJOSEBytes;
     function TamperedToken: TJOSEBytes;
+    function TokenWithKid(const AKid: string; const ASecret: TJOSEBytes): TJOSEBytes;
+    function OctKey(const AKid: string; const ASecret: TJOSEBytes): TJSONWebKey;
   public
     // The convenience overloads must not opt out of key validation on the
     // caller's behalf: an under-length HMAC secret (RFC 7518 par. 3.2) or PEM
@@ -80,6 +82,20 @@ type
 
     [Test]
     procedure TestSHA384CompactTokenMatchesTheMisspelledOne;
+
+    // Verifying straight from a JWK / JWKS, without the TKeyPair detour
+    [Test]
+    procedure TestVerifyWithAJWK;
+    [Test]
+    procedure TestVerifyWithAJWKSPicksTheKeyByKid;
+    [Test]
+    procedure TestVerifyWithAJWKSRejectsAnUnknownKid;
+    [Test]
+    procedure TestVerifyWithAJWKSRejectsAnAlgMismatch;
+    [Test]
+    procedure TestVerifyWithASingleKeyJWKSNeedsNoKid;
+    [Test]
+    procedure TestVerifyWithAMultiKeyJWKSNeedsAKid;
 
     // The producer refuses to build with a key pair that carries no private key
     [Test]
@@ -321,6 +337,155 @@ begin
     end;
   finally
     LJWT.Free;
+  end;
+end;
+
+function TTestBuilder.TokenWithKid(const AKid: string; const ASecret: TJOSEBytes): TJOSEBytes;
+var
+  LJWT: TJWT;
+  LSigner: TJWS;
+begin
+  LJWT := NewToken;
+  try
+    LJWT.Header.KeyID := AKid;
+    LSigner := TJWS.Create(LJWT);
+    try
+      LSigner.SetKey(ASecret);
+      LSigner.SetHeaderAlgorithm(TJOSEAlgorithmId.HS256);
+      LSigner.Sign;
+      Result := LSigner.CompactToken;
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LJWT.Free;
+  end;
+end;
+
+function TTestBuilder.OctKey(const AKid: string; const ASecret: TJOSEBytes): TJSONWebKey;
+begin
+  Result := TJSONWebKey.CreateOct(ASecret);
+  Result.Kid := AKid;
+end;
+
+procedure TTestBuilder.TestVerifyWithAJWK;
+var
+  LKey: TJSONWebKey;
+  LJWT: TJWT;
+begin
+  LKey := OctKey('k1', SECRET);
+  try
+    LJWT := TJOSE.VerifyOrRaise(LKey, SignedToken);
+    try
+      Assert.IsTrue(LJWT.Verified);
+      Assert.AreEqual('alice', LJWT.Claims.Subject);
+    finally
+      LJWT.Free;
+    end;
+  finally
+    LKey.Free;
+  end;
+end;
+
+procedure TTestBuilder.TestVerifyWithAJWKSPicksTheKeyByKid;
+var
+  LKeys: TJSONWebKeySet;
+  LJWT: TJWT;
+begin
+  LKeys := TJSONWebKeySet.Create;
+  try
+    LKeys.AddKey(OctKey('other', 'a-different-secret-of-32-bytes-or-more!!'));
+    LKeys.AddKey(OctKey('k1', SECRET));
+
+    LJWT := TJOSE.VerifyOrRaise(LKeys, TokenWithKid('k1', SECRET));
+    try
+      Assert.IsTrue(LJWT.Verified, 'The key named by the kid must be the one used');
+    finally
+      LJWT.Free;
+    end;
+  finally
+    LKeys.Free;
+  end;
+end;
+
+procedure TTestBuilder.TestVerifyWithAJWKSRejectsAnUnknownKid;
+var
+  LKeys: TJSONWebKeySet;
+  LToken: TJOSEBytes;
+begin
+  LKeys := TJSONWebKeySet.Create;
+  try
+    LKeys.AddKey(OctKey('k1', SECRET));
+    LToken := TokenWithKid('nobody-here', SECRET);
+
+    Assert.WillRaise(
+      procedure begin TJOSE.VerifyOrRaise(LKeys, LToken).Free end,
+      EJOSEException);
+  finally
+    LKeys.Free;
+  end;
+end;
+
+procedure TTestBuilder.TestVerifyWithAJWKSRejectsAnAlgMismatch;
+var
+  LKeys: TJSONWebKeySet;
+  LKey: TJSONWebKey;
+  LToken: TJOSEBytes;
+begin
+  LKeys := TJSONWebKeySet.Create;
+  try
+    // The key says it is for HS512, the token header says HS256
+    LKey := OctKey('k1', SECRET);
+    LKey.Alg := TJOSEAlgorithmId.HS512;
+    LKeys.AddKey(LKey);
+
+    LToken := TokenWithKid('k1', SECRET);
+
+    Assert.WillRaise(
+      procedure begin TJOSE.VerifyOrRaise(LKeys, LToken).Free end,
+      EJOSEException, 'A key whose alg contradicts the header must not be used');
+  finally
+    LKeys.Free;
+  end;
+end;
+
+procedure TTestBuilder.TestVerifyWithASingleKeyJWKSNeedsNoKid;
+var
+  LKeys: TJSONWebKeySet;
+  LJWT: TJWT;
+begin
+  LKeys := TJSONWebKeySet.Create;
+  try
+    LKeys.AddKey(OctKey('', SECRET));
+
+    // No kid in the header and one key in the set: unambiguous
+    LJWT := TJOSE.VerifyOrRaise(LKeys, SignedToken);
+    try
+      Assert.IsTrue(LJWT.Verified);
+    finally
+      LJWT.Free;
+    end;
+  finally
+    LKeys.Free;
+  end;
+end;
+
+procedure TTestBuilder.TestVerifyWithAMultiKeyJWKSNeedsAKid;
+var
+  LKeys: TJSONWebKeySet;
+  LToken: TJOSEBytes;
+begin
+  LKeys := TJSONWebKeySet.Create;
+  try
+    LKeys.AddKey(OctKey('k1', SECRET));
+    LKeys.AddKey(OctKey('k2', SECRET));
+    LToken := SignedToken;   // no kid
+
+    Assert.WillRaise(
+      procedure begin TJOSE.VerifyOrRaise(LKeys, LToken).Free end,
+      EJOSEException, 'Guessing between several keys is not acceptable');
+  finally
+    LKeys.Free;
   end;
 end;
 

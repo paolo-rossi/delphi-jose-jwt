@@ -164,6 +164,23 @@ type
   end;
 
   [TestFixture]
+  TTestJOSEArray = class(TTestBase)
+  public
+    // Join used to Move the elements, which for a managed T copies the
+    // pointers without touching the refcount
+    [Test]
+    procedure TestJoinKeepsTheElementsAlive;
+    [Test]
+    procedure TestJoinCountsTheReference;
+    [Test]
+    procedure TestJoinArray;
+    [Test]
+    procedure TestJoinEmpty;
+    [Test]
+    procedure TestJoinSelf;
+  end;
+
+  [TestFixture]
   TTestJOSEUtils = class(TTestBase)
   public
     [Test]
@@ -428,6 +445,93 @@ begin
   end;
 end;
 
+{ TTestJOSEArray }
+
+procedure TTestJOSEArray.TestJoinKeepsTheElementsAlive;
+var
+  LFirst, LSecond: TJOSEArray<string>;
+begin
+  LFirst := TJOSEArray<string>.Create;
+  LFirst.Push('a');
+  LFirst.Push('b');
+
+  LSecond := TJOSEArray<string>.Create;
+  LSecond.Push('c');
+  LSecond.Push('d');
+
+  LFirst.Join(LSecond);
+
+  // Drop the source: with an unreference-counted copy the joined values would
+  // now be dangling
+  LSecond.Empty;
+
+  Assert.AreEqual<NativeInt>(4, LFirst.Size);
+  Assert.AreEqual('a,b,c,d', LFirst.ToString);
+end;
+
+procedure TTestJOSEArray.TestJoinCountsTheReference;
+var
+  LFirst: TJOSEArray<string>;
+  LValue: string;
+  LBefore, LAfter: Integer;
+begin
+  // A unique string built at run time, so the compiler cannot fold it into a
+  // literal (whose refcount is -1 and would tell us nothing)
+  LValue := 'joined-' + IntToStr(Random(MaxInt));
+  LBefore := StringRefCount(LValue);
+
+  LFirst := TJOSEArray<string>.Create;
+  LFirst.Join(TArray<string>.Create(LValue));
+
+  // The temporary array is gone by now, so the one extra reference is the copy
+  // Join made. The Move-based version left the count untouched
+  LAfter := StringRefCount(LValue);
+  Assert.AreEqual(LBefore + 1, LAfter, 'Join must take a reference to what it copies');
+
+  LFirst.Empty;
+  Assert.AreEqual(LBefore, StringRefCount(LValue), 'and release it again');
+end;
+
+procedure TTestJOSEArray.TestJoinArray;
+var
+  LArray: TJOSEArray<string>;
+begin
+  LArray := TJOSEArray<string>.Create;
+  LArray.Push('a');
+  LArray.Join(TArray<string>.Create('b', 'c'));
+
+  Assert.AreEqual<NativeInt>(3, LArray.Size);
+  Assert.AreEqual('a,b,c', LArray.ToString);
+end;
+
+procedure TTestJOSEArray.TestJoinEmpty;
+var
+  LArray, LEmpty: TJOSEArray<string>;
+begin
+  LArray := TJOSEArray<string>.Create;
+  LArray.Push('a');
+  LEmpty := TJOSEArray<string>.Create;
+
+  LArray.Join(LEmpty);
+  Assert.AreEqual<NativeInt>(1, LArray.Size);
+
+  LEmpty.Join(LArray);
+  Assert.AreEqual('a', LEmpty.ToString);
+end;
+
+procedure TTestJOSEArray.TestJoinSelf;
+var
+  LArray: TJOSEArray<string>;
+begin
+  LArray := TJOSEArray<string>.Create;
+  LArray.Push('a');
+  LArray.Push('b');
+
+  LArray.Join(LArray);
+
+  Assert.AreEqual('a,b,a,b', LArray.ToString);
+end;
+
 { TTestJOSEUtils }
 
 procedure TTestJOSEUtils.TestBinToSingleHex(const AExpected: string);
@@ -445,6 +549,7 @@ initialization
   TDUnitX.RegisterTestFixture(TTestJOSEBytes);
   TDUnitX.RegisterTestFixture(TTestBase64);
   TDUnitX.RegisterTestFixture(TTestJSONUtils);
+  TDUnitX.RegisterTestFixture(TTestJOSEArray);
   TDUnitX.RegisterTestFixture(TTestJOSEUtils);
 
 end.

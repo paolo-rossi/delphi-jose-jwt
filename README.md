@@ -229,6 +229,14 @@ Full [RFC 7517](https://tools.ietf.org/html/rfc7517) JSON Web Key support, via `
 - [RFC 7638](https://tools.ietf.org/html/rfc7638) JWK Thumbprint (`Thumbprint`)
 - `TJSONWebKeySet` for JWKS documents (`AddKey`, `FindByKid`, JSON round-trip)
 - A bridge (`ToKeyPair`/`FromKeyPair`) to the legacy `TJWK`/`TKeyPair` types, so a `TJSONWebKey` can be handed straight to `TJOSE.Sign`/`TJOSE.Verify`/`TJOSEProducer`
+- `TJOSE.Verify`/`VerifyOrRaise` overloads that take a `TJSONWebKey` or a whole `TJSONWebKeySet` directly:
+
+```delphi
+// Picks the key whose kid matches the token header, and refuses a key whose
+// own alg contradicts it. A token with no kid resolves only against a
+// single-key set - guessing between several keys is not acceptable
+LToken := TJOSE.VerifyOrRaise(LJWKS, LCompactToken);
+```
 
 PEM import/export is backed by the [crypto provider](#custom-crypto-providers-bring-your-own-crypto) currently registered — every stack in the table above supports it, so `FromPEM`/`ToPEM` works with or without OpenSSL.
 

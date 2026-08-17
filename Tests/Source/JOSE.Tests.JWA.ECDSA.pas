@@ -22,6 +22,7 @@ uses
   JOSE.Core.JWA,
   JOSE.Signing.Base,
   JOSE.Signing.ECDSA,
+  JOSE.Encoding.Base64,
 
   JOSE.Tests.Classes;
 
@@ -68,6 +69,20 @@ type
     procedure TestECDSAVerifyHonoursSkipKeyValidation;
     [Test]
     procedure TestECDSAVerifyValidatesTheKeyWhenNotSkipped;
+
+    // RFC 7518 par. 3.4: R||S, each half the curve's field size
+    [Test]
+    [TestCase('ES256 truncated', 'ES256,1')]
+    [TestCase('ES256 padded',    'ES256,-1')]
+    [TestCase('ES384 truncated', 'ES384,1')]
+    [TestCase('ES512 truncated', 'ES512,1')]
+    procedure TestSignatureOfTheWrongWidthIsRejected(AAlg: TJOSEAlgorithmId; ABytesRemoved: Integer);
+    [Test]
+    [TestCase('ES256', 'ES256,64')]
+    [TestCase('ES256K','ES256K,64')]
+    [TestCase('ES384', 'ES384,96')]
+    [TestCase('ES512', 'ES512,132')]
+    procedure TestSignatureWidthIsTheCurveFieldSize(AAlg: TJOSEAlgorithmId; AExpectedBytes: Integer);
   end;
 
 implementation
@@ -187,6 +202,68 @@ begin
       Assert.WillRaise(
         procedure begin LSigner.VerifySignature end,
         EJOSEException, 'Without the flag the key must still be validated');
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWA.TestSignatureWidthIsTheCurveFieldSize(AAlg: TJOSEAlgorithmId; AExpectedBytes: Integer);
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+begin
+  LoadKeys(AAlg);
+
+  LToken := TJWT.Create;
+  try
+    LSigner := TJWS.Create(LToken);
+    try
+      LSigner.SetKey(FKeys.PrivateKey);
+      LSigner.SetHeaderAlgorithm(AAlg);
+      LSigner.Sign;
+
+      Assert.AreEqual(AExpectedBytes, TBase64.URLDecode(LSigner.Signature).Size,
+        'The signer must emit R||S at the curve width');
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWA.TestSignatureOfTheWrongWidthIsRejected(AAlg: TJOSEAlgorithmId; ABytesRemoved: Integer);
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+  LSignature: TBytes;
+  LTampered: TJOSEBytes;
+begin
+  LoadKeys(AAlg);
+
+  LToken := TJWT.Create;
+  try
+    LSigner := TJWS.Create(LToken);
+    try
+      LSigner.SetKey(FKeys.PrivateKey);
+      LSigner.SetHeaderAlgorithm(AAlg);
+      LSigner.Sign;
+
+      // Take a byte off the decoded signature (or add one), then re-encode:
+      // still valid base64url, but no longer a pair of field-sized components
+      LSignature := TBase64.URLDecode(LSigner.Signature).AsBytes;
+      SetLength(LSignature, Length(LSignature) - ABytesRemoved);
+      LTampered := TBase64.URLEncode(LSignature);
+
+      LSigner.SetKey(FKeys.PublicKey);
+      LSigner.Signature := LTampered;
+
+      Assert.WillRaise(
+        procedure begin LSigner.VerifySignature end,
+        EJOSEException, 'A signature of the wrong width must be reported as such');
     finally
       LSigner.Free;
     end;

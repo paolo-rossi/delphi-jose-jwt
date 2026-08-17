@@ -58,10 +58,6 @@ uses
   System.Types,
   System.StrUtils;
 
-resourcestring
-  SJOSEJWENotSupported = 'Compact Serialization appears to be a JWE Token which is not (yet) supported';
-  SJOSEMalformedCompactSerialization = 'Malformed Compact Serialization';
-
 { TJOSEContext }
 
 constructor TJOSEContext.Create(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass);
@@ -84,36 +80,24 @@ begin
 end;
 
 procedure TJOSEContext.FromCompactToken;
-var
-  LRes: TStringDynArray;
 begin
-  LRes := SplitString(FCompactToken, PART_SEPARATOR);
+  // Raises for a JWE, for a wrong part count and for a part that is not
+  // base64url, all with the same messages every other parse path uses
+  TJOSECompactSerialization.Split(FCompactToken).CheckIsJWS;
 
-  case Length(LRes) of
-    3:
+  FJOSEObject := TJWS.Create(FJWT);
+  try
+    FJOSEObject.CompactToken := FCompactToken;
+  except
+    // The token is not parsable: the context must *not* be built, or the
+    // consumer would see a nil JOSE object and skip the whole verification
+    on E: Exception do
     begin
-      FJOSEObject := TJWS.Create(FJWT);
-      try
-        FJOSEObject.CompactToken := FCompactToken;
-      except
-        // The token is not parsable: the context must *not* be built, or the
-        // consumer would see a nil JOSE object and skip the whole verification
-        on E: Exception do
-        begin
-          FreeAndNil(FJOSEObject);
-          if E is EJOSEException then
-            raise;
-          raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
-        end;
-      end;
+      FreeAndNil(FJOSEObject);
+      if E is EJOSEException then
+        raise;
+      raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
     end;
-    5:
-    begin
-      raise EJOSEException.Create(SJOSEJWENotSupported);
-    end;
-
-  else
-    raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
   end;
 end;
 

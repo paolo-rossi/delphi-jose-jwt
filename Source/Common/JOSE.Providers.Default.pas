@@ -805,14 +805,9 @@ function TDefaultECDSAProvider.Sig2OctetSequence(ASignature: PECDSA_SIG; AAlg: T
 var
   LSigLength, LRLength, LSLength: Integer;
 begin
-  LSigLength := 0;
-
-  case AAlg of
-    ES256:  LSigLength := 32 * 2;
-    ES256K: LSigLength := 32 * 2;
-    ES384:  LSigLength := 48 * 2;
-    ES512:  LSigLength := 66 * 2;
-  end;
+  // One source of truth for the width, shared with the length check the
+  // algorithm layer applies when verifying
+  LSigLength := AAlg.SignatureLength;
 
   LRLength := JoseSSL.BN_num_bytes(ASignature.r);
   LSLength := JoseSSL.BN_num_bytes(ASignature.s);
