@@ -55,14 +55,18 @@ end;
 
 class function TJOSEUtils.BinToSingleHex(ABuffer: TBytes): string;
 const
-  Convert: array[0..15] of string = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
+  HEX_DIGITS: array[0..15] of Char = (
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F');
 var
   LIndex: Integer;
 begin
-  Result := '';
+  // A byte is two hex digits: masking with $F emitted the low nibble only, so
+  // every high nibble was dropped ($1F and $2F both came out as "F")
+  SetLength(Result, Length(ABuffer) * 2);
   for LIndex := 0 to Length(ABuffer) - 1 do
   begin
-    Result := Result + Convert[Byte(ABuffer[LIndex]) and $F];
+    Result[LIndex * 2 + 1] := HEX_DIGITS[ABuffer[LIndex] shr 4];
+    Result[LIndex * 2 + 2] := HEX_DIGITS[ABuffer[LIndex] and $F];
   end;
 end;
 

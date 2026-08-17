@@ -12,12 +12,13 @@ unit JOSE.Tests.Common;
 interface
 
 uses
-  System.SysUtils, System.Rtti, DUnitX.TestFramework,
-  
+  System.SysUtils, System.Rtti, System.JSON, DUnitX.TestFramework,
+
   JOSE.Types.Bytes,
   JOSE.Hashing.HMAC,
   JOSE.Types.Arrays,
   JOSE.Types.JSON,
+  JOSE.Types.Utils,
   JOSE.Encoding.Base64,
 
   JOSE.Tests.Classes;
@@ -87,6 +88,62 @@ type
     [Test]
     [TestCase('TestSignSHA512', 'plaintext,secret,3/adkEcz1vmOINXEEOxdtM119BDAnKgvIJyr7IxLpdQsaUWLu9vu1Wz4veWeKz7wrkKTzySUGFj6/rDBrJzRuQ==')]
     procedure TestSignSHA512(const AValue1, AValue2, _Expected: string);
+  end;
+
+  [TestFixture]
+  TTestJSONUtils = class(TTestBase)
+  private
+    function Parse(const AJSON: string): TJSONObject;
+  public
+    // Whole numbers must keep their Int64 precision
+    [Test]
+    procedure TestGetJSONValueKeepsInt64Precision;
+    [Test]
+    procedure TestGetJSONValueKeepsFractionalNumbers;
+
+    // Reading a member as text never raises, whatever its JSON type
+    [Test]
+    [TestCase('String',  '{"m":"text"}|text', '|')]
+    [TestCase('Number',  '{"m":42}|42', '|')]
+    [TestCase('Int64',   '{"m":9007199254740993}|9007199254740993', '|')]
+    [TestCase('Boolean', '{"m":true}|true', '|')]
+    [TestCase('Absent',  '{"other":1}|', '|')]
+    procedure TestGetJSONValueAsString(const AJSON, AExpected: string);
+
+    // Date claims come from tokens: every shape must yield a value, not an exception
+    [Test]
+    [TestCase('Valid epoch',     '{"exp":1700000000}|False', '|')]
+    [TestCase('Exponent form',   '{"exp":1e308}|True', '|')]
+    [TestCase('Fractional',      '{"exp":1.5}|True', '|')]
+    [TestCase('String',          '{"exp":"soon"}|True', '|')]
+    [TestCase('Boolean',         '{"exp":true}|True', '|')]
+    [TestCase('Int64 max',       '{"exp":9223372036854775807}|True', '|')]
+    [TestCase('Int64 min',       '{"exp":-9223372036854775808}|True', '|')]
+    [TestCase('Absent',          '{"other":1}|True', '|')]
+    procedure TestGetJSONValueAsEpochIsTotal(const AJSON: string; AExpectZero: Boolean);
+
+    // Same for an ISO-8601 date claim: no type is allowed to raise
+    [Test]
+    [TestCase('Valid ISO',  '{"d":"2026-08-17T10:00:00Z"}|False', '|')]
+    [TestCase('Not a date', '{"d":"whenever"}|True', '|')]
+    [TestCase('Number',     '{"d":42}|True', '|')]
+    [TestCase('Boolean',    '{"d":true}|True', '|')]
+    [TestCase('Absent',     '{"other":1}|True', '|')]
+    procedure TestGetJSONValueAsDateIsTotal(const AJSON: string; AExpectZero: Boolean);
+
+    // ToJSON must not mangle non-ASCII claims
+    [Test]
+    procedure TestToJSONKeepsNonAscii;
+  end;
+
+  [TestFixture]
+  TTestJOSEUtils = class(TTestBase)
+  public
+    [Test]
+    [TestCase('Low and high nibbles', '011FA0FF')]
+    procedure TestBinToSingleHex(const AExpected: string);
+    [Test]
+    procedure TestBinToSingleHexEmpty;
   end;
 
 implementation
@@ -187,9 +244,130 @@ begin
   Assert.AreEqualMemory(@LExpected[0], @LResult[0], Length(LExpected));
 end;
 
+{ TTestJSONUtils }
+
+function TTestJSONUtils.Parse(const AJSON: string): TJSONObject;
+begin
+  Result := TJSONObject.ParseJSONValue(AJSON) as TJSONObject;
+  Assert.IsNotNull(Result, 'Bad test data: ' + AJSON);
+end;
+
+procedure TTestJSONUtils.TestGetJSONValueKeepsInt64Precision;
+var
+  LJSON: TJSONObject;
+  LValue: TValue;
+begin
+  LJSON := Parse('{"m":9007199254740993}');
+  try
+    LValue := TJSONUtils.GetJSONValue('m', LJSON);
+    Assert.IsTrue(LValue.IsOrdinal or (LValue.Kind = tkInt64),
+      'A whole number must not go through Double');
+    Assert.AreEqual<Int64>(9007199254740993, LValue.AsInt64);
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestGetJSONValueKeepsFractionalNumbers;
+var
+  LJSON: TJSONObject;
+  LValue: TValue;
+begin
+  LJSON := Parse('{"m":1.5}');
+  try
+    LValue := TJSONUtils.GetJSONValue('m', LJSON);
+    Assert.AreEqual<Double>(1.5, LValue.AsExtended);
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestGetJSONValueAsString(const AJSON, AExpected: string);
+var
+  LJSON: TJSONObject;
+begin
+  LJSON := Parse(AJSON);
+  try
+    Assert.AreEqual(AExpected, TJSONUtils.GetJSONValueAsString('m', LJSON));
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestGetJSONValueAsEpochIsTotal(const AJSON: string; AExpectZero: Boolean);
+var
+  LJSON: TJSONObject;
+  LDate: TDateTime;
+begin
+  LJSON := Parse(AJSON);
+  try
+    // The call itself must not raise: that is the whole point
+    LDate := TJSONUtils.GetJSONValueAsEpoch('exp', LJSON);
+    if AExpectZero then
+      Assert.AreEqual<TDateTime>(0, LDate, 'An unusable date claim must read as 0')
+    else
+      Assert.AreNotEqual<TDateTime>(0, LDate);
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestGetJSONValueAsDateIsTotal(const AJSON: string; AExpectZero: Boolean);
+var
+  LJSON: TJSONObject;
+  LDate: TDateTime;
+begin
+  LJSON := Parse(AJSON);
+  try
+    LDate := TJSONUtils.GetJSONValueAsDate('d', LJSON);
+    if AExpectZero then
+      Assert.AreEqual<TDateTime>(0, LDate)
+    else
+      Assert.AreNotEqual<TDateTime>(0, LDate);
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestToJSONKeepsNonAscii;
+var
+  LJSON, LRoundTrip: TJSONObject;
+  LText: string;
+begin
+  // Whether the RTL escapes the characters or emits them literally is its own
+  // business; what must hold is that the text survives the trip
+  LText := 'Ren' + Char($00E9) + ' ' + Char($00DC) + 'ber ' + Char($20AC);
+  LJSON := Parse('{"sub":"' + LText + '"}');
+  try
+    LRoundTrip := Parse(TJSONUtils.ToJSON(LJSON));
+    try
+      Assert.AreEqual(LText, LRoundTrip.GetValue('sub').Value);
+    finally
+      LRoundTrip.Free;
+    end;
+  finally
+    LJSON.Free;
+  end;
+end;
+
+{ TTestJOSEUtils }
+
+procedure TTestJOSEUtils.TestBinToSingleHex(const AExpected: string);
+begin
+  // Both nibbles of every byte, not just the low one
+  Assert.AreEqual(AExpected, TJOSEUtils.BinToSingleHex([$01, $1F, $A0, $FF]));
+end;
+
+procedure TTestJOSEUtils.TestBinToSingleHexEmpty;
+begin
+  Assert.AreEqual('', TJOSEUtils.BinToSingleHex([]));
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestJOSEBytes);
   TDUnitX.RegisterTestFixture(TTestBase64);
+  TDUnitX.RegisterTestFixture(TTestJSONUtils);
+  TDUnitX.RegisterTestFixture(TTestJOSEUtils);
 
 end.
 

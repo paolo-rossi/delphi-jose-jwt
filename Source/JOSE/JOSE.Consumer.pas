@@ -206,6 +206,7 @@ resourcestring
   SJOSEUnexpectedAlgorithm = 'JWS algorithm [%s] is not listed among those expected';
   SJOSEInvalidSignature = 'JWS signature is invalid';
   SJOSESignatureRequired = 'The JWT has no signature but the JWT Consumer is configured to require one';
+  SJOSEEncryptionRequired = 'The JWT is not encrypted but the JWT Consumer is configured to require encryption';
   SJOSEClaimsRejected = 'JWT rejected due to invalid claims.';
   SJOSEClaimsRejectedWithClaims = 'JWT (claims: %s) rejected due to invalid claims.';
   SJOSEUnparsedToken = 'The JWT has not been parsed into a JOSE object';
@@ -267,7 +268,10 @@ constructor TJOSEConsumerBuilder.Create;
 begin
   inherited;
   FDateValidatorParams := TJOSEDateClaimsParams.New;
-  FExpectedAlgorithms := [TJOSEAlgorithmId.None,
+  // Deliberately without None: the algorithm is unregistered today, so a "none"
+  // token already fails, but listing it here would silently accept unsigned
+  // tokens the moment someone registers TUnsecureNoneAlgorithm
+  FExpectedAlgorithms := [
     TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.HS384, TJOSEAlgorithmId.HS512,
     TJOSEAlgorithmId.RS256, TJOSEAlgorithmId.RS384, TJOSEAlgorithmId.RS512,
     TJOSEAlgorithmId.ES256, TJOSEAlgorithmId.ES256K, TJOSEAlgorithmId.ES384, TJOSEAlgorithmId.ES512,
@@ -480,6 +484,13 @@ begin
   LJOSEObject := AContext.GetJOSEObject;
   if not Assigned(LJOSEObject) then
     raise EJOSEException.Create(SJOSEUnparsedToken);
+
+  // Encryption was demanded, so anything that is not a JWE has to be refused.
+  // JWE is not implemented yet, which means this rejects every token today -
+  // that is the honest answer: the alternative was ignoring the flag and
+  // letting the caller believe their tokens were encrypted
+  if FRequireEncryption and not (LJOSEObject is TJWE) then
+    raise EJOSEException.Create(SJOSEEncryptionRequired);
 
   if LJOSEObject is TJWS then
   begin

@@ -299,7 +299,7 @@ begin
     Result := Result.TrimRight([AUDIENCE_SEPARATOR]);
   end
   else
-    Result := TJSONUtils.GetJSONValue(TReservedClaimNames.AUDIENCE, FJSON).AsString;
+    Result := TJSONUtils.GetJSONValueAsString(TReservedClaimNames.AUDIENCE, FJSON);
 end;
 
 function TJWTClaims.GetAudienceArray: TArray<string>;
@@ -376,12 +376,12 @@ end;
 
 function TJWTClaims.GetIssuer: string;
 begin
-  Result := TJSONUtils.GetJSONValue(TReservedClaimNames.ISSUER, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(TReservedClaimNames.ISSUER, FJSON);
 end;
 
 function TJWTClaims.GetJWTId: string;
 begin
-  Result := TJSONUtils.GetJSONValue(TReservedClaimNames.JWT_ID, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(TReservedClaimNames.JWT_ID, FJSON);
 end;
 
 function TJWTClaims.GetNotBefore: TDateTime;
@@ -391,7 +391,7 @@ end;
 
 function TJWTClaims.GetSubject: string;
 begin
-  Result := TJSONUtils.GetJSONValue(TReservedClaimNames.SUBJECT, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(TReservedClaimNames.SUBJECT, FJSON);
 end;
 
 procedure TJWTClaims.SetAudience(const AValue: string);
@@ -511,17 +511,17 @@ end;
 
 function TJWTHeader.GetAlgorithm: string;
 begin
-  Result := TJSONUtils.GetJSONValue(THeaderNames.ALGORITHM, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(THeaderNames.ALGORITHM, FJSON);
 end;
 
 function TJWTHeader.GetHeaderType: string;
 begin
-  Result := TJSONUtils.GetJSONValue(THeaderNames.HEADER_TYPE, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(THeaderNames.HEADER_TYPE, FJSON);
 end;
 
 function TJWTHeader.GetKeyID: string;
 begin
-  Result := TJSONUtils.GetJSONValue(THeaderNames.KEY_ID, FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString(THeaderNames.KEY_ID, FJSON);
 end;
 
 procedure TJWTHeader.SetAlgorithm(const Value: string);

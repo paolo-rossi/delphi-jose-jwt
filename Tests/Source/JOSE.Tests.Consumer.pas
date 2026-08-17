@@ -21,6 +21,7 @@ uses
   JOSE.Core.JWA,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
+  JOSE.Encoding.Base64,
 
   JOSE.Tests.Classes;
 
@@ -49,6 +50,13 @@ type
     [Test]
     [TestCase('TestExpired', '1606666666,1606666676')]
     procedure TestExpired(Expiration, EvaluationTime: Int64; _Result: Boolean);
+
+    [Test]
+    procedure TestAlgNoneIsNotInTheDefaultExpectedAlgorithms;
+    [Test]
+    procedure TestRequireEncryptionRejectsAJWS;
+    [Test]
+    procedure TestNumericClaimsOfTheWrongTypeAreRejectedCleanly;
   end;
 
 implementation
@@ -140,6 +148,77 @@ begin
       // Start the process of the Consumer Object
       .Process(FCompact)
   ;
+end;
+
+procedure TTestConsumer.TestAlgNoneIsNotInTheDefaultExpectedAlgorithms;
+var
+  LConsumer: IJOSEConsumer;
+  LToken: string;
+  LMessage: string;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)   // no SetExpectedAlgorithms: the default set applies
+    .Build;
+
+  LToken :=
+    TBase64.URLEncode('{"alg":"none"}').AsString + '.' +
+    TBase64.URLEncode('{"sub":"attacker"}').AsString + '.';
+
+  LMessage := '';
+  try
+    LConsumer.Process(LToken);
+  except
+    on E: Exception do
+      LMessage := E.Message;
+  end;
+
+  // Rejected by the allow-list, not merely because the algorithm happens to be
+  // unregistered today
+  Assert.IsTrue(LMessage.Contains('not listed among those expected'),
+    'alg=none must not be in the default expected algorithms. Got: ' + LMessage);
+end;
+
+procedure TTestConsumer.TestRequireEncryptionRejectsAJWS;
+var
+  LConsumer: IJOSEConsumer;
+begin
+  FJWT.Claims.Subject := 'alice';
+  FCompact := TJOSE.SerializeCompact(SECRET, TJOSEAlgorithmId.HS256, FJWT);
+
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEnableRequireEncryption
+    .Build;
+
+  // The flag used to be stored and never read
+  Assert.WillRaise(
+    procedure begin LConsumer.Process(FCompact) end,
+    EJOSEException, 'A signed-only token must not satisfy require-encryption');
+end;
+
+procedure TTestConsumer.TestNumericClaimsOfTheWrongTypeAreRejectedCleanly;
+var
+  LConsumer: IJOSEConsumer;
+  LToken: string;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetSkipSignatureVerification
+    .SetRequireExpirationTime
+    .Build;
+
+  // exp is unusable: the consumer must reject it as an invalid claim rather
+  // than let EConvertError or EJSONConversionException escape
+  LToken :=
+    TBase64.URLEncode('{"alg":"HS256"}').AsString + '.' +
+    TBase64.URLEncode('{"exp":1e308}').AsString + '.' +
+    TBase64.URLEncode('sig').AsString;
+
+  Assert.WillRaise(
+    procedure begin LConsumer.Process(LToken) end,
+    EInvalidJWTException);
 end;
 
 initialization

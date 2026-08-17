@@ -21,7 +21,8 @@ uses
   JOSE.Core.JWA,
   JOSE.Core.JWK,
   JOSE.Core.JWT,
-  JOSE.Core.JWS;
+  JOSE.Core.JWS,
+  JOSE.Producer;
 
 type
   TCustomClaims = class(TJWTClaims)
@@ -79,6 +80,12 @@ type
 
     [Test]
     procedure TestSHA384CompactTokenMatchesTheMisspelledOne;
+
+    // The producer refuses to build with a key pair that carries no private key
+    [Test]
+    procedure TestProducerRejectsAKeyPairWithoutPrivateKey;
+    [Test]
+    procedure TestProducerBuildsWithAKey;
   end;
 
 implementation
@@ -315,6 +322,35 @@ begin
   finally
     LJWT.Free;
   end;
+end;
+
+procedure TTestBuilder.TestProducerRejectsAKeyPairWithoutPrivateKey;
+begin
+  // SetKeyPair with an empty private half used to build happily and fail later,
+  // inside the provider
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEProcess.New
+        .SetAlgorithm(TJOSEAlgorithmId.RS256)
+        .SetKeyPair('-----BEGIN PUBLIC KEY-----'#10'x'#10'-----END PUBLIC KEY-----', '')
+        .SetSubject('alice')
+        .Build;
+    end,
+    EJOSEException);
+end;
+
+procedure TTestBuilder.TestProducerBuildsWithAKey;
+var
+  LProducer: IJOSEProducer;
+begin
+  LProducer := TJOSEProcess.New
+    .SetAlgorithm(TJOSEAlgorithmId.HS256)
+    .SetKey(SECRET)
+    .SetSubject('alice')
+    .Build;
+
+  Assert.IsTrue(TJOSE.CheckCompactToken(LProducer.GetCompactToken));
 end;
 
 initialization

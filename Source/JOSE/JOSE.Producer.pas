@@ -122,6 +122,7 @@ implementation
 resourcestring
   SJOSEClaimsNotAssigned = 'JWT Claims not assigned';
   SJOSESigningKeysNotAssigned = 'Signing key(s) not assigned';
+  SJOSESigningKeyIsEmpty = 'The signing key holds no key material';
   SJOSESigningAlgorithmNotAssigned = 'Signing algorithm not assigned';
 
 { TJOSEProducer }
@@ -178,9 +179,15 @@ begin
   if not Assigned(FKeys) then
     raise EJOSEException.Create(SJOSESigningKeysNotAssigned);
 
+  // A key pair object is not the same thing as key material: SetKeyPair with a
+  // public-only key leaves PrivateKey empty, and signing would only fail later,
+  // inside the provider. The algorithm-specific checks stay where they belong,
+  // in ValidateSigningKey
+  if FKeys.PrivateKey.Key.IsEmpty then
+    raise EJOSEException.Create(SJOSESigningKeyIsEmpty);
+
   if FAlg = TJOSEAlgorithmId.Unknown then
     raise EJOSEException.Create(SJOSESigningAlgorithmNotAssigned);
-
 end;
 
 destructor TJOSEProducerBuilder.Destroy;

@@ -598,14 +598,10 @@ end;
 { TJSONWebKey }
 
 function TJSONWebKey.GetStringMember(const AName: string): string;
-var
-  LValue: TValue;
 begin
-  LValue := TJSONUtils.GetJSONValue(AName, FJSON);
-  if LValue.IsEmpty then
-    Result := ''
-  else
-    Result := LValue.AsString;
+  // A JWKS is usually fetched from a remote endpoint, so a member of the wrong
+  // JSON type has to read as text rather than raise EInvalidCast
+  Result := TJSONUtils.GetJSONValueAsString(AName, FJSON);
 end;
 
 procedure TJSONWebKey.SetStringMember(const AName, AValue: string);

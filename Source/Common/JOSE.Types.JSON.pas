@@ -57,6 +57,12 @@ type
     class function GetJSONValueInt64(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
     class function GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
+    /// <summary>
+    ///   Reads AName as text, whatever its JSON type, and returns '' when it is
+    ///   absent. Never raises: unlike GetJSONValue(...).AsString, which raises
+    ///   EInvalidCast as soon as the member is a number or a boolean
+    /// </summary>
+    class function GetJSONValueAsString(const AName: string; AJSON: TJSONObject): string;
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
 
@@ -162,6 +168,7 @@ end;
 class function TJSONUtils.GetJSONValue(const AName: string; AJSON: TJSONObject): TValue;
 var
   LJSONValue: TJSONValue;
+  LInt64: Int64;
 begin
   LJSONValue := AJSON.GetValue(AName);
 
@@ -172,7 +179,31 @@ begin
     Exit(GetJSONBool(LJSONValue));
 
   if LJSONValue is TJSONNumber then
+  begin
+    // A whole number is returned as Int64: routing everything through AsDouble
+    // silently loses precision above 2^53, which matters for id-like claims
+    if TryStrToInt64(TJSONNumber(LJSONValue).Value, LInt64) then
+      Exit(LInt64);
     Exit(TJSONNumber(LJSONValue).AsDouble);
+  end;
+
+  Result := LJSONValue.Value;
+end;
+
+class function TJSONUtils.GetJSONValueAsString(const AName: string; AJSON: TJSONObject): string;
+var
+  LJSONValue: TJSONValue;
+begin
+  // Total by design: string claims are read from tokens, so a member of an
+  // unexpected type must read as text (and fail the comparison downstream)
+  // rather than raise EInvalidCast out of the middle of the validation
+  LJSONValue := AJSON.GetValue(AName);
+
+  if not Assigned(LJSONValue) then
+    Exit('');
+
+  if (LJSONValue is TJSONObject) or (LJSONValue is TJSONArray) then
+    Exit(LJSONValue.ToJSON);
 
   Result := LJSONValue.Value;
 end;
@@ -181,22 +212,44 @@ class function TJSONUtils.GetJSONValueAsDate(const AName: string; AJSON: TJSONOb
 var
   LJSONValue: string;
 begin
-  LJSONValue := TJSONUtils.GetJSONValue(AName, AJSON).AsString;
-  if LJSONValue = '' then
-    Result := 0
-  else
-    Result := ISO8601ToDate(LJSONValue)
+  // Total, like GetJSONValueAsEpoch: reading through GetJSONValue(...).AsString
+  // raised EInvalidCast as soon as the member was a number or a boolean, and
+  // ISO8601ToDate raised EConvertError on any text that is not a date. Both
+  // shapes now read as 0, which is what an absent claim reads as
+  LJSONValue := TJSONUtils.GetJSONValueAsString(AName, AJSON);
+
+  if (LJSONValue = '') or not TryISO8601ToDate(LJSONValue, Result) then
+    Result := 0;
 end;
 
 class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
+const
+  // Seconds from the Unix epoch to the ends of the TDateTime range (year 1..9999)
+  MIN_EPOCH_SECONDS = Int64(-62135596800);
+  MAX_EPOCH_SECONDS = Int64(253402300799);
 var
-  LJSONValue: Int64;
+  LJSONValue: TJSONValue;
+  LSeconds: Int64;
 begin
-  LJSONValue := TJSONUtils.GetJSONValueInt64(AName, AJSON).AsInt64;
-  if LJSONValue = 0 then
-    Result := 0
-  else
-    Result := UnixToDateTime(LJSONValue, False)
+  // Date claims arrive from a token, so every shape has to produce a value
+  // instead of an exception: a member of the wrong type ("exp":"soon"), a
+  // number that is not a whole number ("exp":1e308, "exp":1.5) and a number
+  // outside the TDateTime range all read as 0. That is what an absent claim
+  // reads as, which keeps exp fail-closed (0 is long past, so expired)
+  Result := 0;
+
+  LJSONValue := AJSON.GetValue(AName);
+  if not (LJSONValue is TJSONNumber) then
+    Exit;
+
+  if not TryStrToInt64(TJSONNumber(LJSONValue).Value, LSeconds) then
+    Exit;
+
+  if (LSeconds < MIN_EPOCH_SECONDS) or (LSeconds > MAX_EPOCH_SECONDS) then
+    Exit;
+
+  if LSeconds <> 0 then
+    Result := UnixToDateTime(LSeconds, False);
 end;
 
 class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;
@@ -313,14 +366,23 @@ begin
   SetJSONRttiValue(AName, TValue.From<T>(AValue), AJSON);
 end;
 
+{$IF CompilerVersion >= 28}  // Delphi XE7
+class function TJSONUtils.ToJSON(AJSONValue: TJSONValue): string;
+begin
+  Result := AJSONValue.ToJSON;
+end;
+{$ELSE}
 class function TJSONUtils.ToJSON(AJSONValue: TJSONValue): string;
 var
   LBytes: TBytes;
 begin
   SetLength(LBytes, AJSONValue.ToString.Length * 6);
   SetLength(LBytes, AJSONValue.ToBytes(LBytes, 0));
-  Result := TEncoding.Default.GetString(LBytes);
+  // ToBytes emits UTF-8 here: decoding it with the ANSI codepage mangled every
+  // non-ASCII claim. Same shape as the helper in JOSE.Core.Base
+  Result := TEncoding.UTF8.GetString(LBytes);
 end;
+{$IFEND}
 
 class procedure TJSONUtils.SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject);
 var

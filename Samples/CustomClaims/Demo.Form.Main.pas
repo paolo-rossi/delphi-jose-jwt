@@ -162,12 +162,12 @@ end;
 
 function TMyClaims.GetAppIssuer: string;
 begin
-  Result := TJSONUtils.GetJSONValue('ais', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString('ais', FJSON);
 end;
 
 function TMyClaims.GetNonce: string;
 begin
-  Result := TJSONUtils.GetJSONValue('nonce', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString('nonce', FJSON);
 end;
 
 procedure TMyClaims.SetAppIssuer(const Value: string);

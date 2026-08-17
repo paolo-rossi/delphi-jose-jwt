@@ -218,17 +218,17 @@ end;
 
 function TMyClaims.GetAppIssuer: string;
 begin
-  Result := TJSONUtils.GetJSONValue('appissuer', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString('appissuer', FJSON);
 end;
 
 function TMyClaims.GetAppSite: string;
 begin
-  Result := TJSONUtils.GetJSONValue('appsite', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString('appsite', FJSON);
 end;
 
 function TMyClaims.GetEmail: string;
 begin
-  Result := TJSONUtils.GetJSONValue('email', FJSON).AsString;
+  Result := TJSONUtils.GetJSONValueAsString('email', FJSON);
 end;
 
 procedure TMyClaims.SetAppIssuer(const Value: string);
