@@ -29,6 +29,11 @@ type
   public
     class function Sign(const AInput, APrivateKey: TBytes; AAlg: TECDSAAlgorithm): TBytes;
     class function Verify(const AInput, ASignature, APublicKey: TBytes; AAlg: TECDSAAlgorithm): Boolean;
+    /// <summary>
+    ///   Verifies against the public key carried by ACertificate. The
+    ///   certificate is only a key container: its chain, validity dates,
+    ///   revocation status and key usage are not checked
+    /// </summary>
     class function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TECDSAAlgorithm): Boolean;
 
     class function VerifyPublicKey(const AKey: TBytes): Boolean;

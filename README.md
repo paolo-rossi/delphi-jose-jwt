@@ -190,6 +190,17 @@ bypassed along with every other key check by `SetSkipVerificationKeyValidation` 
 `TJWS.SkipKeyValidation`, and it cannot help when both the expected and the substituted algorithm
 are asymmetric. The algorithm allowlist is what you rely on.
 
+**X.509 certificates are key containers, not trust anchors.** `TJWS.SetKeyFromCert` and
+`TRSA`/`TECDSA.VerifyWithCertificate` take the public key out of a PEM certificate and verify with
+it. Nothing else about the certificate is examined — not the chain, not the validity dates, not
+revocation, not key usage, not the subject. A token signed by the matching private key verifies just
+as happily under an expired, self-signed or untrusted certificate. This is the usual choice for a
+JWT library (the trust decision belongs to whatever gave you the certificate), but it does mean the
+certificate buys you no trust on its own: validate or pin it yourself before handing it over. The
+same goes for the JWK `x5u`/`x5c`/`x5t` members — `TJSONWebKey` carries and serializes them
+verbatim, never fetches `x5u`, never parses the `x5c` chain, and takes key material only from the
+JWK's own members.
+
 ## :key: JSON Web Key (JWK) support
 
 Full [RFC 7517](https://tools.ietf.org/html/rfc7517) JSON Web Key support, via `TJSONWebKey`/`TJSONWebKeySet` in `JOSE.Core.JWK`:

@@ -61,6 +61,18 @@ type
     procedure SetKey(const AKey: TJOSEBytes); overload;
     procedure SetKey(const AKey: TJWK); overload;
 {$IFDEF RSA_SIGNING}
+    /// <summary>
+    ///   Uses the public key carried by a PEM X.509 certificate as the
+    ///   verification key
+    /// </summary>
+    /// <remarks>
+    ///   The certificate is a key container and nothing more: its chain,
+    ///   validity dates, revocation status, key usage and subject are NOT
+    ///   checked, here or anywhere else in the library. A token verifies
+    ///   whenever the signature matches that public key, expired or untrusted
+    ///   certificate alike. Validate the certificate yourself (or pin it)
+    ///   before handing it over, if that matters to your threat model.
+    /// </remarks>
     procedure SetKeyFromCert(const ACert: TJOSEBytes); overload;
 {$ENDIF}
 

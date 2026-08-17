@@ -262,6 +262,12 @@ type
     property KeyOps: TJOSEKeyOperations read GetKeyOps write SetKeyOps;
     property Alg: TJOSEAlgorithmId read GetAlg write SetAlg;
     property Kid: string read GetKid write SetKid;
+    /// <summary>
+    ///   The X.509 members (RFC 7517 par. 4.6-4.9) are carried and serialized
+    ///   verbatim, nothing more: the library never fetches x5u, never parses or
+    ///   validates the x5c chain, and never checks that x5t matches it. Key
+    ///   material always comes from the JWK's own members
+    /// </summary>
     property X5u: string read GetX5u write SetX5u;
     property X5c: TArray<string> read GetX5c write SetX5c;
     property X5t: string read GetX5t write SetX5t;

@@ -37,6 +37,17 @@ type
 
 {$IFDEF RSA_SIGNING}
 
+  /// <summary>
+  ///   Reads key material out of a PEM X.509 certificate
+  /// </summary>
+  /// <remarks>
+  ///   Certificates are treated as key containers only. No implementation of
+  ///   this interface validates the chain, the validity dates, the revocation
+  ///   status, the key usage or the subject - VerifyCertificate only checks
+  ///   that the embedded public key is of the expected type. Callers that need
+  ///   certificate-path validation must do it themselves before passing the
+  ///   certificate in.
+  /// </remarks>
   IJOSECertificateProvider = interface
     ['{6E0B7A3D-2C1F-4E5D-9A8B-7C6D5E4F3021}']
     function PublicKeyFromCertificate(const ACertificate: TBytes): TBytes;
@@ -47,6 +58,8 @@ type
     ['{5D9C8B1E-3A2F-4D5C-8B7A-6C5D4E3F2010}']
     function Sign(const AInput, AKey: TBytes; AAlg: TRSAAlgorithm): TBytes;
     function Verify(const AInput, ASignature, AKey: TBytes; AAlg: TRSAAlgorithm): Boolean;
+    /// <summary>Verifies against the public key inside ACertificate. The
+    ///   certificate itself is not validated - see IJOSECertificateProvider</summary>
     function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TRSAAlgorithm): Boolean;
     function VerifyPublicKey(const AKey: TBytes): Boolean;
     function VerifyPrivateKey(const AKey: TBytes): Boolean;
@@ -56,6 +69,8 @@ type
     ['{4C8B7A2D-1E0F-4C3B-7A6C-5B4D3E2F1098}']
     function Sign(const AInput, APrivateKey: TBytes; AAlg: TECDSAAlgorithm): TBytes;
     function Verify(const AInput, ASignature, APublicKey: TBytes; AAlg: TECDSAAlgorithm): Boolean;
+    /// <summary>Verifies against the public key inside ACertificate. The
+    ///   certificate itself is not validated - see IJOSECertificateProvider</summary>
     function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TECDSAAlgorithm): Boolean;
     function VerifyPublicKey(const AKey: TBytes): Boolean;
     function VerifyPrivateKey(const AKey: TBytes): Boolean;
