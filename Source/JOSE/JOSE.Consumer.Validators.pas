@@ -154,10 +154,15 @@ begin
         else
           Exit('');
 
-      // No expected audience was configured, but the token carries one: there
-      // is nothing to match it against, so it cannot be accepted
+      // No expected audience was configured, so there is nothing to match the
+      // claim against. Only complain when the caller did ask for the audience
+      // to be validated: the default consumer must not reject every token that
+      // happens to carry an aud claim
       if AAudience.IsEmpty then
-        Exit(SJOSEAudienceNotProvided);
+        if ARequired then
+          Exit(SJOSEAudienceNotProvided)
+        else
+          Exit('');
 
       LOk := False;
       for LSingleAudience in LClaims.AudienceArray do

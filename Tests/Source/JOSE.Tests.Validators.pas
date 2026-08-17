@@ -77,7 +77,9 @@ type
     [Test]
     procedure TestAudienceRoundTripKeepsTheComma;
     [Test]
-    procedure TestAudiencePresentButNoneExpectedIsRejected;
+    procedure TestAudiencePresentAndNoneExpectedIsAccepted;
+    [Test]
+    procedure TestAudienceRequiredButNoneExpectedIsRejected;
   end;
 
 implementation
@@ -377,15 +379,40 @@ begin
   end;
 end;
 
-procedure TTestValidators.TestAudiencePresentButNoneExpectedIsRejected;
+procedure TTestValidators.TestAudiencePresentAndNoneExpectedIsAccepted;
 var
   LConsumer: IJOSEConsumer;
   LJWT: TJWT;
 begin
-  // Default consumer: no expected audience configured
+  // Default consumer: no expected audience configured, so the aud claim is
+  // simply not validated - carrying one must not be a reason to reject
   LConsumer := TJOSEConsumerBuilder.NewConsumer
     .SetVerificationKey(SECRET)
     .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .Build;
+
+  LJWT := TJWT.Create;
+  try
+    LJWT.Claims.Audience := 'internal-api';
+    LJWT.Claims.Expiration := IncMinute(Now, 10);
+
+    Assert.IsTrue(Accepts(LConsumer, Sign(LJWT)));
+  finally
+    LJWT.Free;
+  end;
+end;
+
+procedure TTestValidators.TestAudienceRequiredButNoneExpectedIsRejected;
+var
+  LConsumer: IJOSEConsumer;
+  LJWT: TJWT;
+begin
+  // Audience validation was asked for without giving anything to match:
+  // that contradiction still has to be reported
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetExpectedAudience(True, [])
     .Build;
 
   LJWT := TJWT.Create;
