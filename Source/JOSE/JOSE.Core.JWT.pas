@@ -303,8 +303,30 @@ begin
 end;
 
 function TJWTClaims.GetAudienceArray: TArray<string>;
+var
+  LIndex: Integer;
+  LAudValue: TJSONValue;
+  LValueArray: TJSONArray;
 begin
-  Result := Audience.Split([AUDIENCE_SEPARATOR]);
+  // Read the JSON directly: going through the comma-joined Audience string
+  // would split a *single* audience value that contains a comma into two,
+  // letting "aud":"public,internal-api" match an expected audience of
+  // "internal-api" (RFC 7519 par. 4.1.3: aud is a string or an array of strings)
+  Result := [];
+
+  LAudValue := FJSON.GetValue(TReservedClaimNames.AUDIENCE);
+  if not Assigned(LAudValue) then
+    Exit;
+
+  if LAudValue is TJSONArray then
+  begin
+    LValueArray := LAudValue as TJSONArray;
+    SetLength(Result, LValueArray.Count);
+    for LIndex := 0 to LValueArray.Count - 1 do
+      Result[LIndex] := LValueArray.Items[LIndex].Value;
+  end
+  else
+    Result := [LAudValue.Value];
 end;
 
 function TJWTClaims.GetExpiration: TDateTime;
@@ -400,8 +422,30 @@ begin
 end;
 
 procedure TJWTClaims.SetAudienceArray(const AValue: TArray<string>);
+var
+  LAudience: string;
+  LArray: TJSONArray;
 begin
-  Audience := string.Join(AUDIENCE_SEPARATOR, AValue);
+  // Write the JSON directly, for the same reason GetAudienceArray reads it
+  // directly: joining on a comma and letting SetAudience split it again would
+  // turn a single audience containing a comma into two audiences
+  if Length(AValue) = 0 then
+  begin
+    TJSONUtils.RemoveJSONNode(TReservedClaimNames.AUDIENCE, FJSON);
+    Exit;
+  end;
+
+  if Length(AValue) = 1 then
+  begin
+    TJSONUtils.SetJSONValueFrom<string>(TReservedClaimNames.AUDIENCE, AValue[0], FJSON);
+    Exit;
+  end;
+
+  LArray := TJSONArray.Create;
+  for LAudience in AValue do
+    LArray.Add(LAudience);
+
+  TJSONUtils.SetJSONValue(TReservedClaimNames.AUDIENCE, LArray, FJSON);
 end;
 
 procedure TJWTClaims.SetExpiration(AValue: TDateTime);

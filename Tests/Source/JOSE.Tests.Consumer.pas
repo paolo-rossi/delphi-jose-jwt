@@ -125,7 +125,9 @@ begin
     .SetRequireIssuedAt
     .SetRequireNotBefore
     .SetRequireExpirationTime
-    .SetEvaluationTime(IncSecond(FJWT.Claims.IssuedAt, 10))
+    // Inside the validity window: at exactly Expiration the token is already
+    // expired (RFC 7519 par. 4.1.4), which TTestValidators covers on its own
+    .SetEvaluationTime(IncSecond(FJWT.Claims.IssuedAt, 5))
     .SetAllowedClockSkew(0, TJOSETimeUnit.Seconds)
     .SetMaxFutureValidity(0, TJOSETimeUnit.Minutes)
 

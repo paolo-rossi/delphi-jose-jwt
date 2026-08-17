@@ -9,7 +9,7 @@
 {******************************************************************************}
 
 /// <summary>
-///   Utility class to encode and decode a JWT
+///   Claim validators used by the JOSE Consumer pipeline
 /// </summary>
 unit JOSE.Consumer.Validators;
 
@@ -26,10 +26,6 @@ uses
   JOSE.Context;
 
 type
-  IJOSEValidator = interface
-    function Validate(AJOSEContext: TJOSEContext): string;
-  end;
-
   TJOSEDateClaimsParams = record
   private
     function GetEvaluationTime: TJOSENumericDate;
@@ -43,6 +39,12 @@ type
 
     class function New: TJOSEDateClaimsParams; static;
     function SkewMessage: string;
+    /// <summary>
+    ///   The instant the claims are evaluated against: StaticEvaluationTime
+    ///   when one was configured, the current time otherwise. Reading it has no
+    ///   side effect, so take a snapshot into a local variable to compare
+    ///   several claims against one consistent instant
+    /// </summary>
     property EvaluationTime: TJOSENumericDate read GetEvaluationTime;
   end;
 
@@ -58,7 +60,7 @@ type
     class function DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
 
     class function audValidator(AAudience: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator;
-    class function issValidator(AIssuer: string; ARequired: Boolean = True): TJOSEValidator; overload;
+    class function issValidator(const AIssuer: string; ARequired: Boolean = True): TJOSEValidator; overload;
     class function issValidator(AIssuers: TJOSEStringArray; ARequired: Boolean = True): TJOSEValidator; overload;
     class function subValidator(const ASubject: string; ARequired: Boolean): TJOSEValidator; overload;
     class function subValidator(ARequired: Boolean): TJOSEValidator; overload;
@@ -79,16 +81,16 @@ resourcestring
   SJOSEOneOf = 'one of ';
   SJOSEClockSkewSuffix = '(even when providing [%d] seconds of leeway to account for clock skew)';
   SJOSENoAudienceClaim = 'No Audience [aud] claim present';
-  SJOSEAudienceNotProvided = 'Audience [aud] claim present in the JWT but no expected audience value(s) were provided to the JWT Consumer. Expected %s as aud value.';
+  SJOSEAudienceNotProvided = 'Audience [aud] claim present in the JWT but no expected audience value(s) were provided to the JWT Consumer.';
   SJOSEAudienceMismatch = 'Audience [aud] claim doesn''t contain an acceptable identifier. Expected %s as aud value.';
   SJOSENoExpirationClaim = 'No Expiration Time [exp] claim present';
   SJOSENoIssuedAtClaim = 'No IssuedAt [iat] claim present';
   SJOSENoNotBeforeClaim = 'No NotBefore [nbf] claim present';
-  SJOSEExpiredToken = 'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value %s';
+  SJOSEExpiredToken = 'The JWT is no longer valid - the evaluation time [%s] is on or after the Expiration Time [exp=%s] claim value%s.';
   SJOSEExpBeforeIat = 'The Expiration Time (exp=%s) claim value cannot be before the IssuedAt (iat=%s) claim value';
   SJOSEExpBeforeNbf = 'The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value';
-  SJOSEExpTooFarInFuture = 'The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s] %s';
-  SJOSENotYetValid = 'The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time %s';
+  SJOSEExpTooFarInFuture = 'The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s]%s.';
+  SJOSENotYetValid = 'The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time%s.';
   SJOSENoIssuerClaim = 'No Issuer [iss] claim present but was expecting %s';
   SJOSEIssuerMismatch = 'Issuer [iss] claim value [%s] doesn''t match expected value of [%s]';
   SJOSENoJTIClaim = 'No JWT ID [jti] claim present.';
@@ -100,10 +102,14 @@ resourcestring
 
 function TJOSEDateClaimsParams.GetEvaluationTime: TJOSENumericDate;
 begin
+  // Must NOT cache Now into StaticEvaluationTime: the record is captured by the
+  // validator closure, so the first evaluation would freeze the clock for every
+  // later validation done by the same (long-lived) consumer, and expired tokens
+  // would keep being accepted
   if StaticEvaluationTime = 0 then
-    StaticEvaluationTime := Now;
-
-  Result := TJOSENumericDate.Create(StaticEvaluationTime);
+    Result := TJOSENumericDate.Create(Now)
+  else
+    Result := TJOSENumericDate.Create(StaticEvaluationTime);
 end;
 
 class function TJOSEDateClaimsParams.New: TJOSEDateClaimsParams;
@@ -119,12 +125,12 @@ end;
 function TJOSEDateClaimsParams.SkewMessage: string;
 begin
   if AllowedClockSkewSeconds > 0 then
-    Result := Format(
+    Result := ' ' + Format(
       SJOSEClockSkewSuffix,
       [AllowedClockSkewSeconds]
     )
   else
-    Result := '.';
+    Result := '';
 end;
 
 { TJOSEClaimsValidators }
@@ -148,42 +154,46 @@ begin
         else
           Exit('');
 
+      // No expected audience was configured, but the token carries one: there
+      // is nothing to match it against, so it cannot be accepted
+      if AAudience.IsEmpty then
+        Exit(SJOSEAudienceNotProvided);
+
       LOk := False;
       for LSingleAudience in LClaims.AudienceArray do
         if AAudience.Contains(LSingleAudience) then
+        begin
           LOk := True;
+          Break;
+        end;
 
       if not LOk then
       begin
-        if AAudience.Size = 1 then
-          LExpected := '[' + AAudience.ToString + ']'
-        else
-          LExpected := SJOSEOneOf + '[' + AAudience.ToString + ']';
-
-        if AAudience.IsEmpty then
-          Result := Format(SJOSEAudienceNotProvided, [LExpected])
-        else
-          Result := Format(SJOSEAudienceMismatch, [LExpected]);
+        LExpected := '[' + AAudience.ToStringPluralForm(SJOSEOneOf) + ']';
+        Result := Format(SJOSEAudienceMismatch, [LExpected]);
       end;
     end
 end;
 
 class function TJOSEClaimsValidators.DateClaimsValidator(ADateParams: TJOSEDateClaimsParams): TJOSEValidator;
-var
-  LDeltaInSeconds: Int64;
 begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
     var
       LClaims: TJWTClaims;
+      // Every one of these must stay local to this function: the enclosing
+      // method's locals live in the closure frame and would be shared by all
+      // the validations performed through this validator, including concurrent ones
+      LEvaluationTime: TJOSENumericDate;
       LExpiration, LIssuedAt, LNotBefore: TJOSENumericDate;
+      LDeltaInSeconds: Int64;
     begin
       Result := '';
       LClaims := AJOSEContext.GetClaims;
 
-      LExpiration := TJOSENumericDate.Create(LClaims.Expiration);
-      LIssuedAt := TJOSENumericDate.Create(LClaims.IssuedAt);
-      LNotBefore := TJOSENumericDate.Create(LClaims.NotBefore);
+      // One snapshot per validation, so all the claims below are compared
+      // against the same instant
+      LEvaluationTime := ADateParams.EvaluationTime;
 
       if ADateParams.RequireExp and not LClaims.HasExpiration then
         Exit(SJOSENoExpirationClaim);
@@ -194,12 +204,19 @@ begin
       if ADateParams.RequireNbf and not LClaims.HasNotBefore then
         Exit(SJOSENoNotBeforeClaim);
 
+      LIssuedAt := TJOSENumericDate.Create(LClaims.IssuedAt);
+      LNotBefore := TJOSENumericDate.Create(LClaims.NotBefore);
+
       if LClaims.HasExpiration then
       begin
-        if ADateParams.EvaluationTime.IsAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
+        LExpiration := TJOSENumericDate.Create(LClaims.Expiration);
+
+        // RFC 7519 par. 4.1.4: the current time must be *before* exp, so an
+        // evaluation time equal to exp is already too late
+        if LEvaluationTime.IsOnOrAfter(LExpiration, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(
             SJOSEExpiredToken,
-            [ADateParams.EvaluationTime.AsISO8601, DateToISO8601(LClaims.Expiration, False), ADateParams.SkewMessage])
+            [LEvaluationTime.AsISO8601, LExpiration.AsISO8601, ADateParams.SkewMessage])
           );
 
         if LClaims.HasIssuedAt and LExpiration.IsBefore(LIssuedAt, ADateParams.AllowedClockSkewSeconds) then
@@ -217,25 +234,24 @@ begin
           LDeltaInSeconds :=
             LExpiration.AsSeconds -
             ADateParams.AllowedClockSkewSeconds -
-            ADateParams.EvaluationTime.AsSeconds;
+            LEvaluationTime.AsSeconds;
 
-          if LDeltaInSeconds > (ADateParams.MaxFutureValidityInMinutes * 60) then
+          if LDeltaInSeconds > (Int64(ADateParams.MaxFutureValidityInMinutes) * 60) then
             Exit(Format(SJOSEExpTooFarInFuture,
-              [LExpiration.AsISO8601, ADateParams.MaxFutureValidityInMinutes, ADateParams.EvaluationTime.AsISO8601, ADateParams.SkewMessage])
+              [LExpiration.AsISO8601, ADateParams.MaxFutureValidityInMinutes, LEvaluationTime.AsISO8601, ADateParams.SkewMessage])
             );
         end;
       end;
 
       if LClaims.HasNotBefore then
-        if (ADateParams.EvaluationTime.AsSeconds + ADateParams.AllowedClockSkewSeconds) < LNotBefore.AsSeconds then
+        if LEvaluationTime.IsBefore(LNotBefore, ADateParams.AllowedClockSkewSeconds) then
           Exit(Format(SJOSENotYetValid,
-            [ADateParams.EvaluationTime.AsISO8601, LNotBefore.AsISO8601, ADateParams.SkewMessage])
+            [LEvaluationTime.AsISO8601, LNotBefore.AsISO8601, ADateParams.SkewMessage])
           );
     end;
-  ;
 end;
 
-class function TJOSEClaimsValidators.issValidator(AIssuer: string; ARequired: Boolean): TJOSEValidator;
+class function TJOSEClaimsValidators.issValidator(const AIssuer: string; ARequired: Boolean): TJOSEValidator;
 var
   LIssuers: TJOSEStringArray;
 begin
@@ -252,18 +268,25 @@ begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
     var
+      LClaims: TJWTClaims;
       LIssuer: string;
     begin
       Result := '';
-      LIssuer := AJOSEContext.GetClaims.Issuer;
+      LClaims := AJOSEContext.GetClaims;
 
-      if not AJOSEContext.GetClaims.HasIssuer and ARequired then
-        Exit(Format(SJOSENoIssuerClaim,
-          [AIssuers.ToStringPluralForm(SJOSEOneOf)]));
+      // An absent claim is a "required" question, never a mismatch: without
+      // this, an optional issuer would still be rejected as [] <> [expected]
+      if not LClaims.HasIssuer then
+        if ARequired then
+          Exit(Format(SJOSENoIssuerClaim,
+            [AIssuers.ToStringPluralForm(SJOSEOneOf)]))
+        else
+          Exit('');
 
+      LIssuer := LClaims.Issuer;
       if (AIssuers.Size > 0) and not AIssuers.Contains(LIssuer) then
-          Exit(Format(SJOSEIssuerMismatch,
-            [LIssuer, AIssuers.ToStringPluralForm(SJOSEOneOf)]));
+        Exit(Format(SJOSEIssuerMismatch,
+          [LIssuer, AIssuers.ToStringPluralForm(SJOSEOneOf)]));
     end
   ;
 end;
@@ -273,14 +296,19 @@ begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
     var
+      LClaims: TJWTClaims;
       LJWTId: string;
     begin
       Result := '';
-      LJWTId := AJOSEContext.GetClaims.JWTId;
+      LClaims := AJOSEContext.GetClaims;
 
-      if not AJOSEContext.GetClaims.HasJWTId and ARequired then
-        Exit(SJOSENoJTIClaim)
-      else
+      if not LClaims.HasJWTId then
+        if ARequired then
+          Exit(SJOSENoJTIClaim)
+        else
+          Exit('');
+
+      LJWTId := LClaims.JWTId;
       if not AJwtId.IsEmpty and not AJwtId.Equals(LJwtId) then
         Exit(Format(
           SJOSEJTIMismatch,
@@ -299,14 +327,19 @@ begin
   Result :=
     function (AJOSEContext: TJOSEContext): string
     var
+      LClaims: TJWTClaims;
       LSubject: string;
     begin
       Result := '';
-      LSubject := AJOSEContext.GetClaims.Subject;
+      LClaims := AJOSEContext.GetClaims;
 
-      if not AJOSEContext.GetClaims.HasSubject and ARequired then
-        Exit(SJOSENoSubjectClaim)
-      else
+      if not LClaims.HasSubject then
+        if ARequired then
+          Exit(SJOSENoSubjectClaim)
+        else
+          Exit('');
+
+      LSubject := LClaims.Subject;
       if not ASubject.IsEmpty and not ASubject.Equals(LSubject) then
         Exit(Format(
           SJOSESubjectMismatch,

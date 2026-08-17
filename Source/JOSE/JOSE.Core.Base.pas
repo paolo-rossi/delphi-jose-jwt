@@ -252,7 +252,9 @@ end;
 
 function TJOSENumericDate.GetAsISO8601: string;
 begin
-  Result := DateToISO8601(FValue);
+  // FValue is a local TDateTime (GetAsSeconds/SetAsSeconds treat it as local),
+  // so it must be converted, not stamped with a 'Z' it doesn't deserve
+  Result := DateToISO8601(FValue, False);
 end;
 
 function TJOSENumericDate.GetAsMilliSeconds: Int64;
@@ -282,7 +284,8 @@ end;
 
 procedure TJOSENumericDate.SetAsSeconds(const AValue: Int64);
 begin
-  FValue := UnixToDateTime(AValue);
+  // Must be the inverse of GetAsSeconds, which uses DateTimeToUnix(..., False)
+  FValue := UnixToDateTime(AValue, False);
 end;
 
 { TJOSETimeUnitHelper }
