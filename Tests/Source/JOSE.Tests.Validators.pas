@@ -38,6 +38,7 @@ type
     function Sign(AJWT: TJWT): TJOSEBytes;
     function TokenExpiringIn(ASeconds: Integer): TJOSEBytes;
     function Accepts(AConsumer: IJOSEConsumer; const AToken: TJOSEBytes): Boolean;
+    function ExpiredTokenRejection(AConsumer: IJOSEConsumer): string;
   public
     // The date params record is captured by the validator closure: reading the
     // evaluation time must not write it back, or a long-lived consumer would
@@ -76,6 +77,16 @@ type
     procedure TestSingleAudienceMatches;
     [Test]
     procedure TestAudienceRoundTripKeepsTheComma;
+    // Rejection messages end up in logs: no claims set, no signature bytes
+    [Test]
+    procedure TestRejectionMessageOmitsTheClaims;
+    [Test]
+    procedure TestRejectionMessageKeepsTheDetails;
+    [Test]
+    procedure TestRejectionMessageCanIncludeTheClaims;
+    [Test]
+    procedure TestInvalidSignatureMessageOmitsTheSignature;
+
     [Test]
     procedure TestAudiencePresentAndNoneExpectedIsAccepted;
     [Test]
@@ -377,6 +388,114 @@ begin
   finally
     LJWT.Free;
   end;
+end;
+
+function TTestValidators.ExpiredTokenRejection(AConsumer: IJOSEConsumer): string;
+var
+  LJWT: TJWT;
+  LToken: TJOSEBytes;
+begin
+  Result := '';
+  LJWT := TJWT.Create;
+  try
+    LJWT.Claims.Subject := 'alice@example.com';
+    LJWT.Claims.Expiration := IncMinute(Now, -10);
+    LToken := Sign(LJWT);
+  finally
+    LJWT.Free;
+  end;
+
+  try
+    AConsumer.Process(LToken);
+  except
+    on E: Exception do
+      Result := E.Message;
+  end;
+  Assert.IsNotEmpty(Result, 'The token was supposed to be rejected');
+end;
+
+procedure TTestValidators.TestRejectionMessageOmitsTheClaims;
+var
+  LMessage: string;
+begin
+  LMessage := ExpiredTokenRejection(
+    TJOSEConsumerBuilder.NewConsumer
+      .SetVerificationKey(SECRET)
+      .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+      .SetRequireExpirationTime
+      .Build);
+
+  Assert.IsFalse(LMessage.Contains('alice@example.com'),
+    'Claims carry personal data and must not be dumped into the message');
+  Assert.IsFalse(LMessage.Contains('"sub"'));
+end;
+
+procedure TTestValidators.TestRejectionMessageKeepsTheDetails;
+var
+  LMessage: string;
+begin
+  LMessage := ExpiredTokenRejection(
+    TJOSEConsumerBuilder.NewConsumer
+      .SetVerificationKey(SECRET)
+      .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+      .SetRequireExpirationTime
+      .Build);
+
+  // Dropping the claims must not cost the reason for the rejection
+  Assert.IsTrue(LMessage.Contains('Validation errors:'), LMessage);
+  Assert.IsTrue(LMessage.Contains('no longer valid'), LMessage);
+end;
+
+procedure TTestValidators.TestRejectionMessageCanIncludeTheClaims;
+var
+  LMessage: string;
+begin
+  TJOSEConsumer.IncludeClaimsInExceptions := True;
+  try
+    LMessage := ExpiredTokenRejection(
+      TJOSEConsumerBuilder.NewConsumer
+        .SetVerificationKey(SECRET)
+        .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+        .SetRequireExpirationTime
+        .Build);
+
+    Assert.IsTrue(LMessage.Contains('alice@example.com'),
+      'The opt-in switch must restore the claims dump');
+  finally
+    TJOSEConsumer.IncludeClaimsInExceptions := False;
+  end;
+end;
+
+procedure TTestValidators.TestInvalidSignatureMessageOmitsTheSignature;
+var
+  LConsumer: IJOSEConsumer;
+  LToken: string;
+  LSignature, LMessage: string;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .Build;
+
+  LToken := TokenExpiringIn(600);
+  // flip the last character of the signature
+  if LToken[Length(LToken)] = 'A' then
+    LToken[Length(LToken)] := 'B'
+  else
+    LToken[Length(LToken)] := 'A';
+  LSignature := LToken.Substring(LToken.LastIndexOf('.') + 1);
+
+  LMessage := '';
+  try
+    LConsumer.Process(LToken);
+  except
+    on E: Exception do
+      LMessage := E.Message;
+  end;
+
+  Assert.IsNotEmpty(LMessage, 'The token was supposed to be rejected');
+  Assert.IsFalse(LMessage.Contains(LSignature),
+    'Token material must not be echoed into the message');
 end;
 
 procedure TTestValidators.TestAudiencePresentAndNoneExpectedIsAccepted;

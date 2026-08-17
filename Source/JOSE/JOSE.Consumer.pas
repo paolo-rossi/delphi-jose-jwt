@@ -51,6 +51,8 @@ type
   /// </summary>
   TJOSEConsumer = class(TInterfacedObject, IJOSEConsumer)
   private
+    class var FIncludeClaimsInExceptions: Boolean;
+  private
     FKey: TJOSEBytes;
     FValidators: TJOSEValidatorArray;
     FClaimsClass: TJWTClaimsClass;
@@ -74,6 +76,16 @@ type
     procedure Process(const ACompactToken: TJOSEBytes);
     procedure ProcessContext(AContext: TJOSEContext);
     procedure Validate(AContext: TJOSEContext);
+
+    /// <summary>
+    ///   When True, the exception raised for a rejected token carries the whole
+    ///   claims set in its message. Off by default: claims routinely hold
+    ///   personal data (sub, email, roles, ...) and exception messages end up in
+    ///   log files and monitoring systems. The per-claim validation details are
+    ///   reported either way, so a rejection stays diagnosable without it
+    /// </summary>
+    class property IncludeClaimsInExceptions: Boolean
+      read FIncludeClaimsInExceptions write FIncludeClaimsInExceptions;
   end;
 
   /// <summary>
@@ -192,9 +204,10 @@ uses
 
 resourcestring
   SJOSEUnexpectedAlgorithm = 'JWS algorithm [%s] is not listed among those expected';
-  SJOSEInvalidSignature = 'JWS signature is invalid: %s';
+  SJOSEInvalidSignature = 'JWS signature is invalid';
   SJOSESignatureRequired = 'The JWT has no signature but the JWT Consumer is configured to require one';
-  SJOSEClaimsRejected = 'JWT (claims: %s) rejected due to invalid claims.';
+  SJOSEClaimsRejected = 'JWT rejected due to invalid claims.';
+  SJOSEClaimsRejectedWithClaims = 'JWT (claims: %s) rejected due to invalid claims.';
   SJOSEUnparsedToken = 'The JWT has not been parsed into a JOSE object';
   SJOSEUnsupportedJOSEObject = 'Unsupported JOSE object [%s]';
 
@@ -482,8 +495,10 @@ begin
         LJWS.SkipKeyValidation := True;
 
       LJWS.SetKey(Self.FKey);
+      // The signature itself is not echoed: it is token material and exception
+      // messages end up in logs. The caller already holds the token
       if not LJWS.VerifySignature then
-        raise EJOSEException.CreateFmt(SJOSEInvalidSignature, [LJWS.Signature.AsString]);
+        raise EJOSEException.Create(SJOSEInvalidSignature);
     end;
 
     if LJWS.HeaderAlgorithm <> TJOSEAlgorithmId.None.AsString then
@@ -563,9 +578,15 @@ begin
     end;
     if LIssues.Count > 0 then
     begin
-      LException := EInvalidJWTException.CreateFmt(
-        SJOSEClaimsRejected,
-        [TJSONUtils.ToJSON(AContext.GetClaims.JSON)]);
+      // The details below name every claim that failed, which is what one needs
+      // to diagnose a rejection. The claims set itself is only dumped on demand:
+      // it routinely carries personal data and this message ends up in logs
+      if IncludeClaimsInExceptions then
+        LException := EInvalidJWTException.CreateFmt(
+          SJOSEClaimsRejectedWithClaims,
+          [TJSONUtils.ToJSON(AContext.GetClaims.JSON)])
+      else
+        LException := EInvalidJWTException.Create(SJOSEClaimsRejected);
       LException.SetDetails(LIssues);
 
       raise LException;

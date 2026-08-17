@@ -476,7 +476,7 @@ listing every failed validator, so logging the message alone tells you exactly w
 A tampered token produces, for example:
 
 ```
-JOSE error: JWS signature is invalid: wBIJMFL4qPKS-Xqg6zPHjMf75v9bPHyxc-77RAELkH2... (the offending signature)
+JOSE error: JWS signature is invalid
 ```
 
 ---
@@ -566,5 +566,5 @@ The run ends with two deliberate outcomes, a valid token and a tampered one:
 
 ```
 Valid token, subject: paolo.rossi
-JOSE error: JWS signature is invalid: rTvyQUken6_0pDc7XJEE8ImGrxHe8Vp5ZJ0B0Cw2NCljFLPFdwcbXtlO1H4K0nP...
+JOSE error: JWS signature is invalid
 ```
