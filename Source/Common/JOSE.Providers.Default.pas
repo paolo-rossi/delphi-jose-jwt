@@ -255,7 +255,11 @@ class function TJOSEDefaultOpenSslPem.LoadCertificate(const ACertificate: TBytes
 var
   LBio: PBIO;
 begin
-  if not CompareMem(@FPEM_X509_CERTIFICATE[0], @ACertificate[0], Length(FPEM_X509_CERTIFICATE)) then
+  // The length test must come first: @ACertificate[0] on an empty or too-short
+  // array reads past its end (nil dereference when empty), turning a malformed
+  // certificate into an access violation instead of an exception
+  if (Length(ACertificate) < Length(FPEM_X509_CERTIFICATE)) or
+    not CompareMem(@FPEM_X509_CERTIFICATE[0], @ACertificate[0], Length(FPEM_X509_CERTIFICATE)) then
     raise ESignException.Create(SJOSEOpenSSLInvalidCertificate);
 
   LBio := BIO_new(BIO_s_mem);

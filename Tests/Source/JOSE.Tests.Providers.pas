@@ -78,6 +78,29 @@ type
     procedure TestECKeyMaterial_RejectsRSAPem;
   end;
 
+  /// <summary>
+  ///   Tests for IJOSECertificateProvider. A certificate is caller-supplied
+  ///   (TJWS.SetKeyFromCert), and malformed input must come back as an
+  ///   ESignException rather than as an access violation
+  /// </summary>
+  [TestFixture]
+  [Category('Providers')]
+  TTestCertificateProvider = class(TTestBase)
+  public
+    [Setup]
+    procedure Setup;
+
+    [Test]
+    procedure TestEmptyCertificateRaises;
+    [Test]
+    [TestCase('One byte',        '-')]
+    [TestCase('Shorter than the PEM header', '-----BEGIN CERT')]
+    [TestCase('Right length, wrong text',    'not a certificate at all!!!')]
+    procedure TestTooShortCertificateRaises(const ACertificate: string);
+    [Test]
+    procedure TestNotACertificateRaises;
+  end;
+
 implementation
 
 uses
@@ -294,7 +317,50 @@ begin
   );
 end;
 
+{ TTestCertificateProvider }
+
+procedure TTestCertificateProvider.Setup;
+begin
+  inherited;
+  TJOSEProviders.RegisterProvider;
+end;
+
+procedure TTestCertificateProvider.TestEmptyCertificateRaises;
+begin
+  // The prefix check used to read @ACertificate[0] before testing the length,
+  // so an empty certificate dereferenced nil
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEProviders.Certificate.PublicKeyFromCertificate([]);
+    end,
+    ESignException, 'An empty certificate must raise, not fault');
+end;
+
+procedure TTestCertificateProvider.TestTooShortCertificateRaises(const ACertificate: string);
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEProviders.Certificate.PublicKeyFromCertificate(TEncoding.ASCII.GetBytes(ACertificate));
+    end,
+    ESignException);
+end;
+
+procedure TTestCertificateProvider.TestNotACertificateRaises;
+begin
+  // Correct armour, nothing behind it
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEProviders.Certificate.PublicKeyFromCertificate(
+        TEncoding.ASCII.GetBytes('-----BEGIN CERTIFICATE-----'#10'nonsense'#10'-----END CERTIFICATE-----'));
+    end,
+    ESignException);
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestKeyMaterialProviders);
+  TDUnitX.RegisterTestFixture(TTestCertificateProvider);
 
 end.
