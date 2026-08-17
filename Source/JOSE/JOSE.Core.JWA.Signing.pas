@@ -468,7 +468,9 @@ function TECDSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature:
 var
   LDecodedSignature: TJOSEBytes;
 begin
-  ValidateVerificationKey(AKey);
+  // Key validation belongs to the caller (TJWS.VerifySignature), which owns the SkipKeyValidation
+  // policy - as it already does for HMAC and RSA. Validating here as well ignored that flag and
+  // parsed the PEM twice per verification.
   LDecodedSignature := TBase64.URLDecode(ASignature);
   Result := TECDSA.Verify(AInput, LDecodedSignature, AKey, FECDSAAlgorithm);
 end;

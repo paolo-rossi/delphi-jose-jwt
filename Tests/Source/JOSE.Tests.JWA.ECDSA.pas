@@ -14,6 +14,8 @@ interface
 uses
   System.Rtti, System.SysUtils, DUnitX.TestFramework,
 
+  JOSE.Types.Bytes,
+  JOSE.Core.Base,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWK,
@@ -60,6 +62,12 @@ type
     [TestCase('TestECDSAVerify256K', 'ES256K,' + TOKEN_ES256K)]
     procedure TestECDSAVerify(AAlg: TJOSEAlgorithmId; const AToken: string);
 
+    // SkipKeyValidation is the caller's policy: the ES* implementation must not
+    // validate the key on its own account, as HMAC and RSA already don't
+    [Test]
+    procedure TestECDSAVerifyHonoursSkipKeyValidation;
+    [Test]
+    procedure TestECDSAVerifyValidatesTheKeyWhenNotSkipped;
   end;
 
 implementation
@@ -112,6 +120,73 @@ begin
       LSigner.CompactToken := AToken;
 
       Assert.IsTrue(LSigner.VerifySignature, 'Signature (RSA) should validate');
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWA.TestECDSAVerifyHonoursSkipKeyValidation;
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+  LKey: TJOSEBytes;
+  LJOSEError: string;
+begin
+  // An empty key is refused by ValidateVerificationKey itself, before any
+  // provider call, so an EJOSEException here can only mean the check ran
+  LKey := TJOSEBytes.Empty;
+
+  LToken := TJWT.Create;
+  try
+    LSigner := TJWS.Create(LToken);
+    try
+      LSigner.SetKey(LKey);
+      LSigner.SkipKeyValidation := True;
+      LSigner.CompactToken := TOKEN_ES256;
+
+      LJOSEError := '';
+      try
+        // Failing inside the provider is fine - what must not happen is the
+        // library-level key check firing despite the flag
+        LSigner.VerifySignature;
+      except
+        on E: EJOSEException do
+          LJOSEError := E.Message;
+        on E: Exception do
+          ;
+      end;
+
+      Assert.AreEqual('', LJOSEError,
+        'SkipKeyValidation must suppress the ECDSA key check');
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWA.TestECDSAVerifyValidatesTheKeyWhenNotSkipped;
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+  LKey: TJOSEBytes;
+begin
+  LKey := TJOSEBytes.Empty;
+
+  LToken := TJWT.Create;
+  try
+    LSigner := TJWS.Create(LToken);
+    try
+      LSigner.SetKey(LKey);
+      LSigner.CompactToken := TOKEN_ES256;
+
+      Assert.WillRaise(
+        procedure begin LSigner.VerifySignature end,
+        EJOSEException, 'Without the flag the key must still be validated');
     finally
       LSigner.Free;
     end;
