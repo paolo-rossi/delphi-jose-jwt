@@ -100,6 +100,7 @@
         </DelphiCompile>
         <DCCReference Include="Source\JOSE.Tests.Builder.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Consumer.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Context.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWK.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWS.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWT.pas"/>

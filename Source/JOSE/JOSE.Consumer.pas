@@ -195,6 +195,8 @@ resourcestring
   SJOSEInvalidSignature = 'JWS signature is invalid: %s';
   SJOSESignatureRequired = 'The JWT has no signature but the JWT Consumer is configured to require one';
   SJOSEClaimsRejected = 'JWT (claims: %s) rejected due to invalid claims.';
+  SJOSEUnparsedToken = 'The JWT has not been parsed into a JOSE object';
+  SJOSEUnsupportedJOSEObject = 'Unsupported JOSE object [%s]';
 
 function TJOSEConsumerBuilder.Build: IJOSEConsumer;
 begin
@@ -453,12 +455,20 @@ end;
 
 procedure TJOSEConsumer.ProcessContext(AContext: TJOSEContext);
 var
+  LJOSEObject: TJOSEParts;
   LJWS: TJWS;
   LHasSignature: Boolean;
   //LJWE: TJWE;
 begin
   LHasSignature := False;
-  if AContext.GetJOSEObject is TJWS then
+
+  // Never fall through to the claims validation with an unusable JOSE object:
+  // that would silently skip the algorithm check and the signature verification
+  LJOSEObject := AContext.GetJOSEObject;
+  if not Assigned(LJOSEObject) then
+    raise EJOSEException.Create(SJOSEUnparsedToken);
+
+  if LJOSEObject is TJWS then
   begin
     LJWS := AContext.GetJOSEObject<TJWS>;
 
@@ -483,10 +493,12 @@ begin
       raise EJOSEException.Create(SJOSESignatureRequired);
 
   end
-  else if AContext.GetJOSEObject is TJWE then
+  else if LJOSEObject is TJWE then
   begin
 
-  end;
+  end
+  else
+    raise EJOSEException.CreateFmt(SJOSEUnsupportedJOSEObject, [LJOSEObject.ClassName]);
 
   Validate(AContext);
 end;

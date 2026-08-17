@@ -78,6 +78,12 @@ type
     function GetURLEncoded: TJOSEBytes;
     procedure SetEncoded(const Value: TJOSEBytes);
     procedure SetURLEncoded(const Value: TJOSEBytes);
+    /// <summary>
+    ///   Replaces FJSON with the object parsed from AJSON. The current FJSON is
+    ///   released only after the new object has been built and validated, so a
+    ///   malformed segment can never leave FJSON dangling
+    /// </summary>
+    procedure SetJSONFromBytes(const AJSON: TJOSEBytes);
   protected
     FJSON: TJSONObject;
 
@@ -105,6 +111,9 @@ implementation
 uses
   System.DateUtils,
   JOSE.Encoding.Base64;
+
+resourcestring
+  SJOSEInvalidJSONSegment = 'The token segment is not a valid JSON object';
 
 {$IF CompilerVersion >= 28}  // Delphi XE7
 function ToJSON(Value: TJSONAncestor): string;
@@ -169,11 +178,30 @@ begin
 end;
 
 procedure TJOSEBase.SetEncoded(const Value: TJOSEBytes);
-var
-  LJSONStr: TJOSEBytes;
 begin
-  LJSONStr := TBase64.Decode(Value);
-  FJSON.Parse(LJSONStr, 0)
+  SetJSONFromBytes(TBase64.Decode(Value));
+end;
+
+procedure TJOSEBase.SetJSONFromBytes(const AJSON: TJOSEBytes);
+var
+  LValue: TJSONValue;
+begin
+  LValue := TJSONObject.ParseJSONValue(AJSON.AsBytes, 0, True);
+
+  if not Assigned(LValue) then
+    raise EJOSEException.Create(SJOSEInvalidJSONSegment);
+
+  // A JOSE header and a JWT payload are JSON *objects* (RFC 7515 sec. 4,
+  // RFC 7519 sec. 7.2): anything else (a string, an array, a number, ...)
+  // is a malformed token
+  if not (LValue is TJSONObject) then
+  begin
+    LValue.Free;
+    raise EJOSEException.Create(SJOSEInvalidJSONSegment);
+  end;
+
+  FJSON.Free;
+  FJSON := TJSONObject(LValue);
 end;
 
 procedure TJOSEBase.SetNewJSON(const AJSONStr: string);
@@ -191,18 +219,8 @@ begin
 end;
 
 procedure TJOSEBase.SetURLEncoded(const Value: TJOSEBytes);
-var
-  LJSONStr: TJOSEBytes;
-  LValue: TJSONValue;
 begin
-  LJSONStr := TBase64.URLDecode(Value);
-  LValue := TJSONObject.ParseJSONValue(LJSONStr.AsBytes, 0, True);
-
-  if Assigned(LValue) then
-  begin
-    FJSON.Free;
-    FJSON := LValue as TJSONObject;
-  end;
+  SetJSONFromBytes(TBase64.URLDecode(Value));
 end;
 
 procedure TJOSEBase.AddPairOfType<T>(const AName: string; const AValue: T);

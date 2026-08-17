@@ -43,6 +43,11 @@ type
     class function GetJSONRttiValue(AValue: TValue): TJSONValue;
   public
     class function IsValidJSON(const AValue: string): Boolean;
+    /// <summary>
+    ///   Like IsValidJSON, but additionally requires the value to be a JSON
+    ///   *object*: a bare string, array, number or literal is rejected
+    /// </summary>
+    class function IsValidJSONObject(const AValue: string): Boolean;
     class function IsJSONBool(AJSON: TJSONValue): Boolean;
     class function GetJSONBool(AJSON: TJSONValue): Boolean;
 
@@ -256,6 +261,22 @@ begin
     LValue := TJSONObject.ParseJSONValue(AValue);
     Result := Assigned(LValue);
     LValue.Free;
+  except
+    Result := False;
+  end;
+end;
+
+class function TJSONUtils.IsValidJSONObject(const AValue: string): Boolean;
+var
+  LValue: TJSONValue;
+begin
+  try
+    LValue := TJSONObject.ParseJSONValue(AValue);
+    try
+      Result := LValue is TJSONObject;
+    finally
+      LValue.Free;
+    end;
   except
     Result := False;
   end;

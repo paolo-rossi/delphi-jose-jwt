@@ -122,7 +122,7 @@ begin
   if not TJOSEBytes.IsValidString(LPart) then
     Exit(False);
 
-  if not TJSONUtils.IsValidJSON(LPart) then
+  if not TJSONUtils.IsValidJSONObject(LPart) then
     Exit(False);
 
   LPart := TBase64.TryURLDecode(LRes[1]);
@@ -132,7 +132,7 @@ begin
   if not TJOSEBytes.IsValidString(LPart) then
     Exit(False);
 
-  if not TJSONUtils.IsValidJSON(LPart) then
+  if not TJSONUtils.IsValidJSONObject(LPart) then
     Exit(False);
 end;
 

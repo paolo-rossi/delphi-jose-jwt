@@ -69,18 +69,17 @@ begin
   FCompactToken := ACompactToken;
   FClaimsClass := AClaimsClass;
   FJWT := TJWT.Create(FClaimsClass);
-  try
-    FromCompactToken;
-  except
-    FreeAndNil(FJWT);
-    raise;
-  end;
+
+  // If this raises, the destructor is called automatically and releases
+  // both FJWT and FJOSEObject
+  FromCompactToken;
 end;
 
 destructor TJOSEContext.Destroy;
 begin
-  FJWT.Free;
+  // FJOSEObject keeps a (non-owning) reference to FJWT: release it first
   FJOSEObject.Free;
+  FJWT.Free;
   inherited;
 end;
 
@@ -97,7 +96,15 @@ begin
       try
         FJOSEObject.CompactToken := FCompactToken;
       except
-        FreeAndNil(FJOSEObject);
+        // The token is not parsable: the context must *not* be built, or the
+        // consumer would see a nil JOSE object and skip the whole verification
+        on E: Exception do
+        begin
+          FreeAndNil(FJOSEObject);
+          if E is EJOSEException then
+            raise;
+          raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
+        end;
       end;
     end;
     5:
