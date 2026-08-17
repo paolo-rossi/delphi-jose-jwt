@@ -478,6 +478,23 @@ begin
 end;
 ```
 
+`TJOSE.Verify` returns `nil` only when the token cannot be *read*: a token whose signature does
+not check out still comes back, with `Verified` set to `False`, so that property must be tested.
+When you would rather have a bad signature raise, use `TJOSE.VerifyOrRaise` — anything it returns
+has verified:
+
+```delphi
+LToken := TJOSE.VerifyOrRaise(LKey, FCompactToken);   // raises EJOSEException otherwise
+try
+  mmoJSON.Lines.Add(LToken.Claims.JSON.ToJSON);
+finally
+  LToken.Free;
+end;
+```
+
+Neither of them constrains the algorithm — both take it from the token's own header. For tokens
+that come from outside, verify through `TJOSEConsumer` and set an algorithm allowlist.
+
 ### Unpacking and token validation
 
 Using the new class `TJOSEConsumer` it's very easy to validate the token's claims. The `TJOSEConsumer` object is built with the `TJOSEConsumerBuilder` utility class using the fluent interface.

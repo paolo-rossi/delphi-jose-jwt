@@ -889,17 +889,15 @@ begin
       try
         LToken.Claims.Subject := 'should-not-be-signable';
 
-        // Note this does NOT come from ValidateSigningKey's "Key is null" check: the
-        // TJOSE.SerializeCompact overloads without an explicit flag pass ASkipValidation = True
-        // (JOSE.Core.Builder.pas), so the empty key reaches the provider and fails there. What
-        // bug 3's fix changed is that PrivateKey is now empty rather than holding the public PEM
-        // - the failure itself was always a provider-level one.
+        // PrivateKey is empty for a public-only pair, and the TJOSE.SerializeCompact
+        // overloads without an explicit flag now validate the key, so this is
+        // ValidateSigningKey's "Key is null" rather than a provider-level failure
         Assert.WillRaise(
           procedure
           begin
             TJOSE.SerializeCompact(LKeyPair.PrivateKey, TJOSEAlgorithmId.RS256, LToken);
           end,
-          ESignException, 'Signing with a public-only key pair should raise');
+          EJOSEException, 'Signing with a public-only key pair should raise');
       finally
         LToken.Free;
       end;

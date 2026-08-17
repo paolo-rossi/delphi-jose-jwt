@@ -28,6 +28,9 @@ type
   [TestFixture]
   TTestConsumer = class(TTestBase)
   private
+    // HS256 needs at least 256 bits of key material (RFC 7518 par. 3.2)
+    const SECRET = 'a-test-secret-of-at-least-32-bytes-long!';
+  private
     FJWT: TJWT;
     FCompact: TJOSEBytes;
   public
@@ -80,13 +83,13 @@ var
 begin
   FJWT.Claims.Expiration := UnixToDateTime(Expiration, False);
 
-  FCompact := TJOSE.SerializeCompact('SuperSecretSeed',  TJOSEAlgorithmId.HS256, FJWT);
+  FCompact := TJOSE.SerializeCompact(SECRET,  TJOSEAlgorithmId.HS256, FJWT);
 
   LConsumer := TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
 
     // JWS-related validation
-    .SetVerificationKey('SuperSecretSeed')
+    .SetVerificationKey(SECRET)
     .SetSkipVerificationKeyValidation
 
     // Time-related claims validation
@@ -112,13 +115,13 @@ begin
   FJWT.Claims.Expiration := UnixToDateTime(Expiration, False);
   FJWT.Claims.NotBefore := UnixToDateTime(NotBefore, False);
 
-  FCompact := TJOSE.SerializeCompact('SuperSecretSeed',  TJOSEAlgorithmId.HS256, FJWT);
+  FCompact := TJOSE.SerializeCompact(SECRET,  TJOSEAlgorithmId.HS256, FJWT);
 
   TJOSEConsumerBuilder.NewConsumer
     .SetClaimsClass(TJWTClaims)
 
     // JWS-related validation
-    .SetVerificationKey('SuperSecretSeed')
+    .SetVerificationKey(SECRET)
     .SetSkipVerificationKeyValidation
 
     // Time-related claims validation
