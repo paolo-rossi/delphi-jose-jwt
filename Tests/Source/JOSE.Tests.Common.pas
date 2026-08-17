@@ -72,6 +72,33 @@ type
     [Test]
     [TestCase('TestDecodeString', 'cGFvbG8=,paolo')]
     procedure TestDecodeString(const AValue1, _Expected: string);
+
+    // RFC 7515 par. 2: the base64url alphabet, no padding, no whitespace, a
+    // length an encoder can produce, canonical trailing bits
+    [Test]
+    [TestCase('Empty',            '|True', '|')]
+    [TestCase('Four chars',       'TWFu|True', '|')]
+    [TestCase('Three chars',      'TWE|True', '|')]
+    [TestCase('Two chars',        'TQ|True', '|')]
+    [TestCase('Alphabet - and _', 'a-b_|True', '|')]
+    [TestCase('Padded',           'TWE=|False', '|')]
+    [TestCase('Standard +',       'a+bc|False', '|')]
+    [TestCase('Standard /',       'ab/c|False', '|')]
+    [TestCase('Out of alphabet',  'TW!u|False', '|')]
+    [TestCase('Space',            'TW u|False', '|')]
+    [TestCase('Length 1 mod 4',   'TWFuA|False', '|')]
+    [TestCase('Trailing bits 3',  'TWF|False', '|')]
+    [TestCase('Trailing bits 2',  'TW|False', '|')]
+    procedure TestIsValidURLEncoded(const AValue: string; AExpected: Boolean);
+
+    [Test]
+    procedure TestURLDecodeRejectsInvalidInput;
+    [Test]
+    procedure TestTryURLDecodeReturnsEmptyForInvalidInput;
+    [Test]
+    procedure TestURLDecodeRoundTrip;
+    [Test]
+    procedure TestStrictURLDecodingCanBeTurnedOff;
   end;
 
   [TestFixture]
@@ -242,6 +269,57 @@ begin
   LResult := TBytesUtils.MergeBytes(TEncoding.ANSI.GetBytes(AValue1), TEncoding.ANSI.GetBytes(AValue2));
 
   Assert.AreEqualMemory(@LExpected[0], @LResult[0], Length(LExpected));
+end;
+
+procedure TTestBase64.TestIsValidURLEncoded(const AValue: string; AExpected: Boolean);
+begin
+  Assert.AreEqual(AExpected, TBase64.IsValidURLEncoded(AValue), '[' + AValue + ']');
+end;
+
+procedure TTestBase64.TestURLDecodeRejectsInvalidInput;
+begin
+  Assert.WillRaise(
+    procedure begin TBase64.URLDecode('TWE=') end,
+    EJOSEBase64Exception);
+end;
+
+procedure TTestBase64.TestTryURLDecodeReturnsEmptyForInvalidInput;
+begin
+  Assert.IsTrue(TBase64.TryURLDecode('TW!u').IsEmpty);
+  Assert.IsFalse(TBase64.TryURLDecode('TWFu').IsEmpty);
+end;
+
+procedure TTestBase64.TestURLDecodeRoundTrip;
+var
+  LEncoded: TJOSEBytes;
+begin
+  // Whatever URLEncode produces must survive the strict decoder
+  LEncoded := TBase64.URLEncode('Man');
+  Assert.IsTrue(TBase64.IsValidURLEncoded(LEncoded), LEncoded.AsString);
+  Assert.AreEqual('Man', TBase64.URLDecode(LEncoded).AsString);
+
+  LEncoded := TBase64.URLEncode('Ma');
+  Assert.IsTrue(TBase64.IsValidURLEncoded(LEncoded), LEncoded.AsString);
+  Assert.AreEqual('Ma', TBase64.URLDecode(LEncoded).AsString);
+
+  LEncoded := TBase64.URLEncode('M');
+  Assert.IsTrue(TBase64.IsValidURLEncoded(LEncoded), LEncoded.AsString);
+  Assert.AreEqual('M', TBase64.URLDecode(LEncoded).AsString);
+end;
+
+procedure TTestBase64.TestStrictURLDecodingCanBeTurnedOff;
+begin
+  TBase64.StrictURLDecoding := False;
+  try
+    // The documented escape hatch for a non-conforming issuer
+    Assert.AreEqual('Ma', TBase64.URLDecode('TWE=').AsString);
+  finally
+    TBase64.StrictURLDecoding := True;
+  end;
+
+  Assert.WillRaise(
+    procedure begin TBase64.URLDecode('TWE=') end,
+    EJOSEBase64Exception, 'The flag must be back on');
 end;
 
 { TTestJSONUtils }

@@ -219,8 +219,18 @@ begin
 end;
 
 procedure TJOSEBase.SetURLEncoded(const Value: TJOSEBytes);
+var
+  LDecoded: TJOSEBytes;
 begin
-  SetJSONFromBytes(TBase64.URLDecode(Value));
+  try
+    LDecoded := TBase64.URLDecode(Value);
+  except
+    // Keep the JOSE contract: callers of this layer expect EJOSEException
+    on E: EJOSEBase64Exception do
+      raise EJOSEException.Create(E.Message);
+  end;
+
+  SetJSONFromBytes(LDecoded);
 end;
 
 procedure TJOSEBase.AddPairOfType<T>(const AName: string; const AValue: T);

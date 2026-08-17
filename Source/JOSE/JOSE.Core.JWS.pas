@@ -105,6 +105,7 @@ resourcestring
   SJOSESigningAlgorithmNotSupported = 'Signing algorithm (%s) is not supported.';
   SJOSECompactSerializationEmpty = 'The JWS Compact Serialization is empty';
   SJOSECompactSerializationPartCount = 'A JWS Compact Serialization must have %d parts';
+  SJOSECompactSerializationNotBase64URL = 'Part %d of the JWS Compact Serialization is not valid base64url';
 
 class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 var
@@ -205,6 +206,7 @@ end;
 procedure TJWS.SetCompactToken(const Value: TJOSEBytes);
 var
   LRes: TStringDynArray;
+  LIndex: Integer;
 begin
   if Value.IsEmpty then
     raise EJOSEException.Create(SJOSECompactSerializationEmpty);
@@ -212,6 +214,14 @@ begin
   LRes := SplitString(Value, PART_SEPARATOR);
   if Length(LRes) = COMPACT_PARTS then
   begin
+    // Every segment is checked here, at the boundary, so that a malformed token
+    // is one clean error rather than three different failures further in - and
+    // so that the signature segment is known good before an algorithm decodes
+    // it (a lenient decoder would let several texts stand for one signature)
+    for LIndex := 0 to COMPACT_PARTS - 1 do
+      if not TBase64.IsValidURLEncoded(LRes[LIndex]) then
+        raise EJOSEException.CreateFmt(SJOSECompactSerializationNotBase64URL, [LIndex + 1]);
+
     FParts[0] := LRes[0];
     FParts[1] := LRes[1];
     FParts[2] := LRes[2];

@@ -100,6 +100,19 @@ type
     procedure TestSkipKeyValidationBypassesTheKeyCheck;
     [Test]
     procedure TestUnknownHeaderAlgorithmIsUnknown;
+
+    // One logical token, one wire form: a segment that is not strict base64url
+    // is refused at the boundary, so no algorithm ever sees a signature that
+    // several different texts could stand for
+    [Test]
+    [TestCase('Padding',        '=')]
+    [TestCase('Out of alphabet','!')]
+    [TestCase('Space',          ' ')]
+    procedure TestSignatureSegmentIsNotMalleable(const ASuffix: string);
+    [Test]
+    procedure TestSegmentWithLineBreakIsRejected;
+    [Test]
+    procedure TestNonCanonicalTrailingBitsAreRejected;
   end;
 
 implementation
@@ -299,6 +312,57 @@ procedure TTestJWS.TestUnknownHeaderAlgorithmIsUnknown;
 begin
   FJWS.SetHeaderAlgorithm('NOPE256');
   Assert.IsTrue(FJWS.HeaderAlgorithmId = TJOSEAlgorithmId.Unknown);
+end;
+
+procedure TTestJWS.TestSignatureSegmentIsNotMalleable(const ASuffix: string);
+var
+  LToken: string;
+begin
+  LToken := SignedToken;
+
+  // The signature is the one segment nothing else covers, so a lenient decoder
+  // would make every one of these a second valid form of the same token
+  Assert.WillRaise(
+    procedure begin FJWS.CompactToken := LToken + ASuffix end,
+    EJOSEException, 'Signature + "' + ASuffix + '" must not be a second wire form');
+end;
+
+procedure TTestJWS.TestSegmentWithLineBreakIsRejected;
+var
+  LToken: string;
+begin
+  LToken := SignedToken;
+
+  Assert.WillRaise(
+    procedure
+    begin
+      FJWS.CompactToken := Copy(LToken, 1, Length(LToken) - 4) + #13#10 +
+        Copy(LToken, Length(LToken) - 3, 4);
+    end,
+    EJOSEException);
+end;
+
+procedure TTestJWS.TestNonCanonicalTrailingBitsAreRejected;
+const
+  ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+var
+  LToken: string;
+  LValue: Integer;
+begin
+  LToken := SignedToken;
+
+  // An HS256 signature is 43 characters, so its last one carries 4 significant
+  // bits and 2 unused ones. Setting those two leaves the decoded signature
+  // byte-identical while changing the token text: the subtlest wire-form
+  // variant there is, and the reason the check covers trailing bits at all
+  LValue := Pos(LToken[Length(LToken)], ALPHABET) - 1;
+  Assert.AreEqual(0, LValue and $03, 'The encoder must emit canonical trailing bits');
+
+  LToken[Length(LToken)] := ALPHABET[(LValue or $03) + 1];
+
+  Assert.WillRaise(
+    procedure begin FJWS.CompactToken := LToken end,
+    EJOSEException);
 end;
 
 initialization

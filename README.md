@@ -190,6 +190,14 @@ bypassed along with every other key check by `SetSkipVerificationKeyValidation` 
 `TJWS.SkipKeyValidation`, and it cannot help when both the expected and the substituted algorithm
 are asymmetric. The algorithm allowlist is what you rely on.
 
+**Token segments must be strict base64url.** RFC 7515 allows only the `A-Za-z0-9-_` alphabet, with
+no padding, no whitespace and no line breaks, and `TBase64` enforces that before any decoding
+happens — the underlying decoders are lenient in ways that differ between provider stacks and Delphi
+versions. Without the check, a decoder that drops stray characters gives one logical token many wire
+forms that all verify, which quietly breaks any denylist, replay cache or fingerprint keyed on the
+token text. If you must talk to an issuer that emits non-conforming tokens, `TBase64.StrictURLDecoding
+:= False` turns the check off globally.
+
 **X.509 certificates are key containers, not trust anchors.** `TJWS.SetKeyFromCert` and
 `TRSA`/`TECDSA.VerifyWithCertificate` take the public key out of a PEM certificate and verify with
 it. Nothing else about the certificate is examined — not the chain, not the validity dates, not
