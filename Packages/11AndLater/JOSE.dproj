@@ -2,12 +2,12 @@
     <PropertyGroup>
         <ProjectGuid>{6C9DE12E-3603-42EF-921C-877D0FB57D60}</ProjectGuid>
         <MainSource>JOSE.dpk</MainSource>
-        <ProjectVersion>20.3</ProjectVersion>
+        <ProjectVersion>20.4</ProjectVersion>
         <FrameworkType>None</FrameworkType>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
-        <TargetedPlatforms>3</TargetedPlatforms>
+        <TargetedPlatforms>1048579</TargetedPlatforms>
         <AppType>Package</AppType>
         <ProjectName Condition="'$(ProjectName)'==''">JOSE</ProjectName>
     </PropertyGroup>
@@ -63,6 +63,8 @@
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <RuntimeOnlyPackage>true</RuntimeOnlyPackage>
         <DCC_DcuOutput>..\..\Lib\$(ProductVersion)\$(Platform)\$(Config)</DCC_DcuOutput>
+        <DCC_HppOutputARM>true</DCC_HppOutputARM>
+        <DllSuffix>$(Auto)</DllSuffix>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
@@ -103,6 +105,10 @@
         <DCCReference Include="IndyProtocols.dcp"/>
         <DCCReference Include="IndyCore.dcp"/>
         <DCCReference Include="..\..\Source\Common\JOSE.OpenSSL.Headers.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Crypto.Algorithms.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Providers.Interfaces.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Providers.Default.pas"/>
+        <DCCReference Include="..\..\Source\Common\JOSE.Providers.pas"/>
         <DCCReference Include="..\..\Source\Common\JOSE.Encoding.Base64.pas"/>
         <DCCReference Include="..\..\Source\Common\JOSE.Hashing.HMAC.pas"/>
         <DCCReference Include="..\..\Source\Common\JOSE.Signing.Base.pas"/>
@@ -149,14 +155,15 @@
                     <Source Name="MainSource">JOSE.dpk</Source>
                 </Source>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k290.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp290.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k370.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp370.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
             <Platforms>
+                <Platform value="Linux64">False</Platform>
                 <Platform value="Win32">True</Platform>
                 <Platform value="Win64">True</Platform>
-                <Platform value="Win64x">False</Platform>
+                <Platform value="Win64x">True</Platform>
             </Platforms>
         </BorlandProject>
         <ProjectFileVersion>12</ProjectFileVersion>
