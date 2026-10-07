@@ -14,7 +14,7 @@ unit JOSE.OpenSSL.Headers;
 
 interface
 
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
 
 uses
   System.SysUtils,
@@ -242,7 +242,7 @@ type
 
 implementation
 
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
 
 uses
   JOSE.Types.Utils;
@@ -519,12 +519,12 @@ end;
 {$ENDIF}
 
 initialization
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
   JoseSSL.FLoadLock := TObject.Create;
 {$ENDIF}
 
 finalization
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
   JoseSSL.FLoadLock.Free;
   JoseSSL.FLoadLock := nil;
 {$ENDIF}
