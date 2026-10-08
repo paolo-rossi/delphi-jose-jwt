@@ -1530,6 +1530,7 @@ begin
   LSet := TJSONWebKeySet.FromJSON('{"keys":[]}');
   try
     Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+    Assert.AreEqual<Integer>(0, Length(LSet.SkippedKeys), 'Nothing was skipped');
   finally
     LSet.Free;
   end;
@@ -1551,6 +1552,15 @@ begin
     Assert.AreEqual('rsa', LSet.Keys[0].Kid);
     Assert.AreEqual(TJOSEKeyType.RSA, LSet.Keys[0].Kty);
     Assert.IsTrue(LSet.Keys[0].IsValid);
+
+    // The skipped keys are reported, in document order.
+    Assert.AreEqual<Integer>(2, Length(LSet.SkippedKeys));
+    Assert.Contains(LSet.SkippedKeys[0], '"kid":"okp"');
+    Assert.Contains(LSet.SkippedKeys[1], '"kid":"wrong-case"');
+
+    // They describe what was parsed, so they go when the set is cleared.
+    LSet.Clear;
+    Assert.AreEqual<Integer>(0, Length(LSet.SkippedKeys));
   finally
     LSet.Free;
   end;
@@ -1563,6 +1573,10 @@ begin
   LSet := TJSONWebKeySet.FromJSON('{"keys":[{"kty":"XYZ"},{"kty":"OKP"}]}');
   try
     Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+    // This is what tells such a set apart from {"keys":[]}.
+    Assert.AreEqual<Integer>(2, Length(LSet.SkippedKeys));
+    Assert.AreEqual('{"kty":"XYZ"}', LSet.SkippedKeys[0]);
+    Assert.AreEqual('{"kty":"OKP"}', LSet.SkippedKeys[1]);
   finally
     LSet.Free;
   end;

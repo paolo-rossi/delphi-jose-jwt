@@ -297,6 +297,7 @@ type
   TJSONWebKeySet = class(TJOSEBase)
   private
     FKeys: TObjectList<TJSONWebKey>;
+    FSkippedKeys: TArray<string>;
     /// <summary>
     ///   Rebuilds the underlying JSON document from <c>Keys</c>.
     /// </summary>
@@ -328,7 +329,7 @@ type
     /// </remarks>
     function Remove(AKey: TJSONWebKey): Boolean;
 
-    /// <summary>Removes and frees every key in the set.</summary>
+    /// <summary>Removes and frees every key in the set, and empties <c>SkippedKeys</c>.</summary>
     /// <remarks>
     ///   Hides <c>TJOSEBase.Clear</c>, which empties only the JSON document and would leave a key
     ///   set holding keys it had just claimed to have discarded.
@@ -356,6 +357,10 @@ type
     /// </remarks>
     function FindByKidAndAlg(const AKid: string; AAlg: TJOSEAlgorithmId): TJSONWebKey;
 
+    /// <summary>
+    ///   Parses a JWKS document. Keys whose [kty] this library does not support (OKP, for
+    ///   instance) are left out of <c>Keys</c> and listed in <c>SkippedKeys</c>.
+    /// </summary>
     class function FromJSON(const AJSON: string): TJSONWebKeySet;
     function ToJSON: string;
 
@@ -373,6 +378,21 @@ type
 
     /// <summary>The keys in the set, owned by it. Freely mutable - the JSON output follows.</summary>
     property Keys: TObjectList<TJSONWebKey> read FKeys;
+
+    /// <summary>
+    ///   The JSON text of each key <c>FromJSON</c> left out because its [kty] is not supported,
+    ///   in document order. Empty for a set that was not read with <c>FromJSON</c>.
+    /// </summary>
+    /// <remarks>
+    ///   RFC 7517 5 says to ignore such keys, but silently: a set that came back empty because
+    ///   every key was of an unsupported type would read exactly like an empty JWKS. Check this
+    ///   to tell the two apart, or to log what was dropped.
+    ///   <para>Skipped keys are not written back by <c>ToJSON</c> or <c>ToPublicJWKSet</c>, so
+    ///   republishing a set read this way loses them. That is deliberate for
+    ///   <c>ToPublicJWKSet</c>: without knowing a key type there is no telling which of its
+    ///   members are private.</para>
+    /// </remarks>
+    property SkippedKeys: TArray<string> read FSkippedKeys;
 
     // Read-only, synchronising overrides of the TJOSEBase members. The inherited setters are
     // deliberately not carried over: assigning a document straight to a key set would leave it
@@ -1340,6 +1360,7 @@ end;
 procedure TJSONWebKeySet.Clear;
 begin
   FKeys.Clear;      // owns its items, so they are freed here
+  FSkippedKeys := nil;
   inherited Clear;  // and the document that described them goes too
 end;
 
@@ -1475,7 +1496,11 @@ begin
         if LKnownType then
           Result.FKeys.Add(LKey)
         else
+        begin
           LKey.Free;
+          SetLength(Result.FSkippedKeys, Length(Result.FSkippedKeys) + 1);
+          Result.FSkippedKeys[High(Result.FSkippedKeys)] := JOSE.Core.Base.ToJSON(LItem);
+        end;
       end;
     finally
       LParsed.Free;
