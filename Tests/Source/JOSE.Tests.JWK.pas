@@ -115,6 +115,9 @@ type
     procedure TestValidate_WrapsProviderDecodeErrorsWhenNotStrict;
 
     [Test]
+    procedure TestGetter_MalformedMemberKeepsBase64Error;
+
+    [Test]
     procedure TestToPEM_NamesTheMissingMember;
 
     [Test]
@@ -791,6 +794,33 @@ begin
   CheckInvalid('{"kty":"oct","k":"***"}', 'oct with a malformed [k]');
   CheckInvalid('{"kty":"RSA","n":"***","e":"AQAB"}', 'RSA with a malformed [n]');
   CheckInvalid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"***"}', 'EC with a malformed [y]');
+end;
+
+procedure TTestJWK.TestGetter_MalformedMemberKeepsBase64Error;
+var
+  LJWK: TJSONWebKey;
+  LRaised: Boolean;
+begin
+  // Up to 4.0.2 the getters raised EJOSEBase64Exception. They now raise EJOSEJWKException, and
+  // the original has to stay reachable for callers that tested for it.
+  LJWK := TJSONWebKey.FromJSON('{"kty":"RSA","n":"***","e":"AQAB"}');
+  try
+    LRaised := False;
+    try
+      LJWK.N;
+    except
+      on E: EJOSEJWKException do
+      begin
+        LRaised := True;
+        Assert.Contains(E.Message, '[n]', 'The message names the member');
+        Assert.IsNotNull(E.InnerException, 'The decode error is kept');
+        Assert.InheritsFrom(E.InnerException.ClassType, EJOSEBase64Exception);
+      end;
+    end;
+    Assert.IsTrue(LRaised, 'Reading a malformed [n] should raise EJOSEJWKException');
+  finally
+    LJWK.Free;
+  end;
 end;
 
 procedure TTestJWK.TestValidate_WrapsProviderDecodeErrorsWhenNotStrict;

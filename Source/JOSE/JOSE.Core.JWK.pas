@@ -74,6 +74,15 @@ type
     property PublicKey: TJWK read FPublicKey write FPublicKey;
   end;
 
+  /// <summary>
+  ///   Raised for a malformed or unusable JWK or JWKS.
+  /// </summary>
+  /// <remarks>
+  ///   A key member that is not valid base64url (k, n, e, d, x, y, ...) raises this too, with
+  ///   the decoder's own exception as <c>InnerException</c>: <c>EJOSEBase64Exception</c> under
+  ///   strict decoding, or the provider's exception otherwise. Up to 4.0.2 the getters raised
+  ///   <c>EJOSEBase64Exception</c> directly.
+  /// </remarks>
   EJOSEJWKException = class(EJOSEException);
 
   /// <seealso href="https://tools.ietf.org/html/rfc7517#section-4.1">kty</seealso>
@@ -647,16 +656,12 @@ begin
   if LStr = '' then
     Exit(TJOSEBytes.Empty);
 
-  // Checked up front rather than by catching EJOSEBase64Exception, which is not
-  // part of the JWK exception family: a key fetched from a remote JWKS would
-  // otherwise throw something IsValid does not catch and no caller thinks to handle
-  if TBase64.StrictURLDecoding and not TBase64.IsValidURLEncoded(LStr) then
-    raise EJOSEJWKException.CreateFmt(SJOSEJWKMalformedMember, [AName]);
-
-  // With strict decoding off the value reaches the provider unchecked, and each
-  // provider stack reports a value it cannot decode with its own exception class
-  // (EEncodingError, a CryptoLib exception, ...). The original is kept as the
-  // InnerException.
+  // A decode failure surfaces as EJOSEBase64Exception when strict decoding is on,
+  // and as whatever the provider stack raises when it is off (EEncodingError, a
+  // CryptoLib exception, ...). Neither is part of the JWK exception family, so a
+  // key fetched from a remote JWKS would throw something IsValid does not catch.
+  // The original is kept as the InnerException: up to 4.0.2 these getters raised
+  // EJOSEBase64Exception, and a caller that tested for it can still find it there
   try
     Result := TBase64.URLDecode(LStr);
   except
