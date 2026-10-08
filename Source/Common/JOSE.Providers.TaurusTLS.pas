@@ -395,7 +395,9 @@ begin
   try
     LBio := BIO_new(BIO_s_mem);
     try
-      PEM_write_bio_PUBKEY(LBio, LKey);
+      // A failed write leaves the BIO empty, which would read back as an empty public key
+      if PEM_write_bio_PUBKEY(LBio, LKey) <> 1 then
+        raise ESignException.Create(SJOSETaurusTLSCertExtractPublicKeyError);
       Result := ReadBIOToBytes(LBio);
     finally
       BIO_free(LBio);
