@@ -189,11 +189,38 @@ resourcestring
   SJOSEJWKECSupportUnavailable = '[JWK] EC key support is not available (missing OpenSSL EC symbols)';
   SJOSEJWKPEMContainsRSANotEC = '[JWK] PEM contains an RSA key, not an EC key';
   SJOSEJWKPEMNoECKey = '[JWK] PEM does not contain an EC key';
+  SJOSEOpenSSLBIOReadError = '[OpenSSL] Error reading from a memory BIO';
   SJOSEJWKExtractECKeyError = '[JWK] Unable to extract the EC key from the PEM';
   SJOSEJWKAllocateEVPPKeyError = '[JWK] Unable to allocate an EVP_PKEY';
   SJOSEJWKWrapECKeyError = '[JWK] Unable to wrap the EC key';
   SJOSEJWKWriteECPrivateError = '[JWK] Unable to write the EC private key PEM';
   SJOSEJWKWriteECPublicError = '[JWK] Unable to write the EC public key PEM';
+
+/// <summary>
+///   Drains a memory BIO into a byte array.
+/// </summary>
+/// <remarks>
+///   An exhausted memory BIO reports EOF as -1, the same value BIO_read returns on a real
+///   failure (-2 means the operation is not supported). Only a positive count is appended, and
+///   once BIO_read stops, BIO_eof tells the two apart: data still in the BIO means the read
+///   failed partway, and returning what was read so far would hand back a truncated PEM.
+/// </remarks>
+function ReadBIOToBytes(ABio: PBIO): TBytes;
+var
+  LBuffer: TBytes;
+  LBytesRead: Integer;
+begin
+  Result := [];
+  SetLength(LBuffer, 255);
+  repeat
+    LBytesRead := BIO_read(ABio, @LBuffer[0], 255);
+    if LBytesRead > 0 then
+      TJOSEUtils.ArrayPush(LBuffer, Result, LBytesRead);
+  until LBytesRead <= 0;
+
+  if BIO_eof(ABio) = 0 then
+    raise ESignException.Create(SJOSEOpenSSLBIOReadError);
+end;
 
 function JoseExpectedNidForCertPublicKey(const AExpected: TJOSECertificatePublicKey): Integer;
 begin
@@ -328,21 +355,13 @@ class function TJOSEDefaultOpenSslPem.PublicKeyFromCertificate(const ACertificat
 var
   LKey: PEVP_PKEY;
   LBio: PBIO;
-  LBuffer: TBytes;
-  LBytesRead: Integer;
 begin
   LKey := LoadPublicKeyFromCert(ACertificate);
   try
     LBio := BIO_new(BIO_s_mem);
     try
       JoseSSL.PEM_write_bio_PUBKEY(LBio, LKey);
-
-      Result := [];
-      SetLength(LBuffer, 255);
-      repeat
-        LBytesRead := BIO_read(LBio, @LBuffer[0], 255);
-        TJOSEUtils.ArrayPush(LBuffer, Result, LBytesRead);
-      until (LBytesRead <= 0);
+      Result := ReadBIOToBytes(LBio);
     finally
       BIO_free(LBio);
     end;
@@ -937,19 +956,6 @@ begin
   Result := BIO_new(BIO_s_mem);
   if Length(AData) > 0 then
     BIO_write(Result, @AData[0], Length(AData));
-end;
-
-function ReadBIOToBytes(ABio: PBIO): TBytes;
-var
-  LBuffer: TBytes;
-  LBytesRead: Integer;
-begin
-  Result := [];
-  SetLength(LBuffer, 255);
-  repeat
-    LBytesRead := BIO_read(ABio, @LBuffer[0], 255);
-    TJOSEUtils.ArrayPush(LBuffer, Result, LBytesRead);
-  until LBytesRead <= 0;
 end;
 
 function TryLoadRSA(const APEM: TBytes): PRSA;

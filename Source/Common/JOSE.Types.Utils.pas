@@ -37,14 +37,13 @@ var
   LIndex: Integer;
   LLen: Integer;
 begin
-  // Nothing to append. A negative count reaches this from the BIO read loops:
-  // an exhausted memory BIO reports EOF as -1, not 0, and taking that for a
-  // count would shrink the destination by a byte - or, when the BIO was empty
-  // to begin with, call SetLength with -1
-  if ACount <= 0 then
+  if ACount = 0 then
     Exit;
 
-  if ACount > Length(ASource) then
+  // A negative count is a caller bug - typically a BIO_read result passed on
+  // unchecked, where -1/-2 is EOF or an error, not a length. Ignoring it here
+  // would hide a read failure, so it is rejected like an oversized count
+  if (ACount < 0) or (ACount > Length(ASource)) then
     raise ERangeError.CreateFmt(SJOSEArrayPushCount, [ACount, Length(ASource)]);
 
   LLen := Length(ADest);

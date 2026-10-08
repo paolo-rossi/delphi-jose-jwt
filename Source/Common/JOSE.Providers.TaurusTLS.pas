@@ -178,6 +178,7 @@ resourcestring
   SJOSETaurusTLSJWKWrapECKeyError = '[JWK] Unable to wrap the EC key';
   SJOSETaurusTLSJWKWriteECPrivateError = '[JWK] Unable to write the EC private key PEM';
   SJOSETaurusTLSJWKWriteECPublicError = '[JWK] Unable to write the EC public key PEM';
+  SJOSETaurusTLSBIOReadError = '[TaurusTLS] Error reading from a memory BIO';
 
 { Shared helpers }
 
@@ -257,6 +258,11 @@ begin
       Inc(LTotal, LBytesRead);
     end;
   until LBytesRead <= 0;
+
+  // BIO_read returns -1 both at EOF and on a real failure: data still in the BIO
+  // means the read failed partway and Result is a truncated PEM
+  if BIO_eof(ABio) = 0 then
+    raise ESignException.Create(SJOSETaurusTLSBIOReadError);
 end;
 
 /// <summary>Extracts the RSA/EC NID for a certificate's public key without touching the

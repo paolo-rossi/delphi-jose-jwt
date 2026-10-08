@@ -191,12 +191,12 @@ type
 
     [Test]
     procedure TestArrayPushAppendsTheCount;
-    // A memory BIO reports EOF as -1, and the BIO read loops pass that
-    // straight through: it used to shrink the destination by a byte
+    // BIO_read returns -1/-2 for EOF or an error, never a length: a caller
+    // passing that on must fail loudly rather than lose a read failure
     [Test]
-    procedure TestArrayPushIgnoresNegativeCount;
+    procedure TestArrayPushRejectsNegativeCount;
     [Test]
-    procedure TestArrayPushIgnoresNegativeCountOnEmpty;
+    procedure TestArrayPushIgnoresZeroCount;
     [Test]
     procedure TestArrayPushRejectsCountLargerThanSource;
   end;
@@ -566,26 +566,30 @@ begin
   Assert.AreEqual('010708', TJOSEUtils.BinToSingleHex(LDest));
 end;
 
-procedure TTestJOSEUtils.TestArrayPushIgnoresNegativeCount;
+procedure TTestJOSEUtils.TestArrayPushRejectsNegativeCount;
 var
   LDest: TBytes;
 begin
   LDest := [1, 2, 3];
-  TJOSEUtils.ArrayPush([9, 9], LDest, -1);
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEUtils.ArrayPush([9, 9], LDest, -1);
+    end,
+    ERangeError);
 
-  Assert.AreEqual<Integer>(3, Length(LDest), 'A negative count must not shrink the destination');
+  Assert.AreEqual<Integer>(3, Length(LDest), 'A rejected count must leave the destination alone');
   Assert.AreEqual<Byte>(3, LDest[2]);
 end;
 
-procedure TTestJOSEUtils.TestArrayPushIgnoresNegativeCountOnEmpty;
+procedure TTestJOSEUtils.TestArrayPushIgnoresZeroCount;
 var
   LDest: TBytes;
 begin
-  // An empty BIO: the very first read already returns -1
-  LDest := [];
-  TJOSEUtils.ArrayPush([9, 9], LDest, -1);
+  LDest := [1, 2, 3];
+  TJOSEUtils.ArrayPush([9, 9], LDest, 0);
 
-  Assert.AreEqual<Integer>(0, Length(LDest));
+  Assert.AreEqual<Integer>(3, Length(LDest));
 end;
 
 procedure TTestJOSEUtils.TestArrayPushRejectsCountLargerThanSource;
