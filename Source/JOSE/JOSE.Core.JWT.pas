@@ -312,7 +312,7 @@ begin
   // would split a *single* audience value that contains a comma into two,
   // letting "aud":"public,internal-api" match an expected audience of
   // "internal-api" (RFC 7519 par. 4.1.3: aud is a string or an array of strings)
-  Result := [];
+  SetLength(Result, 0);
 
   LAudValue := FJSON.GetValue(TReservedClaimNames.AUDIENCE);
   if not Assigned(LAudValue) then
@@ -326,7 +326,10 @@ begin
       Result[LIndex] := LValueArray.Items[LIndex].Value;
   end
   else
-    Result := [LAudValue.Value];
+  begin
+    SetLength(Result, 1);
+    Result[0] := LAudValue.Value;
+  end;
 end;
 
 function TJWTClaims.GetExpiration: TDateTime;
