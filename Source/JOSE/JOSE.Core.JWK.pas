@@ -1406,6 +1406,7 @@ var
   LKeysValue: TJSONValue;
   LKeysArray: TJSONArray;
   LItem: TJSONValue;
+  LKtyValue: TJSONValue;
   I: Integer;
   LKey: TJSONWebKey;
   LKnownType: Boolean;
@@ -1431,6 +1432,14 @@ begin
         if not (LItem is TJSONObject) then
           raise EJOSEJWKException.Create(SJOSEJWKSInvalidKeyElement);
 
+        // [kty] is REQUIRED (RFC 7517 4.1), so a key without a non-empty string [kty] is
+        // malformed, not of an unknown type. Only the latter is skipped below. TJSONNumber
+        // descends from TJSONString, hence the second test.
+        LKtyValue := TJSONObject(LItem).GetValue('kty');
+        if not (LKtyValue is TJSONString) or (LKtyValue is TJSONNumber) or
+          (TJSONString(LKtyValue).Value = '') then
+          raise EJOSEJWKException.Create(SJOSEJWKMissingKty);
+
         // The key only belongs to the set once it is added, so anything that fails while it is
         // being filled in has to free it here.
         LKey := TJSONWebKey.Create;
@@ -1440,9 +1449,10 @@ begin
           // RFC 7517 5: implementations SHOULD ignore keys whose [kty] they do not understand.
           // Issuers add such keys (OKP, when they start offering EdDSA) next to the RSA and EC
           // ones, and failing the whole document would stop those from verifying as well.
+          // [kty] is case-sensitive, so a value like "Rsa" is unknown too and is skipped.
           LKnownType := True;
           try
-            LKey.Kty; // Validates that [kty] is present and recognized
+            LKey.Kty; // [kty] is present (checked above), so this only fails if it is unrecognized
           except
             on EJOSEJWKException do
               LKnownType := False;

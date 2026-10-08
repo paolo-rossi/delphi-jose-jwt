@@ -1410,10 +1410,18 @@ begin
   CheckRaises('{"keys":{}}', '[keys] is an object, not an array');
   CheckRaises('{"keys":"nope"}', '[keys] is a string, not an array');
 
-  // Elements have to be JWK objects. An object whose [kty] is unknown or missing does not make
-  // the document malformed, though: RFC 7517 5 says to ignore such keys (see
+  // Elements have to be JWK objects. An object whose [kty] is unknown does not make the document
+  // malformed, though: RFC 7517 5 says to ignore such keys (see
   // TestJWKS_FromJSON_SkipsUnknownKeyTypes).
   CheckRaises('{"keys":[1,2]}', '[keys] holds numbers, not JWK objects');
+
+  // [kty] is REQUIRED (RFC 7517 4.1): a key without one is malformed, not of an unknown type.
+  CheckRaises('{"keys":[{"use":"sig","kid":"no-kty"}]}', 'Key without [kty]');
+  CheckRaises('{"keys":[{"kty":""}]}', 'Empty [kty]');
+  CheckRaises('{"keys":[{"kty":1}]}', '[kty] is a number, not a string');
+  CheckRaises('{"keys":[{"kty":null}]}', '[kty] is null');
+  CheckRaises('{"keys":[{"kty":"RSA","kid":"rsa","n":"' + RFC7517_A1_MODULUS + '","e":"AQAB"},' +
+    '{"use":"sig"}]}', 'A key without [kty] next to a valid one');
 end;
 
 procedure TTestJWK.TestJWKS_FromJSON_AcceptsEmptyKeysArray;
@@ -1437,7 +1445,7 @@ begin
   LSet := TJSONWebKeySet.FromJSON(
     '{"keys":[' +
       '{"kty":"OKP","crv":"Ed25519","kid":"okp","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"},' +
-      '{"use":"sig","kid":"no-kty"},' +
+      '{"kty":"Rsa","kid":"wrong-case"},' + // [kty] is case-sensitive: an unknown type
       '{"kty":"RSA","kid":"rsa","n":"' + RFC7517_A1_MODULUS + '","e":"AQAB"}' +
     ']}');
   try
@@ -1454,7 +1462,7 @@ procedure TTestJWK.TestJWKS_FromJSON_OnlyUnknownKeyTypesGivesEmptySet;
 var
   LSet: TJSONWebKeySet;
 begin
-  LSet := TJSONWebKeySet.FromJSON('{"keys":[{"kty":"XYZ"},{"use":"sig"}]}');
+  LSet := TJSONWebKeySet.FromJSON('{"keys":[{"kty":"XYZ"},{"kty":"OKP"}]}');
   try
     Assert.AreEqual<Integer>(0, LSet.Keys.Count);
   finally
