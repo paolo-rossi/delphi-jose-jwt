@@ -232,7 +232,8 @@ begin
 
     repeat
       LBytesRead := BIO_read(LBio, @LBuffer[0], 50);
-      TJOSEUtils.ArrayPush(LBuffer, LResult, LBytesRead);
+      if LBytesRead > 0 then
+        TJOSEUtils.ArrayPush(LBuffer, LResult, LBytesRead);
     until (LBytesRead <= 0);
 
     LJOSEBytes := LResult;

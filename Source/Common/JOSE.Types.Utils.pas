@@ -19,6 +19,18 @@ uses
 
 type
   TJOSEUtils = class
+    /// <summary>
+    ///   Appends the first ACount bytes of ASource to ADest.
+    /// </summary>
+    /// <remarks>
+    ///   ACount must be between 0 and Length(ASource); 0 appends nothing. A
+    ///   negative count, or one larger than ASource, raises ERangeError and
+    ///   leaves ADest unchanged.
+    ///   <para>Up to 4.0.2 neither was checked: a negative count shrank ADest
+    ///   and an oversized one read past the end of ASource. When appending
+    ///   the result of a read call such as BIO_read, which returns -1/-2 for
+    ///   EOF or an error, pass on only a positive count.</para>
+    /// </remarks>
     class procedure ArrayPush(const ASource: TBytes; var ADest: TBytes; ACount: Integer);
     class function DirectoryUp(const ADirectory: string; ALevel: Integer = 1): string;
     class function BinToSingleHex(ABuffer: TBytes): string;
