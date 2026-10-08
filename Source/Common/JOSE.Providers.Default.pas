@@ -19,7 +19,7 @@ uses
   JOSE.Types.Bytes,
   JOSE.Crypto.Algorithms,
   JOSE.Providers.Interfaces
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
   , IdGlobal, IdCTypes, IdSSLOpenSSLHeaders
 {$ENDIF};
 
@@ -49,7 +49,7 @@ type
     class procedure Unregister; static;
   end;
 
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
 
   TDefaultCertificateProvider = class(TInterfacedObject, IJOSECertificateProvider)
   public
@@ -117,7 +117,7 @@ type
 implementation
 
 uses
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
   System.StrUtils,
   JOSE.Signing.Base,
   JOSE.Types.Utils,
@@ -144,7 +144,7 @@ uses
 resourcestring
   SJOSEErrorLoadingOpenSSLLibraries = 'Error Loading OpenSSL libraries';
 
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
 
 resourcestring
   SJOSEUnhandledCertPublicKeyValue = 'Unhandled TJOSECertificatePublicKey value';
@@ -1574,14 +1574,14 @@ end;
 { TJOSEDefaultProviders }
 
 class procedure TJOSEDefaultProviders.Register;
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
 var
   LCert: IJOSECertificateProvider;
 {$ENDIF}
 begin
   TJOSEProviders.Base64 := TDefaultBase64Provider.Create;
   TJOSEProviders.HMAC := TDefaultHmacProvider.Create;
-{$IFDEF RSA_SIGNING}
+{$IFDEF INDY_OPENSSL}
   LCert := TDefaultCertificateProvider.Create;
   TJOSEProviders.Certificate := LCert;
   TJOSEProviders.RSA := TDefaultRSAProvider.Create(LCert);

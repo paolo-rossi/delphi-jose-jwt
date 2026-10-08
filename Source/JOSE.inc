@@ -1,4 +1,5 @@
 {$DEFINE RSA_SIGNING}
+{$DEFINE INDY_OPENSSL}
 
 {$IF CompilerVersion >= 24}
   {$LEGACYIFEND ON}
@@ -11,7 +12,11 @@
 
 // disable RSA_Signing for iOSDevice
 {$IFDEF IOS}
-  {$UNDEF RSA_SIGNING}
+  {$UNDEF INDY_OPENSSL}
+{$ENDIF}
+
+{$IFNDEF RSA_SIGNING}
+  {$UNDEF INDY_OPENSSL}
 {$ENDIF}
 
 {$IF CompilerVersion >= 27} // XE6
