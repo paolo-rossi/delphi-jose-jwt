@@ -1,0 +1,68 @@
+# DPM package spec file
+min dpm client version: 1.0.0
+metadata:
+  id: paolo_rossi.delphi_jose_jwt
+  version: 4.0.2
+  description: Delphi implementation of JOSE (JSON Object Signing and Encryption) and JWT (JSON Web Token)
+  authors:
+    - Paolo Rossi
+  projectUrl: https://github.com/paolo-rossi/delphi-jose-jwt
+  repositoryUrl: https://github.com/paolo-rossi/delphi-jose-jwt
+  license: MIT
+  copyright: Paolo Rossi
+  tags:
+    - jose
+    - jwt
+  readme: README.md
+variables:
+  packagesource: /Packages/11AndLater
+targetPlatforms:
+  - compiler: delphi10.1
+    platforms:
+      - win32
+    variables:
+      packageSource: /Packages/10.1Berlin
+  - compiler: delphi10.2
+    platforms:
+      - win32
+      - win64
+      - linux64
+    variables:
+      packageSource: /Packages/10.2Tokyo
+  - compiler: delphi10.3
+    platforms:
+      - win32
+      - win64
+      - linux64
+    variables:
+      packageSource: /Packages/10.3Rio
+  - compiler: delphi10.4
+    platforms:
+      - win32
+      - win64
+    variables:
+      packageSource: /Packages/10.4Sydney
+  - compiler from: delphi11.0
+    compiler to: delphi13.0
+    platforms:
+      - win32
+      - win64
+templates:
+  - name: default
+    dependencies:
+      - id: Indy.Core
+        version: 999.999.999
+      - id: Indy.System
+        version: 999.999.999
+      - id: Indy.Protocols
+        version: 999.999.999
+    source:
+      - src: /Source/Common/*.pas
+      - src: /Source/JOSE/*.pas
+      - src: /Source/JOSE.inc
+      - src: LICENSE
+      - src: $packageSource$/*.dpk
+      - src: $packageSource$/*.dproj
+      - src: $packageSource$/*.res
+    build:
+      - project: $packageSource$/JOSE.dproj
