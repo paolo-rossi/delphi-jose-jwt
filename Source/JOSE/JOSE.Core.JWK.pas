@@ -627,14 +627,24 @@ begin
   if LStr = '' then
     Exit(TJOSEBytes.Empty);
 
-  // Strict base64url decoding raises EJOSEBase64Exception, which is not part of
-  // the JWK exception family: a key fetched from a remote JWKS would otherwise
-  // throw something IsValid does not catch and no caller thinks to handle
+  // Checked up front rather than by catching EJOSEBase64Exception, which is not
+  // part of the JWK exception family: a key fetched from a remote JWKS would
+  // otherwise throw something IsValid does not catch and no caller thinks to handle
+  if TBase64.StrictURLDecoding and not TBase64.IsValidURLEncoded(LStr) then
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKMalformedMember, [AName]);
+
+  // With strict decoding off the value reaches the provider unchecked, and each
+  // provider stack reports a value it cannot decode with its own exception class
+  // (EEncodingError, a CryptoLib exception, ...). The original is kept as the
+  // InnerException.
   try
     Result := TBase64.URLDecode(LStr);
   except
-    on EJOSEBase64Exception do
-      raise EJOSEJWKException.CreateFmt(SJOSEJWKMalformedMember, [AName]);
+    on EOutOfMemory do
+      raise;
+    on Exception do
+      Exception.RaiseOuterException(
+        EJOSEJWKException.CreateFmt(SJOSEJWKMalformedMember, [AName]));
   end;
 end;
 

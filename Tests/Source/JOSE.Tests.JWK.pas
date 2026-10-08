@@ -22,10 +22,28 @@ uses
   JOSE.Core.JWK,
   JOSE.Core.Builder,
   JOSE.Encoding.Base64,
+  JOSE.Providers,
+  JOSE.Providers.Interfaces,
 
   JOSE.Tests.Classes;
 
 type
+  /// <summary>Delegates to another Base64 provider, except that URLDecode raises an exception
+  ///   from outside the JOSE hierarchy, as a provider stack does when it gets a value it cannot
+  ///   decode.</summary>
+  TFailingURLDecodeProvider = class(TInterfacedObject, IJOSEBase64Provider)
+  private
+    FInner: IJOSEBase64Provider;
+  public
+    constructor Create(const AInner: IJOSEBase64Provider);
+    function Encode(const ASource: TJOSEBytes): TJOSEBytes;
+    function Decode(const ASource: TJOSEBytes): TJOSEBytes;
+    function TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+    function URLEncode(const ASource: TJOSEBytes): TJOSEBytes;
+    function URLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+    function TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+  end;
+
   [TestFixture]
   TTestJWK = class(TTestBase)
   private
@@ -92,6 +110,9 @@ type
 
     [Test]
     procedure TestValidate_RejectsMalformedBase64;
+
+    [Test]
+    procedure TestValidate_WrapsProviderDecodeErrorsWhenNotStrict;
 
     [Test]
     procedure TestToPEM_NamesTheMissingMember;
@@ -232,6 +253,46 @@ const
     '"y":"x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0",' +
     '"d":"jpsQnnGQmL-YBIffH1136cspYG6-0iY7X1fCE9-E9LI"}';
   RFC7515_A3_THUMBPRINT = 'oKIywvGUpTVTyxMQ3bwIIeQUudfr_CkLMjCE19ECD-U';
+
+{ TFailingURLDecodeProvider }
+
+constructor TFailingURLDecodeProvider.Create(const AInner: IJOSEBase64Provider);
+begin
+  inherited Create;
+  FInner := AInner;
+end;
+
+function TFailingURLDecodeProvider.Encode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  Result := FInner.Encode(ASource);
+end;
+
+function TFailingURLDecodeProvider.Decode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  Result := FInner.Decode(ASource);
+end;
+
+function TFailingURLDecodeProvider.TryDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  Result := FInner.TryDecode(ASource);
+end;
+
+function TFailingURLDecodeProvider.URLEncode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  Result := FInner.URLEncode(ASource);
+end;
+
+function TFailingURLDecodeProvider.URLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  raise EEncodingError.Create('Provider cannot decode this value');
+end;
+
+function TFailingURLDecodeProvider.TryURLDecode(const ASource: TJOSEBytes): TJOSEBytes;
+begin
+  Result := FInner.TryURLDecode(ASource);
+end;
+
+{ TTestJWK }
 
 procedure TTestJWK.Setup;
 begin
@@ -730,6 +791,43 @@ begin
   CheckInvalid('{"kty":"oct","k":"***"}', 'oct with a malformed [k]');
   CheckInvalid('{"kty":"RSA","n":"***","e":"AQAB"}', 'RSA with a malformed [n]');
   CheckInvalid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"***"}', 'EC with a malformed [y]');
+end;
+
+procedure TTestJWK.TestValidate_WrapsProviderDecodeErrorsWhenNotStrict;
+var
+  LSaved: IJOSEBase64Provider;
+  LJWK: TJSONWebKey;
+  LRaised: Exception;
+begin
+  // With strict decoding off nothing checks the value before the provider, so the provider's own
+  // exception used to escape IsValid, just as EJOSEBase64Exception did in strict mode.
+  LSaved := TJOSEProviders.Base64;
+  TJOSEProviders.Base64 := TFailingURLDecodeProvider.Create(LSaved);
+  TBase64.StrictURLDecoding := False;
+  try
+    LJWK := TJSONWebKey.FromJSON('{"kty":"RSA","n":"A","e":"AQAB"}');
+    try
+      Assert.IsFalse(LJWK.IsValid, 'A member the provider cannot decode makes the key invalid');
+
+      LRaised := nil;
+      try
+        LJWK.Validate;
+      except
+        on E: EJOSEJWKException do
+        begin
+          LRaised := E;
+          Assert.IsNotNull(E.InnerException, 'The provider exception is kept');
+          Assert.InheritsFrom(E.InnerException.ClassType, EEncodingError);
+        end;
+      end;
+      Assert.IsNotNull(LRaised, 'Validate should raise EJOSEJWKException');
+    finally
+      LJWK.Free;
+    end;
+  finally
+    TBase64.StrictURLDecoding := True;
+    TJOSEProviders.Base64 := LSaved;
+  end;
 end;
 
 procedure TTestJWK.TestToPEM_EndsWithNewline(const AKeyFile: string; AIncludePrivate: Boolean);
