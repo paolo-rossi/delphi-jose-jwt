@@ -91,7 +91,17 @@ type
     procedure TestValidate_AcceptsCompleteKeys;
 
     [Test]
+    procedure TestValidate_RejectsMalformedBase64;
+
+    [Test]
     procedure TestToPEM_NamesTheMissingMember;
+
+    [Test]
+    [TestCase('RSA private', 'rsa-private.pem,True')]
+    [TestCase('RSA public',  'rsa-public.pem,False')]
+    [TestCase('EC private',  'es256-private.pem,True')]
+    [TestCase('EC public',   'es256-public.pem,False')]
+    procedure TestToPEM_EndsWithNewline(const AKeyFile: string; AIncludePrivate: Boolean);
 
     [Test]
     procedure TestFromPEM_RejectsUnreadableData;
@@ -177,6 +187,12 @@ type
 
     [Test]
     procedure TestJWKS_FromJSON_AcceptsEmptyKeysArray;
+
+    [Test]
+    procedure TestJWKS_FromJSON_SkipsUnknownKeyTypes;
+
+    [Test]
+    procedure TestJWKS_FromJSON_OnlyUnknownKeyTypesGivesEmptySet;
 
     [Test]
     procedure TestJWKS_AddKey_RejectsNil;
@@ -686,6 +702,51 @@ begin
 
   CheckValid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"AQAB"}', 'A public EC key');
   CheckValid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"AQAB","d":"AQAB"}', 'A private EC key');
+end;
+
+procedure TTestJWK.TestValidate_RejectsMalformedBase64;
+
+  procedure CheckInvalid(const AJson, AWhy: string);
+  var
+    LJWK: TJSONWebKey;
+  begin
+    LJWK := TJSONWebKey.FromJSON(AJson);
+    try
+      // Strict base64url decoding raises EJOSEBase64Exception, which used to escape IsValid
+      // instead of making it answer False.
+      Assert.IsFalse(LJWK.IsValid, AWhy + ': ' + AJson);
+      Assert.WillRaise(
+        procedure
+        begin
+          LJWK.Validate;
+        end,
+        EJOSEJWKException, AWhy + ': ' + AJson);
+    finally
+      LJWK.Free;
+    end;
+  end;
+
+begin
+  CheckInvalid('{"kty":"oct","k":"***"}', 'oct with a malformed [k]');
+  CheckInvalid('{"kty":"RSA","n":"***","e":"AQAB"}', 'RSA with a malformed [n]');
+  CheckInvalid('{"kty":"EC","crv":"P-256","x":"AQAB","y":"***"}', 'EC with a malformed [y]');
+end;
+
+procedure TTestJWK.TestToPEM_EndsWithNewline(const AKeyFile: string; AIncludePrivate: Boolean);
+var
+  LJWK: TJSONWebKey;
+  LPem: TBytes;
+begin
+  // The BIO read loop used to pass the -1 an exhausted memory BIO returns on to ArrayPush,
+  // which took it for a count and dropped the final newline.
+  LJWK := TJSONWebKey.FromPEM(TFile.ReadAllBytes(TPath.Combine(FKeysPath, AKeyFile)));
+  try
+    LPem := LJWK.ToPEM(AIncludePrivate).AsBytes;
+    Assert.IsTrue(Length(LPem) > 0);
+    Assert.AreEqual<Byte>(10, LPem[High(LPem)], 'A PEM should end with a newline');
+  finally
+    LJWK.Free;
+  end;
 end;
 
 procedure TTestJWK.TestToPEM_NamesTheMissingMember;
@@ -1349,10 +1410,10 @@ begin
   CheckRaises('{"keys":{}}', '[keys] is an object, not an array');
   CheckRaises('{"keys":"nope"}', '[keys] is a string, not an array');
 
-  // Elements have to be JWK objects.
+  // Elements have to be JWK objects. An object whose [kty] is unknown or missing does not make
+  // the document malformed, though: RFC 7517 5 says to ignore such keys (see
+  // TestJWKS_FromJSON_SkipsUnknownKeyTypes).
   CheckRaises('{"keys":[1,2]}', '[keys] holds numbers, not JWK objects');
-  CheckRaises('{"keys":[{"kty":"XYZ"}]}', 'Unrecognized [kty]');
-  CheckRaises('{"keys":[{"use":"sig"}]}', 'Missing [kty]');
 end;
 
 procedure TTestJWK.TestJWKS_FromJSON_AcceptsEmptyKeysArray;
@@ -1361,6 +1422,39 @@ var
 begin
   // A JWKS with no keys is a valid document - only an absent or non-array [keys] is malformed.
   LSet := TJSONWebKeySet.FromJSON('{"keys":[]}');
+  try
+    Assert.AreEqual<Integer>(0, LSet.Keys.Count);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FromJSON_SkipsUnknownKeyTypes;
+var
+  LSet: TJSONWebKeySet;
+begin
+  // An issuer publishing its first Ed25519 (OKP) key must not stop its RSA key from verifying.
+  LSet := TJSONWebKeySet.FromJSON(
+    '{"keys":[' +
+      '{"kty":"OKP","crv":"Ed25519","kid":"okp","x":"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"},' +
+      '{"use":"sig","kid":"no-kty"},' +
+      '{"kty":"RSA","kid":"rsa","n":"' + RFC7517_A1_MODULUS + '","e":"AQAB"}' +
+    ']}');
+  try
+    Assert.AreEqual<Integer>(1, LSet.Keys.Count, 'Only the RSA key should be kept');
+    Assert.AreEqual('rsa', LSet.Keys[0].Kid);
+    Assert.AreEqual(TJOSEKeyType.RSA, LSet.Keys[0].Kty);
+    Assert.IsTrue(LSet.Keys[0].IsValid);
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FromJSON_OnlyUnknownKeyTypesGivesEmptySet;
+var
+  LSet: TJSONWebKeySet;
+begin
+  LSet := TJSONWebKeySet.FromJSON('{"keys":[{"kty":"XYZ"},{"use":"sig"}]}');
   try
     Assert.AreEqual<Integer>(0, LSet.Keys.Count);
   finally

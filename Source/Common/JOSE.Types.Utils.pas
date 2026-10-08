@@ -29,13 +29,23 @@ implementation
 uses
   System.IOUtils;
 
+resourcestring
+  SJOSEArrayPushCount = 'Cannot append %d bytes taken from a %d byte buffer';
+
 class procedure TJOSEUtils.ArrayPush(const ASource: TBytes; var ADest: TBytes; ACount: Integer);
 var
   LIndex: Integer;
   LLen: Integer;
 begin
-  if ACount = 0 then
+  // Nothing to append. A negative count reaches this from the BIO read loops:
+  // an exhausted memory BIO reports EOF as -1, not 0, and taking that for a
+  // count would shrink the destination by a byte - or, when the BIO was empty
+  // to begin with, call SetLength with -1
+  if ACount <= 0 then
     Exit;
+
+  if ACount > Length(ASource) then
+    raise ERangeError.CreateFmt(SJOSEArrayPushCount, [ACount, Length(ASource)]);
 
   LLen := Length(ADest);
   SetLength(ADest, LLen + ACount);

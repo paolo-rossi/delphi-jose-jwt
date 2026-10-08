@@ -404,6 +404,7 @@ resourcestring
   SJOSEJWKSInvalidKeyElement = '[JWK] The [keys] array contains a value that is not a JWK object';
   SJOSEJWKSMissingKeys = '[JWK] Missing or malformed required JWKS member [keys]';
   SJOSEJWKSNilKey = '[JWK] Cannot add a nil key to the key set';
+  SJOSEJWKMalformedMember = '[JWK] Member [%s] is not valid base64url';
 
 { TJWK }
 
@@ -624,9 +625,17 @@ var
 begin
   LStr := GetStringMember(AName);
   if LStr = '' then
-    Result := TJOSEBytes.Empty
-  else
+    Exit(TJOSEBytes.Empty);
+
+  // Strict base64url decoding raises EJOSEBase64Exception, which is not part of
+  // the JWK exception family: a key fetched from a remote JWKS would otherwise
+  // throw something IsValid does not catch and no caller thinks to handle
+  try
     Result := TBase64.URLDecode(LStr);
+  except
+    on EJOSEBase64Exception do
+      raise EJOSEJWKException.CreateFmt(SJOSEJWKMalformedMember, [AName]);
+  end;
 end;
 
 procedure TJSONWebKey.SetBytesMember(const AName: string; const AValue: TJOSEBytes);
@@ -1399,6 +1408,7 @@ var
   LItem: TJSONValue;
   I: Integer;
   LKey: TJSONWebKey;
+  LKnownType: Boolean;
 begin
   Result := TJSONWebKeySet.Create;
   try
@@ -1426,12 +1436,26 @@ begin
         LKey := TJSONWebKey.Create;
         try
           LKey.SetNewJSON(LItem.Clone as TJSONObject);
-          LKey.Kty; // Validates that [kty] is present and recognized
+
+          // RFC 7517 5: implementations SHOULD ignore keys whose [kty] they do not understand.
+          // Issuers add such keys (OKP, when they start offering EdDSA) next to the RSA and EC
+          // ones, and failing the whole document would stop those from verifying as well.
+          LKnownType := True;
+          try
+            LKey.Kty; // Validates that [kty] is present and recognized
+          except
+            on EJOSEJWKException do
+              LKnownType := False;
+          end;
         except
           LKey.Free;
           raise;
         end;
-        Result.FKeys.Add(LKey);
+
+        if LKnownType then
+          Result.FKeys.Add(LKey)
+        else
+          LKey.Free;
       end;
     finally
       LParsed.Free;

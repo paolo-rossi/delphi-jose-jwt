@@ -162,11 +162,17 @@ end;
 
 procedure TJOSEArray<T>.Join(const AValue: TArray<T>);
 var
+  LSource: TArray<T>;
   LSizeSource, LSizeDest, LIndex: NativeInt;
 begin
   LSizeSource := Length(AValue);
   if LSizeSource = 0 then
     Exit;
+
+  // Holds a counted reference to the source for the duration. A const dynamic
+  // array parameter is passed without one, so appending an array to itself
+  // would read from the block that growing FPayload had just reallocated
+  LSource := AValue;
 
   LSizeDest := Size;
   Size := LSizeDest + LSizeSource;
@@ -175,7 +181,7 @@ begin
   // (TJOSEStringArray is TJOSEArray<string>), and copying those as raw bytes
   // leaves the refcount untouched, so the same string is released twice
   for LIndex := 0 to LSizeSource - 1 do
-    FPayload[LSizeDest + LIndex] := AValue[LIndex];
+    FPayload[LSizeDest + LIndex] := LSource[LIndex];
 end;
 
 function TJOSEArray<T>.Pop: T;

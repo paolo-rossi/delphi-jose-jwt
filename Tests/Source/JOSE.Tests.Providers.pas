@@ -102,6 +102,10 @@ type
     procedure TestTooShortCertificateRaises(const ACertificate: string);
     [Test]
     procedure TestNotACertificateRaises;
+    [Test]
+    [TestCase('RSA', 'rsa-x509.pem')]
+    [TestCase('EC',  'es256-x509.pem')]
+    procedure TestPublicKeyEndsWithNewline(const ACertFile: string);
   end;
 
 implementation
@@ -382,6 +386,19 @@ begin
         TEncoding.ASCII.GetBytes('-----BEGIN CERTIFICATE-----'#10'nonsense'#10'-----END CERTIFICATE-----'));
     end,
     ESignException);
+end;
+
+procedure TTestCertificateProvider.TestPublicKeyEndsWithNewline(const ACertFile: string);
+var
+  LPem: TBytes;
+begin
+  // The BIO read loop used to pass the -1 an exhausted memory BIO returns on to ArrayPush,
+  // which took it for a count and dropped the final newline.
+  LPem := TJOSEProviders.Certificate.PublicKeyFromCertificate(
+    TFile.ReadAllBytes(TPath.Combine(TPath.Combine(FKeysPath, 'cert'), ACertFile)));
+
+  Assert.IsTrue(Length(LPem) > 0);
+  Assert.AreEqual<Byte>(10, LPem[High(LPem)], 'A PEM should end with a newline');
 end;
 
 initialization

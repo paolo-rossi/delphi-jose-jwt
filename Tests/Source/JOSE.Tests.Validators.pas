@@ -382,7 +382,7 @@ begin
     LJWT.Claims.AudienceArray := ['public', 'a,b'];
 
     LAudience := LJWT.Claims.AudienceArray;
-    Assert.AreEqual(2, Length(LAudience));
+    Assert.AreEqual(2, Integer(Length(LAudience)));
     Assert.AreEqual('public', LAudience[0]);
     Assert.AreEqual('a,b', LAudience[1]);
   finally

@@ -19,12 +19,12 @@ uses
   JOSE.Providers.Interfaces;
 
 type
-  /// <summary>Raised when a global provider slot is nil (e.g. after <c>Unregister</c>).</summary>
+  /// <summary>Raised when a global provider slot is nil (e.g. after <c>UnregisterProvider</c>).</summary>
   EJOSEProvidersNotRegistered = class(Exception);
 
   /// <summary>
   ///   Global crypto/encoding providers. Default stack is registered from <c>initialization</c>;
-  ///   call <c>TJOSEProviders.RegisterDefault</c> again if you use <c>UnregisterDefault</c>.
+  ///   call <c>TJOSEProviders.RegisterProvider</c> again if you use <c>UnregisterProvider</c>.
   /// </summary>
   /// <remarks>
   ///   Threading model: registering a stack is a startup operation. The slots
@@ -97,8 +97,8 @@ uses
   JOSE.Providers.Default;
 
 resourcestring
-  SJOSEProvidersNotRegistered = 'JOSE global providers are not registered. Call TJOSEProviders.RegisterDefault or ' +
-    'TJOSECryptoLibProviders.Register.';
+  SJOSEProvidersNotRegistered = 'JOSE global providers are not registered. ' +
+    'Call TJOSEProviders.RegisterProvider, TJOSECryptoLibProviders.Register or TJOSETaurusTLSProviders.Register.';
 
 { TJOSEProviders }
 

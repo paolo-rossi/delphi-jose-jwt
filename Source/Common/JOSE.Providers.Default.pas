@@ -1457,8 +1457,10 @@ begin
 end;
 
 function TDefaultBase64Provider.InternalEncode(const ASource: TJOSEBytes): TJOSEBytes;
+{$IF CompilerVersion >= 28}
 var
   LEnc: TBase64Encoding;
+{$IFEND}
 begin
   {$IF CompilerVersion >= 28}
   LEnc := TBase64Encoding.Create(0);
