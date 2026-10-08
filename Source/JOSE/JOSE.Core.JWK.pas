@@ -656,12 +656,20 @@ begin
   if LStr = '' then
     Exit(TJOSEBytes.Empty);
 
-  // A decode failure surfaces as EJOSEBase64Exception when strict decoding is on,
-  // and as whatever the provider stack raises when it is off (EEncodingError, a
-  // CryptoLib exception, ...). Neither is part of the JWK exception family, so a
-  // key fetched from a remote JWKS would throw something IsValid does not catch.
-  // The original is kept as the InnerException: up to 4.0.2 these getters raised
-  // EJOSEBase64Exception, and a caller that tested for it can still find it there
+  // The usual case - strict decoding, well-formed value - cannot produce a decode
+  // error, so it takes no exception frame. (An exception from the provider here is
+  // not about the member, and is left alone.)
+  if TBase64.StrictURLDecoding and TBase64.IsValidURLEncoded(LStr) then
+    Exit(TBase64.URLDecode(LStr));
+
+  // Otherwise decoding fails with EJOSEBase64Exception when strict decoding is on,
+  // or may fail with whatever the provider stack raises when it is off
+  // (EEncodingError, a CryptoLib exception, ...). Neither is part of the JWK
+  // exception family, so a key fetched from a remote JWKS would throw something
+  // IsValid does not catch. The original is kept as the InnerException: up to
+  // 4.0.2 these getters raised EJOSEBase64Exception, and a caller that tested for
+  // it can still find it there. Raising it only to wrap it is the price of that,
+  // paid on malformed input alone
   try
     Result := TBase64.URLDecode(LStr);
   except
