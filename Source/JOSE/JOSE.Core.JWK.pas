@@ -26,7 +26,9 @@ uses
   System.SysUtils,
   System.Rtti,
   System.JSON,
+  {$IF CompilerVersion >= 30}
   System.Hash,
+  {$IFEND}
   System.Generics.Collections,
   JOSE.Types.Bytes,
   JOSE.Types.JSON,
@@ -258,13 +260,14 @@ type
     ///   header when handing the result to something outside this library.
     /// </remarks>
     function ToPEM(AIncludePrivate: Boolean = True): TJOSEBytes;
+    {$ENDIF}
 
     /// <summary>Bridges to the legacy raw-bytes key model consumed by TJWS/TJOSE/TJOSEProducer.</summary>
     /// <remarks>For a public-only RSA/EC key the returned pair has an empty <c>PrivateKey</c>: it
-    ///   can verify, but signing with it raises.</remarks>
+    ///   can verify, but signing with it raises. Without RSA_SIGNING only <c>oct</c> keys are
+    ///   supported.</remarks>
     function ToKeyPair: TKeyPair;
     class function FromKeyPair(AKeyPair: TKeyPair; AKty: TJOSEKeyType): TJSONWebKey;
-    {$ENDIF}
 
     property Kty: TJOSEKeyType read GetKty write SetKty;
     property Use: TJOSEKeyUse read GetUse write SetUse;
@@ -413,6 +416,14 @@ type
 
 implementation
 
+{$IF CompilerVersion < 30}
+uses
+  System.Classes,
+  IdHash,
+  IdHashSHA,
+  IdSSLOpenSSL;
+{$IFEND}
+
 resourcestring
   SJOSEJWKUnknownKeyType = '[JWK] Unknown key type [kty]: %s';
   SJOSEJWKUnknownCurve = '[JWK] Unknown elliptic curve [crv]: %s';
@@ -424,6 +435,7 @@ resourcestring
   SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
   SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
   SJOSEJWKThumbprintUnsupportedKeyType = '[JWK] Unable to compute the thumbprint for this key type';
+  SJOSEJWKErrorLoadingOpenSSL = '[JWK] Error loading OpenSSL libraries';
   SJOSEJWKThumbprintMissingMember = '[JWK] Unable to compute the thumbprint: missing required member [%s]';
   SJOSEJWKToPEMUnsupportedKeyType = '[JWK] ToPEM is only supported for RSA and EC keys';
   SJOSEJWKFromPEMUnrecognized = '[JWK] The PEM data was read neither as an RSA key (%s) nor as an EC key (%s)';
@@ -1157,6 +1169,7 @@ begin
   end;
 end;
 
+{$IF CompilerVersion >= 30}
 function TJSONWebKey.Thumbprint: TJOSEBytes;
 var
   LHasher: THashSHA2;
@@ -1165,6 +1178,30 @@ begin
   LHasher.Update(TEncoding.UTF8.GetBytes(BuildCanonicalJSON));
   Result := TBase64.URLEncode(LHasher.HashAsBytes);
 end;
+{$ELSE}
+function TJSONWebKey.Thumbprint: TJOSEBytes;
+var
+  LHasher: TIdHashSHA256;
+  LStream: TBytesStream;
+begin
+  // System.Hash only gained THashSHA2 in Delphi 10 Seattle: older versions hash
+  // through Indy, which needs the OpenSSL libraries (as the HMAC provider does)
+  if not IdSSLOpenSSL.LoadOpenSSLLibrary then
+    raise EJOSEJWKException.Create(SJOSEJWKErrorLoadingOpenSSL);
+
+  LStream := TBytesStream.Create(TEncoding.UTF8.GetBytes(BuildCanonicalJSON));
+  try
+    LHasher := TIdHashSHA256.Create;
+    try
+      Result := TBase64.URLEncode(TBytes(LHasher.HashStream(LStream)));
+    finally
+      LHasher.Free;
+    end;
+  finally
+    LStream.Free;
+  end;
+end;
+{$IFEND}
 
 procedure TJSONWebKey.SetKidFromThumbprint;
 begin
@@ -1298,11 +1335,14 @@ begin
   end;
 end;
 
+{$ENDIF}
+
 function TJSONWebKey.ToKeyPair: TKeyPair;
 begin
   case Kty of
     TJOSEKeyType.Oct:
       Result := TKeyPair.Create(K, K);
+    {$IFDEF RSA_SIGNING}
     TJOSEKeyType.RSA, TJOSEKeyType.EC:
     begin
       Result := TKeyPair.Create;
@@ -1322,6 +1362,7 @@ begin
         raise;
       end;
     end;
+    {$ENDIF}
   else
     raise EJOSEJWKException.Create(SJOSEJWKToKeyPairUnsupportedKeyType);
   end;
@@ -1332,14 +1373,14 @@ begin
   case AKty of
     TJOSEKeyType.Oct:
       Result := TJSONWebKey.CreateOct(AKeyPair.PrivateKey.Key);
+    {$IFDEF RSA_SIGNING}
     TJOSEKeyType.RSA, TJOSEKeyType.EC:
       Result := TJSONWebKey.FromPEM(AKeyPair.PrivateKey.Key);
+    {$ENDIF}
   else
     raise EJOSEJWKException.Create(SJOSEJWKFromKeyPairUnsupportedKeyType);
   end;
 end;
-
-{$ENDIF}
 
 { TJSONWebKeySet }
 
