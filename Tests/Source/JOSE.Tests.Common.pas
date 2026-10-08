@@ -1,4 +1,4 @@
-﻿{******************************************************************************}
+{******************************************************************************}
 {                                                                              }
 {  Delphi JOSE-JWT Library                                                     }
 {  Copyright (c) 2015 Paolo Rossi                                              }
@@ -30,7 +30,10 @@ type
     [Test]
     [TestCase('TestImplicit', 'aBc')]
     [TestCase('TestImplicitEmptyString', '')]
-    [TestCase('TestImplicitUnicode', 'Москва')]
+    // "Moskva" in Cyrillic, spelled as character codes: without a BOM the
+    // compiler reads the file in the ANSI code page, which would turn a literal
+    // into mojibake that still round-trips and so passes without testing Unicode
+    [TestCase('TestImplicitUnicode', #$041C#$043E#$0441#$043A#$0432#$0430)]
     procedure TestImplicit(const AValue: string);
 
     [Test]
