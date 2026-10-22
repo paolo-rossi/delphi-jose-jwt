@@ -203,7 +203,7 @@ begin
     Exit('');
 
   if (LJSONValue is TJSONObject) or (LJSONValue is TJSONArray) then
-    Exit(LJSONValue.ToJSON);
+    Exit(ToJSON(LJSONValue));
 
   Result := LJSONValue.Value;
 end;
@@ -218,8 +218,18 @@ begin
   // shapes now read as 0, which is what an absent claim reads as
   LJSONValue := TJSONUtils.GetJSONValueAsString(AName, AJSON);
 
+{$IF CompilerVersion >= 29}  // Delphi XE8
   if (LJSONValue = '') or not TryISO8601ToDate(LJSONValue, Result) then
     Result := 0;
+{$ELSE}
+  Result := 0;
+  if LJSONValue <> '' then
+    try
+      Result := ISO8601ToDate(LJSONValue);
+    except
+      Result := 0;
+    end;
+{$IFEND}
 end;
 
 class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;

@@ -21,6 +21,7 @@ interface
 
 uses
   System.SysUtils,
+  System.Types,
   System.JSON,
   System.Generics.Collections,
   JOSE.Types.Arrays,
@@ -61,7 +62,7 @@ type
     JWS_PARTS = 3;
     JWE_PARTS = 5;
   private
-    FParts: TArray<string>;
+    FParts: TStringDynArray;
     function GetCount: Integer;
     function GetKind: TJOSECompactKind;
     function GetPart(AIndex: Integer): string;
@@ -155,7 +156,6 @@ function JSONDate(ADate: TDateTime): Int64;
 implementation
 
 uses
-  System.Types,
   System.StrUtils,
   System.DateUtils,
   JOSE.Encoding.Base64;
