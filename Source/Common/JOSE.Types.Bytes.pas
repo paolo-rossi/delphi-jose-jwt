@@ -65,6 +65,40 @@ type
 
 implementation
 
+{$IFDEF MSWINDOWS}
+const
+  BCRYPT_USE_SYSTEM_PREFERRED_RNG = $00000002;
+
+function BCryptGenRandom(hAlgorithm: Pointer; pbBuffer: PByte; cbBuffer: Cardinal;
+  dwFlags: Cardinal): Integer; stdcall; external 'bcrypt.dll';
+{$ENDIF}
+
+// Fills the buffer from the operating system's cryptographic generator. It
+// raises rather than falling back to System.Random, whose 32-bit state can be
+// recovered from a few output bytes.
+procedure FillRandom(var ABuffer: TBytes);
+{$IFDEF POSIX}
+var
+  LStream: TFileStream;
+{$ENDIF}
+begin
+  if Length(ABuffer) = 0 then
+    Exit;
+
+{$IFDEF MSWINDOWS}
+  if BCryptGenRandom(nil, @ABuffer[0], Length(ABuffer), BCRYPT_USE_SYSTEM_PREFERRED_RNG) <> 0 then
+    raise Exception.Create('BCryptGenRandom failed to generate random bytes');
+{$ENDIF}
+{$IFDEF POSIX}
+  LStream := TFileStream.Create('/dev/urandom', fmOpenRead or fmShareDenyNone);
+  try
+    LStream.ReadBuffer(ABuffer[0], Length(ABuffer));
+  finally
+    LStream.Free;
+  end;
+{$ENDIF}
+end;
+
 { CompareBytes }
 
 // Constant-time comparison: used for signature/MAC equality checks, where
@@ -211,12 +245,9 @@ begin
 end;
 
 class function TJOSEBytes.RandomBytes(ANumberOfBytes: Integer): TJOSEBytes;
-var
-  LIndex: Integer;
 begin
   SetLength(Result.FPayload, ANumberOfBytes);
-  for LIndex := 0 to ANumberOfBytes - 1 do
-    Result.FPayload[LIndex] := Random(255);
+  FillRandom(Result.FPayload);
 end;
 
 function TJOSEBytes.Size: Integer;
@@ -249,8 +280,5 @@ begin
   Move(ABytes1[0], Result[0], Length(ABytes1));
   Result[Length(Result)-1] := ABytes2;
 end;
-
-initialization
-  Randomize;
 
 end.

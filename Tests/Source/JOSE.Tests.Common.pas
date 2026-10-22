@@ -63,6 +63,19 @@ type
     [TestCase('TestMergeByte', 'aBcDeFgH,i,aBcDeFgHi')]
     [TestCase('TestMergeEmpty', 'aBcDeFgH,,aBcDeFgH')]
     procedure TestMerge(const AValue1, AValue2, _Result: string);
+
+    [Test]
+    [TestCase('Zero', '0')]
+    [TestCase('One', '1')]
+    [TestCase('JWT Id', '16')]
+    procedure TestRandomBytesLength(ANumberOfBytes: Integer);
+
+    [Test]
+    procedure TestRandomBytesDiffer;
+
+    // The old Random(255) generator could never produce the byte 255
+    [Test]
+    procedure TestRandomBytesCoverFullByteRange;
   end;
 
   [TestFixture]
@@ -300,6 +313,23 @@ begin
   LResult := TBytesUtils.MergeBytes(TEncoding.ANSI.GetBytes(AValue1), TEncoding.ANSI.GetBytes(AValue2));
 
   Assert.AreEqualMemory(@LExpected[0], @LResult[0], Length(LExpected));
+end;
+
+procedure TTestJOSEBytes.TestRandomBytesLength(ANumberOfBytes: Integer);
+begin
+  Assert.AreEqual(ANumberOfBytes, TJOSEBytes.RandomBytes(ANumberOfBytes).Size);
+end;
+
+procedure TTestJOSEBytes.TestRandomBytesDiffer;
+begin
+  Assert.IsFalse(TJOSEBytes.RandomBytes(16) = TJOSEBytes.RandomBytes(16));
+end;
+
+procedure TTestJOSEBytes.TestRandomBytesCoverFullByteRange;
+begin
+  // A given byte value is missing from 64 KiB with probability about e^-256
+  Assert.IsTrue(TJOSEBytes.RandomBytes(65536).Contains(255));
+  Assert.IsTrue(TJOSEBytes.RandomBytes(65536).Contains(0));
 end;
 
 procedure TTestBase64.TestIsValidURLEncoded(const AValue: string; AExpected: Boolean);
