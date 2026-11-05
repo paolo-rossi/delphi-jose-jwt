@@ -246,9 +246,11 @@ var
   LConsumer: IJOSEConsumer;
 begin
   LToken := SignedToken;
-  // flip the last character of the signature
+  // flip the last character of the signature, keeping it valid base64url
+  // ('A' and 'Q' leave the unused low bits at zero) so that the signature
+  // check is what rejects the token
   if LToken[Length(LToken)] = 'A' then
-    LToken[Length(LToken)] := 'B'
+    LToken[Length(LToken)] := 'Q'
   else
     LToken[Length(LToken)] := 'A';
 
