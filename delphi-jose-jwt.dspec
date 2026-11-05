@@ -40,6 +40,7 @@ targetPlatforms:
     platforms:
       - win32
       - win64
+      - linux64
     variables:
       packageSource: /Packages/10.4Sydney
   - compiler from: delphi11.0
@@ -47,6 +48,7 @@ targetPlatforms:
     platforms:
       - win32
       - win64
+      - linux64
 templates:
   - name: default
     dependencies:
