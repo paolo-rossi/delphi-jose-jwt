@@ -94,28 +94,39 @@ type
     function ToMilliseconds(ADuration: UInt64): UInt64;
   end;
 
+  /// <summary>
+  ///   An instant, held as the seconds elapsed since 1970-01-01T00:00:00Z
+  ///   (the NumericDate of RFC 7519 par. 2)
+  /// </summary>
+  /// <remarks>
+  ///   AsDateTime is a local view of the instant. Comparisons use the seconds,
+  ///   because a local time in the hour repeated when daylight saving time
+  ///   ends stands for two different instants
+  /// </remarks>
   TJOSENumericDate = record
   private
     const CONVERSION: Int64 = 1000;
   private
-    FValue: TDateTime;
+    FSeconds: Int64;
+    function GetAsDateTime: TDateTime;
+    procedure SetAsDateTime(const AValue: TDateTime);
     function GetAsMilliSeconds: Int64;
-    function GetAsSeconds: Int64;
-    procedure SetAsSeconds(const AValue: Int64);
     function GetAsISO8601: string;
   public
     constructor Create(AValue: TDateTime);
     class function FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate; static;
     class function FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate; static;
+    /// <summary>The current instant, read from the UTC clock</summary>
+    class function Now: TJOSENumericDate; static;
 
     procedure AddSeconds(ASeconds: Int64);
     function IsBefore(const AWhen: TJOSENumericDate; ASkewSeconds: Integer): Boolean;
     function IsOnOrAfter(const AWhen: TJOSENumericDate; ASkewSeconds: Integer): Boolean;
     function IsAfter(const AWhen: TJOSENumericDate; ASkewSeconds: Integer): Boolean;
 
-    property AsSeconds: Int64 read GetAsSeconds write SetAsSeconds;
+    property AsSeconds: Int64 read FSeconds write FSeconds;
     property AsMilliSeconds: Int64 read GetAsMilliSeconds;
-    property AsDateTime: TDateTime read FValue write FValue;
+    property AsDateTime: TDateTime read GetAsDateTime write SetAsDateTime;
     property AsISO8601: string read GetAsISO8601;
   end;
 
@@ -156,6 +167,12 @@ function JSONDate(ADate: TDateTime): Int64;
 implementation
 
 uses
+  {$IFDEF MSWINDOWS}
+  Winapi.Windows,
+  {$ENDIF}
+  {$IFDEF POSIX}
+  Posix.SysTime,
+  {$ENDIF}
   System.StrUtils,
   System.DateUtils,
   JOSE.Encoding.Base64;
@@ -341,39 +358,60 @@ end;
 
 procedure TJOSENumericDate.AddSeconds(ASeconds: Int64);
 begin
-  FValue := System.DateUtils.IncSecond(FValue, ASeconds);
+  FSeconds := FSeconds + ASeconds;
 end;
 
 constructor TJOSENumericDate.Create(AValue: TDateTime);
 begin
-  FValue := AValue;
+  SetAsDateTime(AValue);
 end;
 
 class function TJOSENumericDate.FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate;
 begin
-  Result := TJOSENumericDate.Create(UnixToDateTime(AMillisecondsFromEpoch div CONVERSION, False));
+  Result.FSeconds := AMillisecondsFromEpoch div CONVERSION;
 end;
 
 class function TJOSENumericDate.FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate;
 begin
-  Result := TJOSENumericDate.Create(UnixToDateTime(ASecondsFromEpoch, False));
+  Result.FSeconds := ASecondsFromEpoch;
+end;
+
+// Read from the UTC clock, as TDateTime.NowUTC does in Delphi 11 and later:
+// converting the local Now to UTC is one hour off during the hour repeated
+// when daylight saving time ends
+class function TJOSENumericDate.Now: TJOSENumericDate;
+{$IFDEF MSWINDOWS}
+var
+  LTime: TSystemTime;
+begin
+  GetSystemTime(LTime);
+  Result.FSeconds := DateTimeToUnix(SystemTimeToDateTime(LTime), True);
+end;
+{$ENDIF}
+{$IFDEF POSIX}
+var
+  LTime: timeval;
+begin
+  gettimeofday(LTime, nil);
+  Result.FSeconds := LTime.tv_sec;
+end;
+{$ENDIF}
+
+function TJOSENumericDate.GetAsDateTime: TDateTime;
+begin
+  Result := UnixToDateTime(FSeconds, False);
 end;
 
 function TJOSENumericDate.GetAsISO8601: string;
 begin
-  // FValue is a local TDateTime (GetAsSeconds/SetAsSeconds treat it as local),
-  // so it must be converted, not stamped with a 'Z' it doesn't deserve
-  Result := DateToISO8601(FValue, False);
+  // Rendered in UTC: a local rendering cannot tell apart the two instants
+  // that share a local time when daylight saving time ends
+  Result := DateToISO8601(UnixToDateTime(FSeconds, True), True);
 end;
 
 function TJOSENumericDate.GetAsMilliSeconds: Int64;
 begin
-  Result := DateTimeToUnix(FValue, False) * CONVERSION;
-end;
-
-function TJOSENumericDate.GetAsSeconds: Int64;
-begin
-  Result := DateTimeToUnix(FValue, False);
+  Result := FSeconds * CONVERSION;
 end;
 
 function TJOSENumericDate.IsAfter(const AWhen: TJOSENumericDate; ASkewSeconds: Integer): Boolean;
@@ -391,10 +429,9 @@ begin
   Result := ((Self.AsSeconds - ASkewSeconds) >= AWhen.AsSeconds);
 end;
 
-procedure TJOSENumericDate.SetAsSeconds(const AValue: Int64);
+procedure TJOSENumericDate.SetAsDateTime(const AValue: TDateTime);
 begin
-  // Must be the inverse of GetAsSeconds, which uses DateTimeToUnix(..., False)
-  FValue := UnixToDateTime(AValue, False);
+  FSeconds := DateTimeToUnix(AValue, False);
 end;
 
 { TJOSETimeUnitHelper }
