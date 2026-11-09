@@ -144,8 +144,12 @@ var
   LToken: string;
 begin
   LToken := SignedToken;
+  // Change the last character of the signature. 'A' and 'Q' both leave the
+  // unused low bits of a final base64url character at zero, so the token
+  // stays well formed and only the signature stops matching ('B' made one
+  // token in 16 malformed, which Verify reports as nil)
   if LToken[Length(LToken)] = 'A' then
-    LToken[Length(LToken)] := 'B'
+    LToken[Length(LToken)] := 'Q'
   else
     LToken[Length(LToken)] := 'A';
   Result := LToken;
