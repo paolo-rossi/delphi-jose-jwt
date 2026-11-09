@@ -19,7 +19,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
 ![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
 
-[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.0.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
@@ -45,7 +45,7 @@ The HMAC-RSA(ECDSA) algorithm uses necessarily OpenSSL so if you plan to use the
 Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
 
 #### OpenSSL download
-If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page](https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness)
+If you need the OpenSSL library on the server, you can download the package directly to the [Indy's GitHub project page](https://github.com/IndySockets/OpenSSL-Binaries) (keep in mind to always update to the latest version and to match you application's bitness). With the default provider stack, pick the **1.0.2** binaries (`libeay32.dll`/`ssleay32.dll`): newer OpenSSL versions need the [TaurusTLS-backed stack](#custom-crypto-providers-bring-your-own-crypto). On Linux, where distributions only ship OpenSSL 3.x, the default stack needs a separately installed OpenSSL 1.0.2 (`libcrypto.so`/`libssl.so`) on the library path
 
 ## :satellite: Custom crypto providers (bring your own crypto)
 
@@ -53,7 +53,7 @@ Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every cr
 
 | Provider stack | Unit | Backing library | Notes |
 | --------------- | ---- | ---------------- | ----- |
-| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x/1.1.x (via Indy) | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). Pokes a few raw OpenSSL struct fields internally, so it does **not** work against OpenSSL 3.x/4.x (those structs are opaque) — use `TJOSETaurusTLSProviders` for that. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
+| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x (1.0.2 recommended), via Indy | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). The Indy that ships with Delphi refuses to load OpenSSL 1.1.0 or later ("Unable to load OpenSSL libraries"), and this stack also accesses a few raw OpenSSL struct fields that are opaque in 3.x/4.x — for OpenSSL 1.1.x/3.x/4.x use `TJOSETaurusTLSProviders`. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
 | `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them). Exercised by its own test project, `Tests\JOSE.Tests.TaurusTLS.dproj` |
 | `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it. Exercised by its own test project, `Tests\JOSE.Tests.CryptoLib.dproj` (also needs `HashLib4Pascal` and `SimpleBaseLib4Pascal`, both vendored under `Libs\`) |
 
@@ -345,7 +345,7 @@ The DUnitX-based test suite is split across three projects, one per crypto stack
 
 | Project | Covers | Extra setup |
 | ------- | ------ | ------------ |
-| `Tests\JOSE.Tests.dproj` | Core JOSE/JWT/JWK/JWS + the default OpenSSL 1.x provider stack | None |
+| `Tests\JOSE.Tests.dproj` | Core JOSE/JWT/JWK/JWS + the default OpenSSL 1.0.x provider stack | None on Windows (the OpenSSL 1.0.2 DLLs are in `Tests\Exe`). Run it from `Tests\Exe`, since the key fixtures are found relative to the working directory. On Linux, OpenSSL 1.0.2 must be on the library path (e.g. `LD_LIBRARY_PATH`) |
 | `Tests\JOSE.Tests.TaurusTLS.dproj` | `TJOSETaurusTLSProviders` (OpenSSL 1.1.x/3.x/4.x) | Needs `Libs\TaurusTLS` (vendored) and OpenSSL 3.x/4.x DLLs discoverable at runtime |
 | `Tests\JOSE.Tests.CryptoLib.dproj` | `TJOSECryptoLibProviders` (pure-Pascal) | Needs `Libs\CryptoLib4Pascal`, `Libs\HashLib4Pascal` and `Libs\SimpleBaseLib4Pascal` (vendored); run `Libs\build-cryptolib-deps.ps1` once beforehand to precompile them into `Libs\_build` (their combined source tree is too deep for a single Delphi unit search path) |
 
