@@ -157,13 +157,28 @@ type
     [Test]
     [TestCase('Valid epoch',     '{"exp":1700000000}|False', '|')]
     [TestCase('Exponent form',   '{"exp":1e308}|True', '|')]
-    [TestCase('Fractional',      '{"exp":1.5}|True', '|')]
+    [TestCase('Fractional',      '{"exp":1700000000.5}|False', '|')]
+    [TestCase('Exponent in range', '{"exp":1.7e9}|False', '|')]
     [TestCase('String',          '{"exp":"soon"}|True', '|')]
     [TestCase('Boolean',         '{"exp":true}|True', '|')]
     [TestCase('Int64 max',       '{"exp":9223372036854775807}|True', '|')]
     [TestCase('Int64 min',       '{"exp":-9223372036854775808}|True', '|')]
     [TestCase('Absent',          '{"other":1}|True', '|')]
     procedure TestGetJSONValueAsEpochIsTotal(const AJSON: string; AExpectZero: Boolean);
+
+    // The validators must tell a malformed claim apart from one holding 0, and
+    // read a non-integer NumericDate rounded down to the second
+    [Test]
+    [TestCase('Whole',             '{"exp":1700000000}|True|1700000000', '|')]
+    [TestCase('Zero',              '{"exp":0}|True|0', '|')]
+    [TestCase('Fractional',        '{"exp":1700000000.9}|True|1700000000', '|')]
+    [TestCase('Negative fraction', '{"exp":-1.5}|True|-2', '|')]
+    [TestCase('Exponent form',     '{"exp":1.7e9}|True|1700000000', '|')]
+    [TestCase('Out of range',      '{"exp":1e308}|False|0', '|')]
+    [TestCase('Int64 max',         '{"exp":9223372036854775807}|False|0', '|')]
+    [TestCase('String',            '{"exp":"1700000000"}|False|0', '|')]
+    [TestCase('Absent',            '{"other":1}|False|0', '|')]
+    procedure TestTryGetJSONValueAsEpochSeconds(const AJSON: string; AExpectedResult: Boolean; AExpectedSeconds: Int64);
 
     // Same for an ISO-8601 date claim: no type is allowed to raise
     [Test]
@@ -446,6 +461,21 @@ begin
       Assert.AreEqual<TDateTime>(0, LDate, 'An unusable date claim must read as 0')
     else
       Assert.AreNotEqual<TDateTime>(0, LDate);
+  finally
+    LJSON.Free;
+  end;
+end;
+
+procedure TTestJSONUtils.TestTryGetJSONValueAsEpochSeconds(const AJSON: string;
+  AExpectedResult: Boolean; AExpectedSeconds: Int64);
+var
+  LJSON: TJSONObject;
+  LSeconds: Int64;
+begin
+  LJSON := Parse(AJSON);
+  try
+    Assert.AreEqual(AExpectedResult, TJSONUtils.TryGetJSONValueAsEpochSeconds('exp', LJSON, LSeconds));
+    Assert.AreEqual<Int64>(AExpectedSeconds, LSeconds);
   finally
     LJSON.Free;
   end;

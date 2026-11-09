@@ -116,7 +116,16 @@ type
     function SetRequireExpirationTime: IJOSEConsumerBuilder;
     function SetRequireIssuedAt: IJOSEConsumerBuilder;
     function SetRequireNotBefore: IJOSEConsumerBuilder;
-    function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
+    /// <summary>
+    ///   Fixes the evaluation time to a local TDateTime. In the hour repeated
+    ///   when daylight saving time ends a local time is ambiguous: pass a
+    ///   TJOSENumericDate (TJOSENumericDate.FromSeconds/FromUTC) instead
+    /// </summary>
+    function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder; overload;
+    /// <summary>
+	///   Fixes the evaluation time to an exact instant
+	/// </summary>
+    function SetEvaluationTime(const AEvaluationTime: TJOSENumericDate): IJOSEConsumerBuilder; overload;
     function SetAllowedClockSkew(AClockSkew: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     function SetMaxFutureValidity(AMaxFutureValidity: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     // External validators
@@ -183,7 +192,8 @@ type
     function SetRequireExpirationTime: IJOSEConsumerBuilder;
     function SetRequireIssuedAt: IJOSEConsumerBuilder;
     function SetRequireNotBefore: IJOSEConsumerBuilder;
-    function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
+    function SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder; overload;
+    function SetEvaluationTime(const AEvaluationTime: TJOSENumericDate): IJOSEConsumerBuilder; overload;
     function SetAllowedClockSkew(AClockSkew: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     function SetMaxFutureValidity(AMaxFutureValidity: Integer; ATimeUnit: TJOSETimeUnit): IJOSEConsumerBuilder;
     // External validators
@@ -331,7 +341,13 @@ end;
 
 function TJOSEConsumerBuilder.SetEvaluationTime(AEvaluationTime: TDateTime): IJOSEConsumerBuilder;
 begin
-  FDateValidatorParams.StaticEvaluationTime := AEvaluationTime;
+  FDateValidatorParams.SetStaticEvaluationTime(AEvaluationTime);
+  Result := Self as IJOSEConsumerBuilder;
+end;
+
+function TJOSEConsumerBuilder.SetEvaluationTime(const AEvaluationTime: TJOSENumericDate): IJOSEConsumerBuilder;
+begin
+  FDateValidatorParams.SetStaticEvaluationInstant(AEvaluationTime);
   Result := Self as IJOSEConsumerBuilder;
 end;
 

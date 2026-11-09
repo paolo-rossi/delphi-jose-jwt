@@ -33,17 +33,33 @@ type
     RequireExp: Boolean;
     RequireIat: Boolean;
     RequireNbf: Boolean;
+    /// <summary>
+    ///   A fixed evaluation time as a local TDateTime (0 = none). In the hour
+    ///   repeated when daylight saving time ends a local time stands for two
+    ///   instants: use SetStaticEvaluationInstant to give an exact one.
+    ///   Prefer the setters to writing the fields: they keep the two in step
+    /// </summary>
     StaticEvaluationTime: TDateTime;
+    /// <summary>
+    ///   A fixed evaluation time as an exact instant, used instead of
+    ///   StaticEvaluationTime when HasStaticEvaluationInstant is True
+    /// </summary>
+    StaticEvaluationInstant: TJOSENumericDate;
+    HasStaticEvaluationInstant: Boolean;
     AllowedClockSkewSeconds: Integer;
     MaxFutureValidityInMinutes: Integer;
 
     class function New: TJOSEDateClaimsParams; static;
     function SkewMessage: string;
+    /// <summary>Fixes the evaluation time to a local TDateTime</summary>
+    procedure SetStaticEvaluationTime(AValue: TDateTime);
+    /// <summary>Fixes the evaluation time to an exact instant</summary>
+    procedure SetStaticEvaluationInstant(const AValue: TJOSENumericDate);
     /// <summary>
-    ///   The instant the claims are evaluated against: StaticEvaluationTime
-    ///   when one was configured, the current time otherwise. Reading it has no
-    ///   side effect, so take a snapshot into a local variable to compare
-    ///   several claims against one consistent instant
+    ///   The instant the claims are evaluated against: the static instant or
+    ///   StaticEvaluationTime when one was configured, the current time
+    ///   otherwise. Reading it has no side effect, so take a snapshot into a
+    ///   local variable to compare several claims against one consistent instant
     /// </summary>
     property EvaluationTime: TJOSENumericDate read GetEvaluationTime;
   end;
@@ -92,6 +108,7 @@ resourcestring
   SJOSEExpBeforeNbf = 'The Expiration Time (exp=%s) claim value cannot be before the NotBefore (nbf=%s) claim value';
   SJOSEExpTooFarInFuture = 'The Expiration Time [exp=%s] claim value cannot be more than [%d] minutes in the future relative to the evaluation time [%s]%s.';
   SJOSENotYetValid = 'The JWT is not yet valid as the evaluation time [%s] is before the NotBefore [nbf=%s] claim time%s.';
+  SJOSEMalformedDateClaim = 'The [%s] claim is not a valid NumericDate';
   SJOSENoIssuerClaim = 'No Issuer [iss] claim present but was expecting %s';
   SJOSEIssuerMismatch = 'Issuer [iss] claim value [%s] doesn''t match expected value of [%s]';
   SJOSENoJTIClaim = 'No JWT ID [jti] claim present.';
@@ -107,10 +124,26 @@ begin
   // validator closure, so the first evaluation would freeze the clock for every
   // later validation done by the same (long-lived) consumer, and expired tokens
   // would keep being accepted
-  if StaticEvaluationTime = 0 then
-    Result := TJOSENumericDate.Now
+  if HasStaticEvaluationInstant then
+    Result := StaticEvaluationInstant
+  else if StaticEvaluationTime <> 0 then
+    Result := TJOSENumericDate.Create(StaticEvaluationTime)
   else
-    Result := TJOSENumericDate.Create(StaticEvaluationTime);
+    Result := TJOSENumericDate.Now;
+end;
+
+procedure TJOSEDateClaimsParams.SetStaticEvaluationInstant(const AValue: TJOSENumericDate);
+begin
+  // The last setter called wins
+  StaticEvaluationInstant := AValue;
+  HasStaticEvaluationInstant := True;
+  StaticEvaluationTime := 0;
+end;
+
+procedure TJOSEDateClaimsParams.SetStaticEvaluationTime(AValue: TDateTime);
+begin
+  StaticEvaluationTime := AValue;
+  HasStaticEvaluationInstant := False;
 end;
 
 class function TJOSEDateClaimsParams.New: TJOSEDateClaimsParams;
@@ -119,6 +152,8 @@ begin
   Result.RequireIat := False;
   Result.RequireNbf := False;
   Result.StaticEvaluationTime := 0;
+  Result.StaticEvaluationInstant := TJOSENumericDate.FromSeconds(0);
+  Result.HasStaticEvaluationInstant := False;
   Result.AllowedClockSkewSeconds := 0;
   Result.MaxFutureValidityInMinutes := 0;
 end;
@@ -192,6 +227,7 @@ begin
       // the validations performed through this validator, including concurrent ones
       LEvaluationTime: TJOSENumericDate;
       LExpiration, LIssuedAt, LNotBefore: TJOSENumericDate;
+      LSeconds: Int64;
       LDeltaInSeconds: Int64;
     begin
       Result := '';
@@ -212,16 +248,37 @@ begin
 
       // The epoch seconds in the token, not the local TDateTime properties:
       // the round trip through local time is one hour off in the hour
-      // repeated when daylight saving time ends
-      LIssuedAt := TJOSENumericDate.FromSeconds(
-        TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.ISSUED_AT, LClaims.JSON));
-      LNotBefore := TJOSENumericDate.FromSeconds(
-        TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.NOT_BEFORE, LClaims.JSON));
+      // repeated when daylight saving time ends.
+      // A claim that is present but unreadable is rejected, never read as 0:
+      // 0 is a valid instant (1970), so an unreadable nbf would let the token
+      // through at any time
+      LIssuedAt := TJOSENumericDate.FromSeconds(0);
+      LNotBefore := TJOSENumericDate.FromSeconds(0);
+      LExpiration := TJOSENumericDate.FromSeconds(0);
+
+      if LClaims.HasIssuedAt then
+      begin
+        if not TJSONUtils.TryGetJSONValueAsEpochSeconds(TReservedClaimNames.ISSUED_AT, LClaims.JSON, LSeconds) then
+          Exit(Format(SJOSEMalformedDateClaim, [TReservedClaimNames.ISSUED_AT]));
+        LIssuedAt := TJOSENumericDate.FromSeconds(LSeconds);
+      end;
+
+      if LClaims.HasNotBefore then
+      begin
+        if not TJSONUtils.TryGetJSONValueAsEpochSeconds(TReservedClaimNames.NOT_BEFORE, LClaims.JSON, LSeconds) then
+          Exit(Format(SJOSEMalformedDateClaim, [TReservedClaimNames.NOT_BEFORE]));
+        LNotBefore := TJOSENumericDate.FromSeconds(LSeconds);
+      end;
 
       if LClaims.HasExpiration then
       begin
-        LExpiration := TJOSENumericDate.FromSeconds(
-          TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.EXPIRATION, LClaims.JSON));
+        if not TJSONUtils.TryGetJSONValueAsEpochSeconds(TReservedClaimNames.EXPIRATION, LClaims.JSON, LSeconds) then
+          Exit(Format(SJOSEMalformedDateClaim, [TReservedClaimNames.EXPIRATION]));
+        LExpiration := TJOSENumericDate.FromSeconds(LSeconds);
+      end;
+
+      if LClaims.HasExpiration then
+      begin
 
         // RFC 7519 par. 4.1.4: the current time must be *before* exp, so an
         // evaluation time equal to exp is already too late

@@ -12,7 +12,7 @@ unit JOSE.Tests.Validators;
 interface
 
 uses
-  System.SysUtils, System.DateUtils, DUnitX.TestFramework,
+  System.SysUtils, System.DateUtils, System.JSON, DUnitX.TestFramework,
 
   JOSE.Types.Bytes,
   JOSE.Core.Base,
@@ -35,7 +35,13 @@ type
   TTestValidators = class(TTestBase)
   private
     const SECRET = 'a-secret-of-at-least-32-bytes-for-hs256!';
+    // 2026-10-25T00:30:00Z: 02:30 in Central Europe, in the first pass of the
+    // hour repeated when DST ends
+    const REPEATED_HOUR = Int64(1792888200);
     function Sign(AJWT: TJWT): TJOSEBytes;
+    // The rejection message of a token carrying AClaimsJSON verbatim,
+    // evaluated at REPEATED_HOUR; '' when the token is accepted
+    function RejectionAtRepeatedHour(const AClaimsJSON: string): string;
     function TokenExpiringIn(ASeconds: Integer): TJOSEBytes;
     function Accepts(AConsumer: IJOSEConsumer; const AToken: TJOSEBytes): Boolean;
     function ExpiredTokenRejection(AConsumer: IJOSEConsumer): string;
@@ -58,6 +64,35 @@ type
     // exp is the instant in the token, not its round trip through local time
     [Test]
     procedure TestExpirationInTheRepeatedHourIsReadExactly;
+
+    // A date claim that is present but unreadable is rejected, never read as
+    // 0: an nbf read as 0 (1970) would let the token through at any time
+    [Test]
+    [TestCase('nbf string',       '{"nbf":"soon"}|nbf', '|')]
+    [TestCase('nbf boolean',      '{"nbf":true}|nbf', '|')]
+    [TestCase('nbf out of range', '{"nbf":1e308}|nbf', '|')]
+    [TestCase('iat string',       '{"iat":"soon"}|iat', '|')]
+    [TestCase('exp string',       '{"exp":"soon"}|exp', '|')]
+    [TestCase('exp out of range', '{"exp":9223372036854775807}|exp', '|')]
+    procedure TestUnreadableDateClaimIsRejected(const AClaimsJSON, AName: string);
+
+    // RFC 7519 par. 2: a NumericDate need not be a whole number. The value is
+    // rounded down to the second (evaluation at 1792888200)
+    [Test]
+    [TestCase('exp fractional ahead',   '{"exp":1792888201.5}|True', '|')]
+    [TestCase('exp fractional past',    '{"exp":1792888199.5}|False', '|')]
+    [TestCase('exp exponent form',      '{"exp":1.8e9}|True', '|')]
+    [TestCase('nbf fractional ahead',   '{"nbf":1792888210.5}|False', '|')]
+    [TestCase('nbf fractional past',    '{"nbf":1792888189.5}|True', '|')]
+    [TestCase('nbf exponent form',      '{"nbf":1.8e9}|False', '|')]
+    procedure TestNonIntegerNumericDate(const AClaimsJSON: string; AAccepted: Boolean);
+
+    // SetEvaluationTime(TJOSENumericDate) takes an exact instant, which a
+    // local TDateTime cannot give in the hour repeated when DST ends
+    [Test]
+    procedure TestEvaluationInstantIsExact;
+    [Test]
+    procedure TestLastEvaluationTimeSetterWins;
 
     // An absent claim is a "required?" question, not a mismatch
     [Test]
@@ -260,6 +295,131 @@ begin
   end;
 
   Assert.IsTrue(LMessage.Contains('[exp=2026-10-25T00:30:00.000Z]'), LMessage);
+end;
+
+function TTestValidators.RejectionAtRepeatedHour(const AClaimsJSON: string): string;
+var
+  LConsumer: IJOSEConsumer;
+  LClaims: TJSONObject;
+  LPair: TJSONPair;
+  LJWT: TJWT;
+  LToken: TJOSEBytes;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEvaluationTime(TJOSENumericDate.FromSeconds(REPEATED_HOUR))
+    .Build;
+
+  // The claims are copied verbatim, so that the token carries exactly the
+  // JSON text under test ("1e308", "1.8e9", ...)
+  LClaims := TJSONObject.ParseJSONValue(AClaimsJSON) as TJSONObject;
+  try
+    LJWT := TJWT.Create;
+    try
+      for LPair in LClaims do
+        LJWT.Claims.JSON.AddPair(LPair.JsonString.Value, LPair.JsonValue.Clone as TJSONValue);
+      LToken := Sign(LJWT);
+    finally
+      LJWT.Free;
+    end;
+  finally
+    LClaims.Free;
+  end;
+
+  Result := '';
+  try
+    LConsumer.Process(LToken);
+  except
+    on E: EInvalidJWTException do
+      Result := E.Message;
+  end;
+end;
+
+procedure TTestValidators.TestUnreadableDateClaimIsRejected(const AClaimsJSON, AName: string);
+var
+  LMessage: string;
+begin
+  LMessage := RejectionAtRepeatedHour(AClaimsJSON);
+  Assert.IsTrue(LMessage.Contains('[' + AName + '] claim is not a valid NumericDate'),
+    'Got: ' + LMessage);
+end;
+
+procedure TTestValidators.TestNonIntegerNumericDate(const AClaimsJSON: string; AAccepted: Boolean);
+var
+  LMessage: string;
+begin
+  LMessage := RejectionAtRepeatedHour(AClaimsJSON);
+  if AAccepted then
+    Assert.IsEmpty(LMessage, 'The token was supposed to be accepted')
+  else
+  begin
+    Assert.IsNotEmpty(LMessage, 'The token was supposed to be rejected');
+    Assert.IsFalse(LMessage.Contains('not a valid NumericDate'),
+      'The claim must be read, not refused as malformed. Got: ' + LMessage);
+  end;
+end;
+
+procedure TTestValidators.TestEvaluationInstantIsExact;
+var
+  LBefore, LAt: IJOSEConsumer;
+  LJWT: TJWT;
+  LToken: TJOSEBytes;
+begin
+  LJWT := TJWT.Create;
+  try
+    LJWT.Claims.SetClaimOfType<Int64>('exp', REPEATED_HOUR);
+    LToken := Sign(LJWT);
+  finally
+    LJWT.Free;
+  end;
+
+  LBefore := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEvaluationTime(TJOSENumericDate.FromSeconds(REPEATED_HOUR - 1))
+    .Build;
+  LAt := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEvaluationTime(TJOSENumericDate.FromUTC(EncodeDateTime(2026, 10, 25, 0, 30, 0, 0)))
+    .Build;
+
+  Assert.IsTrue(Accepts(LBefore, LToken), 'One second before exp the token is valid');
+  Assert.IsFalse(Accepts(LAt, LToken), 'At exp the token is expired');
+end;
+
+procedure TTestValidators.TestLastEvaluationTimeSetterWins;
+var
+  LJWT: TJWT;
+  LToken: TJOSEBytes;
+  LConsumer: IJOSEConsumer;
+begin
+  LJWT := TJWT.Create;
+  try
+    LJWT.Claims.SetClaimOfType<Int64>('exp', REPEATED_HOUR);
+    LToken := Sign(LJWT);
+  finally
+    LJWT.Free;
+  end;
+
+  // Instant (valid) then local time (expired): the local time wins
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEvaluationTime(TJOSENumericDate.FromSeconds(REPEATED_HOUR - 1))
+    .SetEvaluationTime(EncodeDateTime(2027, 1, 1, 0, 0, 0, 0))
+    .Build;
+  Assert.IsFalse(Accepts(LConsumer, LToken), 'The later TDateTime must replace the instant');
+
+  // Local time (expired) then instant (valid): the instant wins
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetEvaluationTime(EncodeDateTime(2027, 1, 1, 0, 0, 0, 0))
+    .SetEvaluationTime(TJOSENumericDate.FromSeconds(REPEATED_HOUR - 1))
+    .Build;
+  Assert.IsTrue(Accepts(LConsumer, LToken), 'The later instant must replace the TDateTime');
 end;
 
 procedure TTestValidators.TestOptionalIssuerAcceptsMissingClaim;

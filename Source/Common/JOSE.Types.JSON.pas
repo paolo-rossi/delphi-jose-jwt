@@ -70,6 +70,14 @@ type
     ///   GetJSONValueAsEpoch: an absent or malformed member reads as 0
     /// </summary>
     class function GetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject): Int64;
+    /// <summary>
+    ///   Reads AName as a NumericDate (RFC 7519 par. 2): a JSON number, whole
+    ///   or not, within the TDateTime range. A fractional value is rounded
+    ///   down to the second. Returns False, never raising, when the member is
+    ///   absent or is not such a number, so that a caller can tell a
+    ///   malformed claim apart from one that holds 0
+    /// </summary>
+    class function TryGetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject; out ASeconds: Int64): Boolean;
 
     class procedure SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject); overload;
     class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
@@ -249,32 +257,64 @@ begin
 end;
 
 class function TJSONUtils.GetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject): Int64;
+begin
+  // Date claims arrive from a token, so every shape has to produce a value
+  // instead of an exception: a member of the wrong type ("exp":"soon") and a
+  // number outside the TDateTime range ("exp":1e308) read as 0. That is what
+  // an absent claim reads as. Callers that must not mistake a malformed claim
+  // for 0 (the validators) use TryGetJSONValueAsEpochSeconds instead
+  if not TryGetJSONValueAsEpochSeconds(AName, AJSON, Result) then
+    Result := 0;
+end;
+
+class function TJSONUtils.TryGetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject; out ASeconds: Int64): Boolean;
 const
   // Seconds from the Unix epoch to the ends of the TDateTime range (year 1..9999)
   MIN_EPOCH_SECONDS = Int64(-62135596800);
   MAX_EPOCH_SECONDS = Int64(253402300799);
 var
   LJSONValue: TJSONValue;
-  LSeconds: Int64;
+  LText: string;
+  LWhole: Int64;
+  LValue: Double;
+  LFormat: TFormatSettings;
 begin
-  // Date claims arrive from a token, so every shape has to produce a value
-  // instead of an exception: a member of the wrong type ("exp":"soon"), a
-  // number that is not a whole number ("exp":1e308, "exp":1.5) and a number
-  // outside the TDateTime range all read as 0. That is what an absent claim
-  // reads as, which keeps exp fail-closed (0 is long past, so expired)
-  Result := 0;
+  Result := False;
+  ASeconds := 0;
 
   LJSONValue := AJSON.GetValue(AName);
   if not (LJSONValue is TJSONNumber) then
     Exit;
 
-  if not TryStrToInt64(TJSONNumber(LJSONValue).Value, LSeconds) then
+  LText := TJSONNumber(LJSONValue).Value;
+
+  // The usual shape, read exactly. Into a local: on failure TryStrToInt64
+  // leaves a partial value behind ("1e308" gives 1)
+  if TryStrToInt64(LText, LWhole) then
+  begin
+    Result := (LWhole >= MIN_EPOCH_SECONDS) and (LWhole <= MAX_EPOCH_SECONDS);
+    if Result then
+      ASeconds := LWhole;
+    Exit;
+  end;
+
+  // RFC 7519 par. 2 allows a NumericDate that is not a whole number
+  // ("exp":1700000000.5, "exp":1.7e9). The JSON text always uses '.', whatever
+  // the locale. A Double holds every whole second of the range exactly
+  LFormat := TFormatSettings.Create;
+  LFormat.DecimalSeparator := '.';
+  if not TryStrToFloat(LText, LValue, LFormat) then
     Exit;
 
-  if (LSeconds < MIN_EPOCH_SECONDS) or (LSeconds > MAX_EPOCH_SECONDS) then
+  // Written so that a NaN fails it too
+  if not ((LValue >= MIN_EPOCH_SECONDS) and (LValue <= MAX_EPOCH_SECONDS)) then
     Exit;
 
-  Result := LSeconds;
+  // Rounded down: the claim names an instant within that second
+  ASeconds := Trunc(LValue);
+  if Frac(LValue) < 0 then
+    Dec(ASeconds);
+  Result := True;
 end;
 
 class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;

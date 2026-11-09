@@ -572,5 +572,24 @@ begin
   end;
 ```
 
+#### Time-related claims
+
+- `exp`, `nbf` and `iat` are compared as UTC epoch seconds (the RFC 7519 NumericDate), and the
+  current time is read from the UTC clock, so validation isn't affected by the local time zone or
+  by daylight saving time changes.
+- A non-integer NumericDate (`"exp":1700000000.5`) is accepted and rounded down to the second. A
+  date claim that is present but isn't a valid NumericDate (`"nbf":"soon"`, a number outside the
+  year 1–9999 range) makes the token invalid, even if that claim isn't required.
+- `SetEvaluationTime` replaces the clock with a fixed instant, which is useful for tests and
+  replays. The `TDateTime` overload takes a *local* time, which is ambiguous in the hour repeated
+  when daylight saving time ends. For an exact instant, pass a `TJOSENumericDate`:
+
+```delphi
+  .SetEvaluationTime(TJOSENumericDate.FromSeconds(1792888200))       // epoch seconds
+  .SetEvaluationTime(TJOSENumericDate.FromUTC(LUtcDateTime))         // a UTC TDateTime
+```
+
+  If you call `SetEvaluationTime` more than once, the last call wins.
+
 <hr />
 <div style="text-align:right">Paolo Rossi</div>

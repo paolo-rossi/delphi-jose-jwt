@@ -115,6 +115,8 @@ type
   public
     constructor Create(AValue: TDateTime);
     class function FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate; static;
+    /// <summary>The instant of a UTC TDateTime, with no local time involved</summary>
+    class function FromUTC(AUTCValue: TDateTime): TJOSENumericDate; static;
     class function FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate; static;
     /// <summary>The current instant, read from the UTC clock</summary>
     class function Now: TJOSENumericDate; static;
@@ -369,6 +371,11 @@ end;
 class function TJOSENumericDate.FromMilliseconds(AMillisecondsFromEpoch: Int64): TJOSENumericDate;
 begin
   Result.FSeconds := AMillisecondsFromEpoch div CONVERSION;
+end;
+
+class function TJOSENumericDate.FromUTC(AUTCValue: TDateTime): TJOSENumericDate;
+begin
+  Result.FSeconds := DateTimeToUnix(AUTCValue, True);
 end;
 
 class function TJOSENumericDate.FromSeconds(ASecondsFromEpoch: Int64): TJOSENumericDate;
