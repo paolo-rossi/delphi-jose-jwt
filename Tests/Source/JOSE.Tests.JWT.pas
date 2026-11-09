@@ -23,9 +23,10 @@ uses
 type
   /// <summary>
   ///   The date convention of the claims layer. Date claims travel as absolute
-  ///   epoch seconds but are exposed as *local* TDateTime values, and every
-  ///   comparison in the library is done in that same frame - nothing pinned
-  ///   that before, so a change of convention would have gone unnoticed
+  ///   epoch seconds but are exposed as *local* TDateTime values, while
+  ///   TJOSENumericDate, which the validators compare, keeps the epoch
+  ///   seconds - nothing pinned that before, so a change of convention would
+  ///   have gone unnoticed
   /// </summary>
   [TestFixture]
   TTestJWTDates = class(TTestBase)
@@ -62,6 +63,10 @@ type
     procedure TestNumericDateISO8601IsAnAbsoluteInstant;
     [Test]
     procedure TestComparisonsAreOffsetIndependent;
+    [Test]
+    procedure TestNumericDateKeepsEveryInstantOfAYear;
+    [Test]
+    procedure TestNumericDateNowIsTheUTCClock;
   end;
 
 implementation
@@ -195,6 +200,43 @@ begin
 
   // ... and the clock skew leeway is applied in seconds, symmetrically
   Assert.IsFalse(LEarlier.IsBefore(LLater, 60), 'A 60s leeway must absorb a 60s gap');
+end;
+
+procedure TTestJWTDates.TestNumericDateKeepsEveryInstantOfAYear;
+const
+  YEAR_START = Int64(1767225600);   // 2026-01-01T00:00:00Z
+  STEP = 15 * 60;
+var
+  LSeconds: Int64;
+  LDate: TJOSENumericDate;
+begin
+  // Every quarter of an hour of a year, so that both daylight saving time
+  // changes of this machine's time zone are crossed. A local time in the hour
+  // repeated when DST ends stands for two instants: an instant carried
+  // through local time comes back one hour off
+  LSeconds := YEAR_START;
+  while LSeconds < YEAR_START + 365 * SecsPerDay do
+  begin
+    LDate := TJOSENumericDate.FromSeconds(LSeconds);
+    Assert.AreEqual<Int64>(LSeconds, LDate.AsSeconds);
+    Assert.AreEqual<Int64>(LSeconds, DateTimeToUnix(ISO8601ToDate(LDate.AsISO8601, True), True),
+      'AsISO8601 must denote the same instant. Got: ' + LDate.AsISO8601);
+    Inc(LSeconds, STEP);
+  end;
+end;
+
+procedure TTestJWTDates.TestNumericDateNowIsTheUTCClock;
+var
+  LLocal: TDateTime;
+begin
+  // The local clock converted to UTC is the reference, except in the hour
+  // repeated when DST ends, where that conversion is the one that is wrong
+  LLocal := Now;
+  if TTimeZone.Local.IsAmbiguousTime(LLocal) then
+    Assert.Pass('The local time is ambiguous, there is no reference to compare with');
+
+  Assert.IsTrue(Abs(TJOSENumericDate.Now.AsSeconds - DateTimeToUnix(LLocal, False)) <= 2,
+    'TJOSENumericDate.Now must be the current instant');
 end;
 
 initialization

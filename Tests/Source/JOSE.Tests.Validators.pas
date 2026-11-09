@@ -55,6 +55,9 @@ type
     procedure TestExpirationBoundaryIsExclusive;
     [Test]
     procedure TestExpirationOneSecondAheadIsAccepted;
+    // exp is the instant in the token, not its round trip through local time
+    [Test]
+    procedure TestExpirationInTheRepeatedHourIsReadExactly;
 
     // An absent claim is a "required?" question, not a mismatch
     [Test]
@@ -223,6 +226,40 @@ begin
   finally
     LJWT.Free;
   end;
+end;
+
+procedure TTestValidators.TestExpirationInTheRepeatedHourIsReadExactly;
+const
+  // 2026-10-25T00:30:00Z: 02:30 in Central Europe, in the first pass of the
+  // hour repeated when DST ends. Through a local TDateTime it read as 01:30Z
+  EXPIRATION = Int64(1792888200);
+var
+  LConsumer: IJOSEConsumer;
+  LJWT: TJWT;
+  LMessage: string;
+begin
+  LConsumer := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(SECRET)
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+    .SetRequireExpirationTime
+    .SetEvaluationTime(EncodeDateTime(2027, 1, 1, 0, 0, 0, 0))
+    .Build;
+
+  LMessage := '';
+  LJWT := TJWT.Create;
+  try
+    LJWT.Claims.SetClaimOfType<Int64>('exp', EXPIRATION);
+    try
+      LConsumer.Process(Sign(LJWT));
+    except
+      on E: EInvalidJWTException do
+        LMessage := E.Message;
+    end;
+  finally
+    LJWT.Free;
+  end;
+
+  Assert.IsTrue(LMessage.Contains('[exp=2026-10-25T00:30:00.000Z]'), LMessage);
 end;
 
 procedure TTestValidators.TestOptionalIssuerAcceptsMissingClaim;

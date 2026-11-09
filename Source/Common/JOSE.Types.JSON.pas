@@ -65,6 +65,11 @@ type
     class function GetJSONValueAsString(const AName: string; AJSON: TJSONObject): string;
     class function GetJSONValueAsDate(const AName: string; AJSON: TJSONObject): TDateTime;
     class function GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
+    /// <summary>
+    ///   Reads AName as the epoch seconds it carries, with the same rules as
+    ///   GetJSONValueAsEpoch: an absent or malformed member reads as 0
+    /// </summary>
+    class function GetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject): Int64;
 
     class procedure SetJSONValue(const AName: string; AValue: TJSONValue; AJSON: TJSONObject); overload;
     class procedure SetJSONRttiValue(const AName: string; const AValue: TValue; AJSON: TJSONObject); overload;
@@ -233,6 +238,17 @@ begin
 end;
 
 class function TJSONUtils.GetJSONValueAsEpoch(const AName: string; AJSON: TJSONObject): TDateTime;
+var
+  LSeconds: Int64;
+begin
+  Result := 0;
+
+  LSeconds := GetJSONValueAsEpochSeconds(AName, AJSON);
+  if LSeconds <> 0 then
+    Result := UnixToDateTime(LSeconds, False);
+end;
+
+class function TJSONUtils.GetJSONValueAsEpochSeconds(const AName: string; AJSON: TJSONObject): Int64;
 const
   // Seconds from the Unix epoch to the ends of the TDateTime range (year 1..9999)
   MIN_EPOCH_SECONDS = Int64(-62135596800);
@@ -258,8 +274,7 @@ begin
   if (LSeconds < MIN_EPOCH_SECONDS) or (LSeconds > MAX_EPOCH_SECONDS) then
     Exit;
 
-  if LSeconds <> 0 then
-    Result := UnixToDateTime(LSeconds, False);
+  Result := LSeconds;
 end;
 
 class function TJSONUtils.GetJSONValueDouble(const AName: string; AJSON: TJSONObject): TValue;

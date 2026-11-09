@@ -75,7 +75,8 @@ implementation
 uses
   System.DateUtils,
   System.Types,
-  System.StrUtils;
+  System.StrUtils,
+  JOSE.Types.JSON;
 
 resourcestring
   SJOSEOneOf = 'one of ';
@@ -107,7 +108,7 @@ begin
   // later validation done by the same (long-lived) consumer, and expired tokens
   // would keep being accepted
   if StaticEvaluationTime = 0 then
-    Result := TJOSENumericDate.Create(Now)
+    Result := TJOSENumericDate.Now
   else
     Result := TJOSENumericDate.Create(StaticEvaluationTime);
 end;
@@ -209,12 +210,18 @@ begin
       if ADateParams.RequireNbf and not LClaims.HasNotBefore then
         Exit(SJOSENoNotBeforeClaim);
 
-      LIssuedAt := TJOSENumericDate.Create(LClaims.IssuedAt);
-      LNotBefore := TJOSENumericDate.Create(LClaims.NotBefore);
+      // The epoch seconds in the token, not the local TDateTime properties:
+      // the round trip through local time is one hour off in the hour
+      // repeated when daylight saving time ends
+      LIssuedAt := TJOSENumericDate.FromSeconds(
+        TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.ISSUED_AT, LClaims.JSON));
+      LNotBefore := TJOSENumericDate.FromSeconds(
+        TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.NOT_BEFORE, LClaims.JSON));
 
       if LClaims.HasExpiration then
       begin
-        LExpiration := TJOSENumericDate.Create(LClaims.Expiration);
+        LExpiration := TJOSENumericDate.FromSeconds(
+          TJSONUtils.GetJSONValueAsEpochSeconds(TReservedClaimNames.EXPIRATION, LClaims.JSON));
 
         // RFC 7519 par. 4.1.4: the current time must be *before* exp, so an
         // evaluation time equal to exp is already too late
