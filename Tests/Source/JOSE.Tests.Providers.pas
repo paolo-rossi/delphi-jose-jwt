@@ -20,7 +20,8 @@ uses
   JOSE.Crypto.Algorithms,
   JOSE.Signing.Base,
 
-  JOSE.Tests.Classes;
+  JOSE.Tests.Classes,
+  JOSE.Tests.Providers.JWE;
 
 type
   /// <summary>
@@ -106,6 +107,30 @@ type
     [TestCase('RSA', 'rsa-x509.pem')]
     [TestCase('EC',  'es256-x509.pem')]
     procedure TestPublicKeyEndsWithNewline(const ACertFile: string);
+  end;
+
+  /// <summary>The JWE primitives (AES-GCM, RSA-OAEP) on the default OpenSSL (Indy) stack</summary>
+  [TestFixture]
+  TTestDefaultJWEPrimitives = class(TJWEPrimitivesTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
+  end;
+
+  /// <summary>TJWE end to end on the default OpenSSL (Indy) stack</summary>
+  [TestFixture]
+  TTestDefaultJWETokens = class(TJWETokenTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
+  end;
+
+  /// <summary>TJOSE and TJOSEConsumer with JWE on the default OpenSSL (Indy) stack</summary>
+  [TestFixture]
+  TTestDefaultJWEConsumer = class(TJWEConsumerTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
   end;
 
 implementation
@@ -401,8 +426,47 @@ begin
   Assert.AreEqual<Byte>(10, LPem[High(LPem)], 'A PEM should end with a newline');
 end;
 
+{ TTestDefaultJWEPrimitives }
+
+procedure TTestDefaultJWEPrimitives.RegisterStack;
+begin
+  TJOSEProviders.RegisterProvider;
+end;
+
+procedure TTestDefaultJWEPrimitives.UnregisterStack;
+begin
+  TJOSEProviders.UnregisterProvider;
+end;
+
+{ TTestDefaultJWETokens }
+
+procedure TTestDefaultJWETokens.RegisterStack;
+begin
+  TJOSEProviders.RegisterProvider;
+end;
+
+procedure TTestDefaultJWETokens.UnregisterStack;
+begin
+  TJOSEProviders.UnregisterProvider;
+end;
+
+{ TTestDefaultJWEConsumer }
+
+procedure TTestDefaultJWEConsumer.RegisterStack;
+begin
+  TJOSEProviders.RegisterProvider;
+end;
+
+procedure TTestDefaultJWEConsumer.UnregisterStack;
+begin
+  TJOSEProviders.UnregisterProvider;
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestKeyMaterialProviders);
+  TDUnitX.RegisterTestFixture(TTestDefaultJWEPrimitives);
+  TDUnitX.RegisterTestFixture(TTestDefaultJWETokens);
+  TDUnitX.RegisterTestFixture(TTestDefaultJWEConsumer);
   TDUnitX.RegisterTestFixture(TTestCertificateProvider);
 
 end.

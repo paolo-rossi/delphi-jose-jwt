@@ -77,6 +77,31 @@ type
     fn_EVP_sha384 = 'EVP_sha384';
     fn_EVP_sha512 = 'EVP_sha512';
 
+    // JWE: AES-GCM and RSA-OAEP. Loaded lazily and non-fatally - see EnsureJWESupport.
+    fn_EVP_CIPHER_CTX_new = 'EVP_CIPHER_CTX_new';
+    fn_EVP_CIPHER_CTX_free = 'EVP_CIPHER_CTX_free';
+    fn_EVP_CIPHER_CTX_ctrl = 'EVP_CIPHER_CTX_ctrl';
+    fn_EVP_EncryptInit_ex = 'EVP_EncryptInit_ex';
+    fn_EVP_EncryptUpdate = 'EVP_EncryptUpdate';
+    fn_EVP_EncryptFinal_ex = 'EVP_EncryptFinal_ex';
+    fn_EVP_DecryptInit_ex = 'EVP_DecryptInit_ex';
+    fn_EVP_DecryptUpdate = 'EVP_DecryptUpdate';
+    fn_EVP_DecryptFinal_ex = 'EVP_DecryptFinal_ex';
+    fn_EVP_aes_128_gcm = 'EVP_aes_128_gcm';
+    fn_EVP_aes_192_gcm = 'EVP_aes_192_gcm';
+    fn_EVP_aes_256_gcm = 'EVP_aes_256_gcm';
+    fn_EVP_sha1 = 'EVP_sha1';
+    fn_EVP_PKEY_new = 'EVP_PKEY_new';
+    fn_EVP_PKEY_set1_RSA = 'EVP_PKEY_set1_RSA';
+    fn_EVP_PKEY_size = 'EVP_PKEY_size';
+    fn_EVP_PKEY_CTX_new = 'EVP_PKEY_CTX_new';
+    fn_EVP_PKEY_CTX_free = 'EVP_PKEY_CTX_free';
+    fn_EVP_PKEY_CTX_ctrl = 'EVP_PKEY_CTX_ctrl';
+    fn_EVP_PKEY_encrypt_init = 'EVP_PKEY_encrypt_init';
+    fn_EVP_PKEY_encrypt = 'EVP_PKEY_encrypt';
+    fn_EVP_PKEY_decrypt_init = 'EVP_PKEY_decrypt_init';
+    fn_EVP_PKEY_decrypt = 'EVP_PKEY_decrypt';
+
     // ECDSA related functions
     fn_ECDSA_size = 'ECDSA_size';
     fn_ECDSA_SIG_new = 'ECDSA_SIG_new';
@@ -117,6 +142,23 @@ type
     NID_sha256 = 672;
     NID_sha384 = 673;
     NID_sha512 = 674;
+
+    // JWE. Values from the OpenSSL 1.0.2 headers (evp.h, rsa.h), cross-checked against
+    // the TaurusTLS translations of the same headers. The GCM controls are the same in
+    // every OpenSSL version; the EVP_PKEY_OP_* bits are the 1.x ones, which is what the
+    // Default stack loads (OpenSSL 3.0 renumbered them)
+    EVP_CTRL_GCM_SET_IVLEN = $9;
+    EVP_CTRL_GCM_GET_TAG = $10;
+    EVP_CTRL_GCM_SET_TAG = $11;
+    EVP_PKEY_RSA = 6;                                   // NID_rsaEncryption
+    EVP_PKEY_OP_ENCRYPT = 1 shl 8;
+    EVP_PKEY_OP_DECRYPT = 1 shl 9;
+    EVP_PKEY_OP_TYPE_CRYPT = EVP_PKEY_OP_ENCRYPT or EVP_PKEY_OP_DECRYPT;
+    EVP_PKEY_ALG_CTRL = $1000;
+    EVP_PKEY_CTRL_RSA_PADDING = EVP_PKEY_ALG_CTRL + 1;
+    EVP_PKEY_CTRL_RSA_MGF1_MD = EVP_PKEY_ALG_CTRL + 5;
+    EVP_PKEY_CTRL_RSA_OAEP_MD = EVP_PKEY_ALG_CTRL + 9;   // OpenSSL 1.0.2 and later
+    RSA_PKCS1_OAEP_PADDING = 4;
     NID_X9_62_id_ecPublicKey = 408; // EC Key
 
     // Curve Numeric ASN1 Object Identifiers (JWK crv <-> OpenSSL NID mapping)
@@ -203,12 +245,48 @@ type
     EVP_sha384: function(): PEVP_MD cdecl;
     EVP_sha512: function(): PEVP_MD cdecl;
 
+    // JWE (AES-GCM, RSA-OAEP): see EnsureJWESupport. Declared here rather than taken from
+    // Indy, which loads some of them non-fatally and declares others not at all, so that
+    // whether JWE works depends on the OpenSSL library only
+    EVP_CIPHER_CTX_new: function(): PEVP_CIPHER_CTX cdecl;
+    EVP_CIPHER_CTX_free: procedure(ctx: PEVP_CIPHER_CTX) cdecl;
+    EVP_CIPHER_CTX_ctrl: function(ctx: PEVP_CIPHER_CTX; type_, arg: Integer; ptr: Pointer): Integer cdecl;
+    EVP_EncryptInit_ex: function(ctx: PEVP_CIPHER_CTX; const cipher: PEVP_CIPHER; impl: PENGINE;
+      const key, iv: PByte): Integer cdecl;
+    EVP_EncryptUpdate: function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger;
+      const in_: PByte; inl: Integer): Integer cdecl;
+    EVP_EncryptFinal_ex: function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger): Integer cdecl;
+    EVP_DecryptInit_ex: function(ctx: PEVP_CIPHER_CTX; const cipher: PEVP_CIPHER; impl: PENGINE;
+      const key, iv: PByte): Integer cdecl;
+    EVP_DecryptUpdate: function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger;
+      const in_: PByte; inl: Integer): Integer cdecl;
+    EVP_DecryptFinal_ex: function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger): Integer cdecl;
+    EVP_aes_128_gcm: function(): PEVP_CIPHER cdecl;
+    EVP_aes_192_gcm: function(): PEVP_CIPHER cdecl;
+    EVP_aes_256_gcm: function(): PEVP_CIPHER cdecl;
+    EVP_sha1: function(): PEVP_MD cdecl;
+    EVP_PKEY_new: function(): PEVP_PKEY cdecl;
+    EVP_PKEY_set1_RSA: function(pkey: PEVP_PKEY; key: PRSA): Integer cdecl;
+    EVP_PKEY_size: function(pkey: PEVP_PKEY): Integer cdecl;
+    EVP_PKEY_CTX_new: function(pkey: PEVP_PKEY; e: PENGINE): PEVP_PKEY_CTX cdecl;
+    EVP_PKEY_CTX_free: procedure(ctx: PEVP_PKEY_CTX) cdecl;
+    EVP_PKEY_CTX_ctrl: function(ctx: PEVP_PKEY_CTX; keytype, optype, cmd, p1: Integer;
+      p2: Pointer): Integer cdecl;
+    EVP_PKEY_encrypt_init: function(ctx: PEVP_PKEY_CTX): Integer cdecl;
+    EVP_PKEY_encrypt: function(ctx: PEVP_PKEY_CTX; out_: PByte; outlen: PNativeUInt;
+      const in_: PByte; inlen: NativeUInt): Integer cdecl;
+    EVP_PKEY_decrypt_init: function(ctx: PEVP_PKEY_CTX): Integer cdecl;
+    EVP_PKEY_decrypt: function(ctx: PEVP_PKEY_CTX; out_: PByte; outlen: PNativeUInt;
+      const in_: PByte; inlen: NativeUInt): Integer cdecl;
+
   public class var
     FLoadErrors: Integer;
     FECKeySupportLoaded: Boolean;
     FECKeySupportAvailable: Boolean;
     FPSSSupportLoaded: Boolean;
     FPSSSupportAvailable: Boolean;
+    FJWESupportLoaded: Boolean;
+    FJWESupportAvailable: Boolean;
     /// <summary>Serializes the lazy Ensure*Support loads, which resolve dozens
     ///   of entry points into shared variables on first use</summary>
     FLoadLock: TObject;
@@ -236,6 +314,13 @@ type
     ///   without them leaves RS/ES/oct users completely unaffected.
     /// </summary>
     class function EnsurePSSSupport: Boolean;
+    /// <summary>
+    ///   Lazily loads the JWE symbols: the EVP cipher API with AES-GCM, and the EVP_PKEY
+    ///   encrypt/decrypt API that RSA-OAEP goes through. Non-fatal like
+    ///   <c>EnsureECKeySupport</c>: returns False rather than raising, so a library without
+    ///   them (OpenSSL before 1.0.1 has no GCM) leaves JWS users unaffected
+    /// </summary>
+    class function EnsureJWESupport: Boolean;
   end;
 
 {$ENDIF}
@@ -388,6 +473,61 @@ begin
   end;
 end;
 
+class function JoseSSL.EnsureJWESupport: Boolean;
+var
+  LErrors: Integer;
+
+  // Resolves one symbol non-fatally, counting the misses
+  function Resolve(const AName: string): Pointer;
+  begin
+    Result := LoadFunctionCLib(AName, False);
+    if Result = nil then
+      Inc(LErrors);
+  end;
+
+begin
+  // Same reasoning as EnsureECKeySupport
+  TMonitor.Enter(FLoadLock);
+  try
+    if FJWESupportLoaded then
+      Exit(FJWESupportAvailable);
+
+    LErrors := 0;
+
+    @EVP_CIPHER_CTX_new := Resolve(fn_EVP_CIPHER_CTX_new);
+    @EVP_CIPHER_CTX_free := Resolve(fn_EVP_CIPHER_CTX_free);
+    @EVP_CIPHER_CTX_ctrl := Resolve(fn_EVP_CIPHER_CTX_ctrl);
+    @EVP_EncryptInit_ex := Resolve(fn_EVP_EncryptInit_ex);
+    @EVP_EncryptUpdate := Resolve(fn_EVP_EncryptUpdate);
+    @EVP_EncryptFinal_ex := Resolve(fn_EVP_EncryptFinal_ex);
+    @EVP_DecryptInit_ex := Resolve(fn_EVP_DecryptInit_ex);
+    @EVP_DecryptUpdate := Resolve(fn_EVP_DecryptUpdate);
+    @EVP_DecryptFinal_ex := Resolve(fn_EVP_DecryptFinal_ex);
+    @EVP_aes_128_gcm := Resolve(fn_EVP_aes_128_gcm);
+    @EVP_aes_192_gcm := Resolve(fn_EVP_aes_192_gcm);
+    @EVP_aes_256_gcm := Resolve(fn_EVP_aes_256_gcm);
+    @EVP_sha1 := Resolve(fn_EVP_sha1);
+    // Shared with EnsurePSSSupport: resolving it again yields the same address
+    @EVP_sha256 := Resolve(fn_EVP_sha256);
+    @EVP_PKEY_new := Resolve(fn_EVP_PKEY_new);
+    @EVP_PKEY_set1_RSA := Resolve(fn_EVP_PKEY_set1_RSA);
+    @EVP_PKEY_size := Resolve(fn_EVP_PKEY_size);
+    @EVP_PKEY_CTX_new := Resolve(fn_EVP_PKEY_CTX_new);
+    @EVP_PKEY_CTX_free := Resolve(fn_EVP_PKEY_CTX_free);
+    @EVP_PKEY_CTX_ctrl := Resolve(fn_EVP_PKEY_CTX_ctrl);
+    @EVP_PKEY_encrypt_init := Resolve(fn_EVP_PKEY_encrypt_init);
+    @EVP_PKEY_encrypt := Resolve(fn_EVP_PKEY_encrypt);
+    @EVP_PKEY_decrypt_init := Resolve(fn_EVP_PKEY_decrypt_init);
+    @EVP_PKEY_decrypt := Resolve(fn_EVP_PKEY_decrypt);
+
+    FJWESupportAvailable := LErrors = 0;
+    FJWESupportLoaded := True;
+    Result := FJWESupportAvailable;
+  finally
+    TMonitor.Exit(FLoadLock);
+  end;
+end;
+
 class function JoseSSL.GetLastError: string;
 const
   LErrMsgLength = 160;
@@ -514,6 +654,33 @@ begin
   @EVP_sha512 := nil;
   FPSSSupportLoaded := False;
   FPSSSupportAvailable := False;
+
+  @EVP_CIPHER_CTX_new := nil;
+  @EVP_CIPHER_CTX_free := nil;
+  @EVP_CIPHER_CTX_ctrl := nil;
+  @EVP_EncryptInit_ex := nil;
+  @EVP_EncryptUpdate := nil;
+  @EVP_EncryptFinal_ex := nil;
+  @EVP_DecryptInit_ex := nil;
+  @EVP_DecryptUpdate := nil;
+  @EVP_DecryptFinal_ex := nil;
+  @EVP_aes_128_gcm := nil;
+  @EVP_aes_192_gcm := nil;
+  @EVP_aes_256_gcm := nil;
+  @EVP_sha1 := nil;
+  @EVP_PKEY_new := nil;
+  @EVP_PKEY_set1_RSA := nil;
+  @EVP_PKEY_size := nil;
+  @EVP_PKEY_CTX_new := nil;
+  @EVP_PKEY_CTX_free := nil;
+  @EVP_PKEY_CTX_ctrl := nil;
+  @EVP_PKEY_encrypt_init := nil;
+  @EVP_PKEY_encrypt := nil;
+  @EVP_PKEY_decrypt_init := nil;
+  @EVP_PKEY_decrypt := nil;
+  // EVP_sha256 is shared with PSS and was cleared above
+  FJWESupportLoaded := False;
+  FJWESupportAvailable := False;
 end;
 
 {$ENDIF}

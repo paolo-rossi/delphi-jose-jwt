@@ -152,8 +152,8 @@ type
 
   /// <summary>
   ///   TJWE parsing, and every check that comes before any cryptography. The
-  ///   default stack has no AES-GCM provider yet, so the cryptography itself
-  ///   is tested per stack in JOSE.Tests.Providers.JWE
+  ///   cryptography itself is tested per provider stack, through the shared
+  ///   fixtures of JOSE.Tests.Providers.JWE
   /// </summary>
   [TestFixture]
   TTestJWEParsing = class(TTestBase)
@@ -680,11 +680,10 @@ var
   LJWE: TJWE;
   LKey: TJWK;
 begin
-  // The default stack has no AES-GCM yet. That is a configuration problem and
-  // must say so, not hide behind the generic "decryption failed"
-  if TJOSEProviders.HasAESGCM then
-    Exit;
-
+  // A stack without AES-GCM is a configuration problem and must say so, not
+  // hide behind the generic "decryption failed". The slot is emptied for the
+  // test, and the default stack registered again afterwards
+  TJOSEProviders.AESGCM := nil;
   LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
   LToken := TJWT.Create;
   LJWE := TJWE.Create(LToken);
@@ -707,6 +706,7 @@ begin
     LJWE.Free;
     LToken.Free;
     LKey.Free;
+    TJOSEProviders.RegisterProvider;
   end;
 end;
 
@@ -716,9 +716,7 @@ var
   LJWE: TJWE;
   LKey: TJWK;
 begin
-  if TJOSEProviders.HasRSAEncryption then
-    Exit;
-
+  TJOSEProviders.RSAEncryption := nil;
   LKey := TJWK.Create(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem')));
   LToken := TJWT.Create;
   LJWE := TJWE.Create(LToken);
@@ -733,6 +731,7 @@ begin
     LJWE.Free;
     LToken.Free;
     LKey.Free;
+    TJOSEProviders.RegisterProvider;
   end;
 end;
 
@@ -842,31 +841,23 @@ end;
 
 procedure TTestJWEWiring.ConsumerWithAllowlistsGoesOnToDecrypt;
 begin
-  // The default stack has no AES-GCM: reaching that error proves the
-  // allowlists let the token through to the decryption
-  if TJOSEProviders.HasAESGCM then
-    Exit;
-
-  Assert.WillRaise(
+  // The dummy parts cannot decrypt: getting that error, rather than an
+  // allowlist one, proves the allowlists let the token through
+  Assert.AreEqual('EJOSEException: JWE decryption failed', ErrorOf(
     procedure
     begin
       DirConsumer.Build.Process(TokenWithHeader(DIR_A128GCM_HEADER));
-    end,
-    EJOSEProvidersNotRegistered);
+    end));
 end;
 
 procedure TTestJWEWiring.RequireEncryptionAcceptsAJWEShape;
 begin
-  if TJOSEProviders.HasAESGCM then
-    Exit;
-
   // Not refused as "not encrypted": it gets as far as the decryption
-  Assert.WillRaise(
+  Assert.AreEqual('EJOSEException: JWE decryption failed', ErrorOf(
     procedure
     begin
       DirConsumer.SetEnableRequireEncryption.Build.Process(TokenWithHeader(DIR_A128GCM_HEADER));
-    end,
-    EJOSEProvidersNotRegistered);
+    end));
 end;
 
 procedure TTestJWEWiring.VerificationAndDecryptionKeysAreSeparate;

@@ -112,6 +112,34 @@ type
     function ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
   end;
 
+  /// <summary>
+  ///   OpenSSL-backed AES-GCM (JWE A128GCM/A192GCM/A256GCM). Needs OpenSSL 1.0.1 or later:
+  ///   with an older library every call raises EJOSECryptoException (see
+  ///   <c>JoseSSL.EnsureJWESupport</c>), and JWS keeps working.
+  /// </summary>
+  TDefaultAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
+  end;
+
+  /// <summary>
+  ///   OpenSSL-backed RSAES-OAEP (JWE RSA-OAEP/RSA-OAEP-256), through the EVP_PKEY API with
+  ///   the OAEP and MGF1 digests set explicitly. RSA-OAEP-256 needs OpenSSL 1.0.2 or later,
+  ///   the first version with the OAEP digest control.
+  /// </summary>
+  /// <remarks>
+  ///   Derives from TDefaultRSAProvider only to share its PEM key loading (PKCS#1, SPKI and
+  ///   X.509 certificates for public keys).
+  /// </remarks>
+  TDefaultRSAEncryptionProvider = class(TDefaultRSAProvider, IJOSERSAEncryptionProvider)
+  private
+    class function WrapRSA(ARsa: PRSA): PEVP_PKEY; static;
+  public
+    function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+    function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+  end;
+
 {$ENDIF}
 
 implementation
@@ -158,6 +186,18 @@ resourcestring
   SJOSERSAUnsupportedAlgorithm = '[RSA] Unsupported signing algorithm!';
   SJOSERSASignFailed = '[RSA] Unable to sign RSA message digest';
   SJOSERSAPSSUnavailable = '[RSA] The loaded OpenSSL library does not provide the RSASSA-PSS functions';
+  SJOSEJWEUnavailable = '[OpenSSL] The loaded OpenSSL library does not provide the JWE functions ' +
+    '(AES-GCM needs 1.0.1, RSA-OAEP-256 1.0.2)';
+  SJOSEGCMKeyLength = '[OpenSSL] AES-GCM key must be 16, 24 or 32 bytes, not %d';
+  SJOSEGCMIVLength = '[OpenSSL] AES-GCM IV must be 12 bytes, not %d';
+  SJOSEGCMTagLength = '[OpenSSL] AES-GCM authentication tag must be 16 bytes, not %d';
+  SJOSEGCMEncryptError = '[OpenSSL] AES-GCM encryption error (%s)';
+  // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
+  SJOSEGCMDecryptFailed = '[OpenSSL] AES-GCM decryption failed';
+  SJOSEOAEPKeyError = '[OpenSSL] RSA-OAEP: unable to use the RSA key';
+  SJOSEOAEPEncryptError = '[OpenSSL] RSA-OAEP encryption error (%s)';
+  // Deliberately without detail: see IJOSERSAEncryptionProvider.Decrypt
+  SJOSEOAEPDecryptFailed = '[OpenSSL] RSA-OAEP decryption failed';
   SJOSERSAPSSPaddingFailed = '[RSA] Unable to apply RSASSA-PSS padding';
   SJOSERSAPSSKeyTooSmall = '[RSA] %s needs an RSA key of at least %d bytes, this one is %d';
   SJOSERSALoadPrivateKeyError = '[RSA] Unable to load private key: %s';
@@ -1336,6 +1376,285 @@ begin
   end;
 end;
 
+{ JWE }
+
+const
+  // JOSE fixes both (RFC 7518 par. 5.3): a 96-bit IV and a 128-bit tag
+  DEFAULT_GCM_IV_BYTES = 12;
+  DEFAULT_GCM_TAG_BYTES = 16;
+
+/// <summary>
+///   Loads OpenSSL and the JWE symbols. A library without them is a configuration problem,
+///   reported as such, never as a failed decryption
+/// </summary>
+procedure RequireJWESupport;
+begin
+  TJOSEDefaultOpenSslPem.LoadOpenSSL;
+  if not JoseSSL.EnsureJWESupport then
+    raise EJOSECryptoException.Create(SJOSEJWEUnavailable);
+end;
+
+function DefaultGCMCipher(AKeyLength: Integer): PEVP_CIPHER;
+begin
+  case AKeyLength of
+    16: Result := JoseSSL.EVP_aes_128_gcm();
+    24: Result := JoseSSL.EVP_aes_192_gcm();
+    32: Result := JoseSSL.EVP_aes_256_gcm();
+  else
+    raise EJOSECryptoException.CreateFmt(SJOSEGCMKeyLength, [AKeyLength]);
+  end;
+end;
+
+/// <summary>Cipher, IV length, key and IV, then the AAD (an Update with no output)</summary>
+function DefaultGCMInit(ACtx: PEVP_CIPHER_CTX; AForEncryption: Boolean;
+  const AKey, AIV, AAdditionalData: TBytes): Boolean;
+var
+  LCipher: PEVP_CIPHER;
+  LLen: Integer;
+begin
+  LCipher := DefaultGCMCipher(Length(AKey));
+
+  if AForEncryption then
+    Result :=
+      (JoseSSL.EVP_EncryptInit_ex(ACtx, LCipher, nil, nil, nil) = 1) and
+      (JoseSSL.EVP_CIPHER_CTX_ctrl(ACtx, JoseSSL.EVP_CTRL_GCM_SET_IVLEN, DEFAULT_GCM_IV_BYTES, nil) = 1) and
+      (JoseSSL.EVP_EncryptInit_ex(ACtx, nil, nil, @AKey[0], @AIV[0]) = 1)
+  else
+    Result :=
+      (JoseSSL.EVP_DecryptInit_ex(ACtx, LCipher, nil, nil, nil) = 1) and
+      (JoseSSL.EVP_CIPHER_CTX_ctrl(ACtx, JoseSSL.EVP_CTRL_GCM_SET_IVLEN, DEFAULT_GCM_IV_BYTES, nil) = 1) and
+      (JoseSSL.EVP_DecryptInit_ex(ACtx, nil, nil, @AKey[0], @AIV[0]) = 1);
+
+  if Result and (Length(AAdditionalData) > 0) then
+  begin
+    if AForEncryption then
+      Result := JoseSSL.EVP_EncryptUpdate(ACtx, nil, @LLen, @AAdditionalData[0], Length(AAdditionalData)) = 1
+    else
+      Result := JoseSSL.EVP_DecryptUpdate(ACtx, nil, @LLen, @AAdditionalData[0], Length(AAdditionalData)) = 1;
+  end;
+end;
+
+{ TDefaultAESGCMProvider }
+
+function TDefaultAESGCMProvider.Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes;
+  out ATag: TBytes): TBytes;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LLen, LTotal: Integer;
+  LFinal: array[0..DEFAULT_GCM_TAG_BYTES - 1] of Byte;
+begin
+  RequireJWESupport;
+  DefaultGCMCipher(Length(AKey));
+  if Length(AIV) <> DEFAULT_GCM_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSEGCMIVLength, [Length(AIV)]);
+
+  LCtx := JoseSSL.EVP_CIPHER_CTX_new();
+  if LCtx = nil then
+    raise EJOSECryptoException.CreateFmt(SJOSEGCMEncryptError, ['context']);
+  try
+    if not DefaultGCMInit(LCtx, True, AKey, AIV, AAdditionalData) then
+      raise EJOSECryptoException.CreateFmt(SJOSEGCMEncryptError, ['init']);
+
+    SetLength(Result, Length(APlaintext));
+    LTotal := 0;
+    if Length(APlaintext) > 0 then
+    begin
+      if JoseSSL.EVP_EncryptUpdate(LCtx, @Result[0], @LLen, @APlaintext[0], Length(APlaintext)) <> 1 then
+        raise EJOSECryptoException.CreateFmt(SJOSEGCMEncryptError, ['update']);
+      LTotal := LLen;
+    end;
+
+    // GCM is a stream mode: Final writes nothing, but is given a buffer anyway
+    if JoseSSL.EVP_EncryptFinal_ex(LCtx, @LFinal[0], @LLen) <> 1 then
+      raise EJOSECryptoException.CreateFmt(SJOSEGCMEncryptError, ['final']);
+    SetLength(Result, LTotal + LLen);
+
+    SetLength(ATag, DEFAULT_GCM_TAG_BYTES);
+    if JoseSSL.EVP_CIPHER_CTX_ctrl(LCtx, JoseSSL.EVP_CTRL_GCM_GET_TAG, DEFAULT_GCM_TAG_BYTES, @ATag[0]) <> 1 then
+      raise EJOSECryptoException.CreateFmt(SJOSEGCMEncryptError, ['tag']);
+  finally
+    JoseSSL.EVP_CIPHER_CTX_free(LCtx);
+  end;
+end;
+
+function TDefaultAESGCMProvider.Decrypt(const ACiphertext, AKey, AIV, AAdditionalData,
+  ATag: TBytes): TBytes;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LTag, LOutput: TBytes;
+  LLen, LTotal: Integer;
+  LFinal: array[0..DEFAULT_GCM_TAG_BYTES - 1] of Byte;
+  LOk: Boolean;
+begin
+  RequireJWESupport;
+  DefaultGCMCipher(Length(AKey));
+  if Length(AIV) <> DEFAULT_GCM_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSEGCMIVLength, [Length(AIV)]);
+  if Length(ATag) <> DEFAULT_GCM_TAG_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSEGCMTagLength, [Length(ATag)]);
+
+  LCtx := JoseSSL.EVP_CIPHER_CTX_new();
+  if LCtx = nil then
+    raise EJOSECryptoException.Create(SJOSEGCMDecryptFailed);
+  try
+    SetLength(LOutput, Length(ACiphertext));
+    LTotal := 0;
+    LLen := 0;
+
+    LOk := DefaultGCMInit(LCtx, False, AKey, AIV, AAdditionalData);
+    if LOk and (Length(ACiphertext) > 0) then
+    begin
+      LOk := JoseSSL.EVP_DecryptUpdate(LCtx, @LOutput[0], @LLen, @ACiphertext[0], Length(ACiphertext)) = 1;
+      LTotal := LLen;
+    end;
+
+    // The expected tag goes in before Final, which is where it is checked
+    LTag := Copy(ATag);
+    LOk := LOk and (JoseSSL.EVP_CIPHER_CTX_ctrl(LCtx, JoseSSL.EVP_CTRL_GCM_SET_TAG, DEFAULT_GCM_TAG_BYTES, @LTag[0]) = 1);
+    LOk := LOk and (JoseSSL.EVP_DecryptFinal_ex(LCtx, @LFinal[0], @LLen) > 0);
+
+    // Update has already written plaintext: none of it may survive a failure
+    if not LOk then
+    begin
+      if Length(LOutput) > 0 then
+        FillChar(LOutput[0], Length(LOutput), 0);
+      raise EJOSECryptoException.Create(SJOSEGCMDecryptFailed);
+    end;
+
+    SetLength(LOutput, LTotal + LLen);
+    Result := LOutput;
+  finally
+    JoseSSL.EVP_CIPHER_CTX_free(LCtx);
+  end;
+end;
+
+{ TDefaultRSAEncryptionProvider }
+
+/// <summary>
+///   Padding OAEP, with the OAEP digest and the MGF1 digest both ADigest (RFC 7518
+///   par. 4.3). The EVP_PKEY_CTX_set_rsa_* helpers are macros in OpenSSL 1.x, so the
+///   controls they wrap are sent directly
+/// </summary>
+function DefaultConfigureOAEP(ACtx: PEVP_PKEY_CTX; ADigest: TJOSEOAEPDigest): Boolean;
+var
+  LMd: PEVP_MD;
+begin
+  case ADigest of
+    TJOSEOAEPDigest.SHA1: LMd := JoseSSL.EVP_sha1();
+    TJOSEOAEPDigest.SHA256: LMd := JoseSSL.EVP_sha256();
+  else
+    Exit(False);
+  end;
+
+  Result :=
+    (JoseSSL.EVP_PKEY_CTX_ctrl(ACtx, JoseSSL.EVP_PKEY_RSA, -1, JoseSSL.EVP_PKEY_CTRL_RSA_PADDING,
+      JoseSSL.RSA_PKCS1_OAEP_PADDING, nil) > 0) and
+    (JoseSSL.EVP_PKEY_CTX_ctrl(ACtx, JoseSSL.EVP_PKEY_RSA, JoseSSL.EVP_PKEY_OP_TYPE_CRYPT,
+      JoseSSL.EVP_PKEY_CTRL_RSA_OAEP_MD, 0, LMd) > 0) and
+    (JoseSSL.EVP_PKEY_CTX_ctrl(ACtx, JoseSSL.EVP_PKEY_RSA, JoseSSL.EVP_PKEY_OP_TYPE_CRYPT,
+      JoseSSL.EVP_PKEY_CTRL_RSA_MGF1_MD, 0, LMd) > 0);
+end;
+
+class function TDefaultRSAEncryptionProvider.WrapRSA(ARsa: PRSA): PEVP_PKEY;
+begin
+  Result := JoseSSL.EVP_PKEY_new();
+  if (Result <> nil) and (JoseSSL.EVP_PKEY_set1_RSA(Result, ARsa) <> 1) then
+  begin
+    EVP_PKEY_free(Result);
+    Result := nil;
+  end;
+
+  if Result = nil then
+    raise EJOSECryptoException.Create(SJOSEOAEPKeyError);
+end;
+
+function TDefaultRSAEncryptionProvider.Encrypt(const APlaintext, APublicKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LRsa: PRSA;
+  LKey: PEVP_PKEY;
+  LCtx: PEVP_PKEY_CTX;
+  LOutLen: NativeUInt;
+begin
+  RequireJWESupport;
+  if Length(APlaintext) = 0 then
+    raise EJOSECryptoException.CreateFmt(SJOSEOAEPEncryptError, ['empty plaintext']);
+
+  // PKCS#1, SPKI or an X.509 certificate, as for RS*/PS* verification
+  LRsa := LoadPublicKey(APublicKey);
+  try
+    LKey := WrapRSA(LRsa);
+  finally
+    RSA_Free(LRsa);
+  end;
+
+  try
+    LCtx := JoseSSL.EVP_PKEY_CTX_new(LKey, nil);
+    if LCtx = nil then
+      raise EJOSECryptoException.CreateFmt(SJOSEOAEPEncryptError, ['context']);
+    try
+      if (JoseSSL.EVP_PKEY_encrypt_init(LCtx) <= 0) or not DefaultConfigureOAEP(LCtx, ADigest) then
+        raise EJOSECryptoException.CreateFmt(SJOSEOAEPEncryptError, ['init']);
+
+      SetLength(Result, JoseSSL.EVP_PKEY_size(LKey));
+      LOutLen := Length(Result);
+      if JoseSSL.EVP_PKEY_encrypt(LCtx, @Result[0], @LOutLen, @APlaintext[0], Length(APlaintext)) <= 0 then
+        raise EJOSECryptoException.CreateFmt(SJOSEOAEPEncryptError, ['encrypt']);
+      SetLength(Result, LOutLen);
+    finally
+      JoseSSL.EVP_PKEY_CTX_free(LCtx);
+    end;
+  finally
+    EVP_PKEY_free(LKey);
+  end;
+end;
+
+function TDefaultRSAEncryptionProvider.Decrypt(const ACiphertext, APrivateKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LRsa: PRSA;
+  LKey: PEVP_PKEY;
+  LCtx: PEVP_PKEY_CTX;
+  LOutput: TBytes;
+  LOutLen: NativeUInt;
+  LOk: Boolean;
+begin
+  RequireJWESupport;
+
+  // Key errors keep their message: the key is the caller's configuration
+  LRsa := LoadPrivateKey(APrivateKey);
+  try
+    LKey := WrapRSA(LRsa);
+  finally
+    RSA_Free(LRsa);
+  end;
+
+  try
+    LCtx := JoseSSL.EVP_PKEY_CTX_new(LKey, nil);
+    if LCtx = nil then
+      raise EJOSECryptoException.Create(SJOSEOAEPDecryptFailed);
+    try
+      SetLength(LOutput, JoseSSL.EVP_PKEY_size(LKey));
+      LOutLen := Length(LOutput);
+
+      LOk := (Length(ACiphertext) > 0) and (JoseSSL.EVP_PKEY_decrypt_init(LCtx) > 0) and
+        DefaultConfigureOAEP(LCtx, ADigest) and
+        (JoseSSL.EVP_PKEY_decrypt(LCtx, @LOutput[0], @LOutLen, @ACiphertext[0], Length(ACiphertext)) > 0);
+
+      // One message for every failure (bad padding, wrong length, wrong key)
+      if not LOk then
+        raise EJOSECryptoException.Create(SJOSEOAEPDecryptFailed);
+
+      SetLength(LOutput, LOutLen);
+      Result := LOutput;
+    finally
+      JoseSSL.EVP_PKEY_CTX_free(LCtx);
+    end;
+  finally
+    EVP_PKEY_free(LKey);
+  end;
+end;
+
 {$ENDIF}
 
 {$IF CompilerVersion <= 27}
@@ -1596,12 +1915,18 @@ begin
   TJOSEProviders.ECDSA := TDefaultECDSAProvider.Create(LCert);
   TJOSEProviders.RSAKeyMaterial := TDefaultRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TDefaultECKeyMaterialProvider.Create;
-{$ENDIF}
-  // JWE: not implemented by this stack yet. Cleared rather than left alone, so
-  // that registering over another stack cannot keep that stack's providers
+  // JWE: registered whatever the OpenSSL version, so that a library without the JWE
+  // functions is reported when JWE is used ("needs 1.0.1/1.0.2") rather than as a
+  // missing provider, and never at registration, where it would break JWS users
+  TJOSEProviders.AESGCM := TDefaultAESGCMProvider.Create;
+  TJOSEProviders.RSAEncryption := TDefaultRSAEncryptionProvider.Create(LCert);
+{$ELSE}
+  // No OpenSSL on this target: cleared rather than left alone, so that
+  // registering over another stack cannot keep that stack's providers
   TJOSEProviders.AESGCM := nil;
-{$IFDEF RSA_SIGNING}
+  {$IFDEF RSA_SIGNING}
   TJOSEProviders.RSAEncryption := nil;
+  {$ENDIF}
 {$ENDIF}
 end;
 
