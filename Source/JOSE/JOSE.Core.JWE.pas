@@ -24,7 +24,8 @@ uses
   JOSE.Core.JWT,
   JOSE.Core.JWE.Header,
   JOSE.Core.JWA.KeyManagement,
-  JOSE.Core.JWA.Encryption;
+  JOSE.Core.JWA.Encryption,
+  JOSE.Core.JWA.Compression;
 
 type
   /// <summary>
@@ -53,6 +54,15 @@ type
   ///     bad tag) raises EJOSEException with one generic message, so that the
   ///     error says nothing about which check failed.
   ///   </para>
+  ///   <para>
+  ///     Compression ("zip":"DEF"): a received token is decompressed after
+  ///     decryption, up to MaxDecompressedSize bytes. A token is compressed
+  ///     only when its header asks for it ("zip":"DEF" set on the TJWT
+  ///     header before encrypting): compressing before encrypting can leak
+  ///     plaintext through the ciphertext length when part of the content is
+  ///     chosen by an attacker (RFC 8725 par. 3.6). Any other "zip" value is
+  ///     rejected.
+  ///   </para>
   /// </remarks>
   /// <seealso href="https://tools.ietf.org/html/rfc7516">
   ///   JWE RFC Document
@@ -61,11 +71,16 @@ type
   private
     const COMPACT_PARTS = 5;
   private
+    class var FMaxDecompressedSize: Integer;
+    class constructor Create;
+  private
     FHeader: TJWEHeader;
     FPayload: TJOSEBytes;
     function GetPart(AIndex: Integer): TJOSEBytes;
     function GetKeyManagementAlgorithm(const AAlg: string): IJOSEKeyManagementAlgorithm;
     function GetEncryptionAlgorithm(const AEnc: string): IJOSEEncryptionAlgorithm;
+    /// <summary>The "zip" algorithm the header names, nil when it names none</summary>
+    function GetCompressionAlgorithm: IJOSECompressionAlgorithm;
     procedure CheckHeaderIsSupported;
   protected
     function GetCompactToken: TJOSEBytes; override;
@@ -105,6 +120,13 @@ type
     /// </summary>
     procedure Decrypt(AKey: TJWK);
 
+    /// <summary>
+    ///   The largest payload a compressed ("zip":"DEF") token may decompress
+    ///   to, in bytes; a larger one is rejected. 250 000 by default. Process
+    ///   wide: set it at startup, like the provider registration
+    /// </summary>
+    class property MaxDecompressedSize: Integer read FMaxDecompressedSize write FMaxDecompressedSize;
+
     /// <summary>The JWE header, protected header included</summary>
     property Header: TJWEHeader read FHeader;
     /// <summary>The plaintext of the last encryption or decryption</summary>
@@ -135,7 +157,7 @@ resourcestring
   SJOSEJWEAlgNotKeyManagement = 'The "alg" value (%s) is not a JWE key management algorithm';
   SJOSEJWEAlgNotSupported = 'JWE key management algorithm (%s) is not supported';
   SJOSEJWEEncNotSupported = 'JWE content encryption algorithm (%s) is not supported';
-  SJOSEJWECompressionNotSupported = 'JWE compression ("zip") is not supported';
+  SJOSEJWECompressionNotSupported = 'JWE compression ("zip":"%s") is not supported: only "DEF" is';
   SJOSEJWECriticalNotSupported = 'The JWE header has a "crit" member, and none of the extensions it can name is supported';
   // Deliberately one message for every decryption failure: see the class remarks
   SJOSEJWEDecryptionFailed = 'JWE decryption failed';
@@ -267,12 +289,29 @@ begin
     raise EJOSEException.CreateFmt(SJOSEJWEEncNotSupported, [AEnc]);
 end;
 
+class constructor TJWE.Create;
+begin
+  // Nimbus JOSE+JWT's limit: generous for any real token
+  FMaxDecompressedSize := 250000;
+end;
+
+function TJWE.GetCompressionAlgorithm: IJOSECompressionAlgorithm;
+begin
+  Result := nil;
+  if not FHeader.HasCompression then
+    Exit;
+
+  // A "zip" that is not understood is rejected: ignoring it would hand back
+  // the compressed bytes as the plaintext (or encrypt uncompressed bytes the
+  // recipient will try to inflate). A non-string "zip" reads as '' here
+  Result := TJOSEAlgorithmRegistryFactory.Instance.CompressionAlgorithmRegistry.GetAlgorithm(FHeader.Compression);
+  if Result = nil then
+    raise EJOSEException.CreateFmt(SJOSEJWECompressionNotSupported, [FHeader.Compression]);
+end;
+
 procedure TJWE.CheckHeaderIsSupported;
 begin
-  // Ignoring "zip" would return compressed bytes as the plaintext, and
-  // ignoring "crit" is what RFC 7516 par. 4.1.13 forbids
-  if FHeader.HasCompression then
-    raise EJOSEException.Create(SJOSEJWECompressionNotSupported);
+  // Ignoring "crit" is what RFC 7516 par. 4.1.13 forbids
   if FHeader.HasCritical then
     raise EJOSEException.Create(SJOSEJWECriticalNotSupported);
 end;
@@ -282,8 +321,9 @@ function TJWE.EncryptPayload(AKey: TJWK; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncr
 var
   LKeyManagement: IJOSEKeyManagementAlgorithm;
   LEncryption: IJOSEEncryptionAlgorithm;
+  LCompression: IJOSECompressionAlgorithm;
   LKeys: TJOSEKeyManagementResult;
-  LProtected: TJOSEBytes;
+  LProtected, LPlaintext: TJOSEBytes;
   LParts: TEncryptionParts;
 begin
   if not Assigned(AKey) then
@@ -292,18 +332,26 @@ begin
   LKeyManagement := GetKeyManagementAlgorithm(AAlg.AsString);
   LEncryption := GetEncryptionAlgorithm(AEnc.AsString);
 
-  // The token's header (typ, kid, custom members) plus "alg" and "enc"
+  // The token's header (typ, kid, custom members, "zip" when the caller asked
+  // for compression) plus "alg" and "enc"
   FHeader.Assign(FToken.Header);
   FHeader.Algorithm := AAlg.AsString;
   FHeader.EncryptionId := AEnc;
   CheckHeaderIsSupported;
+  LCompression := GetCompressionAlgorithm;
+
+  // Compressed only on request: see the class remarks
+  if Assigned(LCompression) then
+    LPlaintext := LCompression.Compress(APayload.AsBytes)
+  else
+    LPlaintext := APayload;
 
   // Before the header is serialized: some algorithms add header members
   LKeys := LKeyManagement.ManageForEncrypt(AKey.Key, LEncryption.GetCEKLength, FHeader);
 
   // Serialized once: this string is both part 0 and the AAD
   LProtected := FHeader.URLEncoded;
-  LParts := LEncryption.Encrypt(APayload, LProtected.AsBytes, LKeys.CEK);
+  LParts := LEncryption.Encrypt(LPlaintext.AsBytes, LProtected.AsBytes, LKeys.CEK);
 
   FParts[0] := LProtected;
   FParts[1] := EncodePart(LKeys.EncryptedKey);
@@ -326,6 +374,7 @@ function TJWE.DecryptPayload(AKey: TJWK): TJOSEBytes;
 var
   LKeyManagement: IJOSEKeyManagementAlgorithm;
   LEncryption: IJOSEEncryptionAlgorithm;
+  LCompression: IJOSECompressionAlgorithm;
   LEncryptedKey, LCEK: TJOSEBytes;
   LParts: TEncryptionParts;
 begin
@@ -339,6 +388,7 @@ begin
   LKeyManagement := GetKeyManagementAlgorithm(FHeader.Algorithm);
   LEncryption := GetEncryptionAlgorithm(FHeader.Encryption);
   CheckHeaderIsSupported;
+  LCompression := GetCompressionAlgorithm;
 
   // SetCompactToken accepted only strict base64url, so these cannot fail
   LEncryptedKey := DecodePart(FParts[1]);
@@ -357,6 +407,12 @@ begin
     on E: Exception do
       raise EJOSEException.Create(SJOSEJWEDecryptionFailed);
   end;
+
+  // After the decryption, outside the generic error: the payload is
+  // authentic by now, so a precise message (corrupt data, over the size cap)
+  // tells the sender's mistake apart from an attack without helping one
+  if Assigned(LCompression) then
+    FPayload := LCompression.Decompress(FPayload.AsBytes, FMaxDecompressedSize);
 
   Result := FPayload;
 end;

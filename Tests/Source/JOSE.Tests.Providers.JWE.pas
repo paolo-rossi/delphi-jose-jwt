@@ -281,6 +281,28 @@ type
     [TestCase('Ciphertext', '3')]
     [TestCase('Tag',        '4')]
     procedure CBCHMAC_TamperedDotNetToken_IsRejected(APart: Integer);
+
+    // Compression ("zip":"DEF"). The interop token is dir + A256GCM, its
+    // payload compressed with .NET's DeflateStream and encrypted with AesGcm
+    [Test]
+    procedure Zip_DecryptsDotNetToken;
+
+    [Test]
+    procedure Zip_TamperedTokenFailsBeforeDecompressing;
+
+    [Test]
+    [TestCase('A256GCM',       'A256GCM')]
+    [TestCase('A128CBC-HS256', 'A128CBC_HS256')]
+    procedure Zip_OptInRoundTrip(AEnc: TJOSEEncryptionAlgorithmId);
+
+    [Test]
+    procedure Zip_NotCompressedUnlessAsked;
+
+    [Test]
+    procedure Zip_UnknownValueRejectedOnEncrypt;
+
+    [Test]
+    procedure Zip_DecompressionBombIsRejected;
   end;
 
   /// <summary>
@@ -358,6 +380,7 @@ implementation
 uses
   System.Classes,
   System.IOUtils,
+  System.StrUtils,
   JOSE.Encoding.Base64,
   JOSE.Providers,
   JOSE.Core.Base,
@@ -1886,6 +1909,160 @@ begin
     Assert.AreEqual('dotnet', LToken.Claims.Issuer);
   finally
     LToken.Free;
+  end;
+end;
+
+const
+  // dir + A256GCM + "zip":"DEF", built with .NET (DeflateStream, then
+  // AesGcm). Plaintext before compression:
+  // {"sub":"alice","iss":"dotnet","roles":["reader","reader","reader","reader","reader","reader"]}
+  DOTNET_ZIP_KEY_HEX = 'a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
+  DOTNET_ZIP_TOKEN =
+    'eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIiwiemlwIjoiREVGIn0' +
+    '..Dw4NDAsKCQgHBgUE' +
+    '.cv9co1CtqLQBI2mY6It0uosOFdqPfpeTtJGm9FZ9sL_ikEW3Wv44X25KR6wT4KYka8rSKaug' +
+    '.bhipCaehD9cIdtNigo4ztw';
+
+const
+  REPETITIVE_ISSUER_PART = 'https://issuer.example.com/';
+
+// A token whose claims compress well: a long, repetitive issuer
+function RepetitiveClaimsToken: TJWT;
+begin
+  Result := TJWT.Create;
+  Result.Claims.Subject := 'alice';
+  Result.Claims.Issuer := DupeString(REPETITIVE_ISSUER_PART, 40);
+end;
+
+procedure TJWETokenTestBase.Zip_DecryptsDotNetToken;
+var
+  LToken: TJWT;
+begin
+  LToken := TJOSE.Decrypt(TJOSEBytes(HexToBytes(DOTNET_ZIP_KEY_HEX)), DOTNET_ZIP_TOKEN);
+  try
+    Assert.AreEqual('DEF', LToken.Header.JSON.GetValue<string>('zip'));
+    Assert.AreEqual('alice', LToken.Claims.Subject);
+    Assert.AreEqual('dotnet', LToken.Claims.Issuer);
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Zip_TamperedTokenFailsBeforeDecompressing;
+begin
+  // The tag check comes first: a tampered compressed token never reaches the
+  // decompressor, and fails like any other
+  Assert.AreEqual(JWE_DECRYPTION_FAILED,
+    DecryptError(FlipPartBit(DOTNET_ZIP_TOKEN, 3), HexToBytes(DOTNET_ZIP_KEY_HEX)));
+end;
+
+procedure TJWETokenTestBase.Zip_OptInRoundTrip(AEnc: TJOSEEncryptionAlgorithmId);
+var
+  LKey: TJOSEBytes;
+  LPlain, LZipped: TJWT;
+  LPlainToken, LZippedToken: TJOSEBytes;
+  LRead: TJWT;
+begin
+  LKey := TJOSEBytes.RandomBytes(AEnc.CEKLength);
+
+  LPlain := RepetitiveClaimsToken;
+  LZipped := RepetitiveClaimsToken;
+  try
+    LZipped.Header.SetHeaderParam('zip', 'DEF');
+    LPlainToken := TJOSE.Encrypt(LKey, LPlain, TJOSEAlgorithmId.Dir, AEnc);
+    LZippedToken := TJOSE.Encrypt(LKey, LZipped, TJOSEAlgorithmId.Dir, AEnc);
+  finally
+    LZipped.Free;
+    LPlain.Free;
+  end;
+
+  // The ciphertext part is what compression shrinks
+  Assert.IsTrue(Length(LZippedToken.AsString.Split(['.'])[3]) < Length(LPlainToken.AsString.Split(['.'])[3]) div 2,
+    'The compressed token should be much smaller');
+
+  LRead := TJOSE.Decrypt(LKey, LZippedToken);
+  try
+    Assert.AreEqual('DEF', LRead.Header.JSON.GetValue<string>('zip'));
+    Assert.AreEqual('alice', LRead.Claims.Subject);
+    Assert.AreEqual(DupeString(REPETITIVE_ISSUER_PART, 40), LRead.Claims.Issuer);
+  finally
+    LRead.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Zip_NotCompressedUnlessAsked;
+var
+  LKey: TJOSEBytes;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LReadToken: TJWT;
+begin
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := RepetitiveClaimsToken;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LReadToken);
+  try
+    LJWE.CompactToken := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+    Assert.IsFalse(LJWE.Header.HasCompression, 'Compression must be asked for');
+  finally
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Zip_UnknownValueRejectedOnEncrypt;
+var
+  LToken: TJWT;
+  LMessage: string;
+begin
+  LToken := RepetitiveClaimsToken;
+  try
+    LToken.Header.SetHeaderParam('zip', 'GZIP');
+    LMessage := JOSEErrorOf(
+      procedure
+      begin
+        TJOSE.Encrypt(TJOSEBytes.RandomBytes(32), LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+      end);
+    Assert.Contains(LMessage, '("zip":"GZIP") is not supported');
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Zip_DecompressionBombIsRejected;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LBomb, LCompact: TJOSEBytes;
+  LSavedCap: Integer;
+  LMessage: string;
+begin
+  // 2 MB of '0': compresses to a few KB, over the 250 000-byte default cap
+  LBomb := TJOSEBytes(StringOfChar('0', 2 * 1024 * 1024));
+
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LSavedCap := TJWE.MaxDecompressedSize;
+  try
+    LToken.Header.SetHeaderParam('zip', 'DEF');
+    LCompact := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM, LBomb);
+    Assert.IsTrue(LCompact.Size < 20000, 'Not a bomb: the test proves nothing');
+
+    // Authentic, so the error is precise (not the generic one)
+    LMessage := DecryptError(LCompact.AsString, LKey.Key);
+    Assert.Contains(LMessage, 'more than 250000 bytes');
+
+    // The cap is the only thing in the way
+    TJWE.MaxDecompressedSize := 3 * 1024 * 1024;
+    Assert.AreEqual('', DecryptError(LCompact.AsString, LKey.Key));
+  finally
+    TJWE.MaxDecompressedSize := LSavedCap;
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
   end;
 end;
 

@@ -18,8 +18,10 @@ interface
 
 uses
   System.SysUtils,
+  System.Classes,
   System.IOUtils,
   System.Rtti,
+  System.ZLib,
   DUnitX.TestFramework,
 
   JOSE.Tests.Classes,
@@ -33,6 +35,7 @@ uses
   JOSE.Core.JWE.Header,
   JOSE.Core.Base,
   JOSE.Core.Builder,
+  JOSE.Core.JWA.Compression,
   JOSE.Context,
   JOSE.Consumer,
   JOSE.Encoding.Base64,
@@ -197,7 +200,9 @@ type
     [TestCase('No alg',           '{"enc":"A128GCM"}|not supported', '|')]
     [TestCase('Unknown enc',      '{"alg":"dir","enc":"A512GCM"}|not supported', '|')]
     [TestCase('No enc',           '{"alg":"dir"}|not supported', '|')]
-    [TestCase('zip',              '{"alg":"dir","enc":"A128GCM","zip":"DEF"}|"zip"', '|')]
+    [TestCase('Unknown zip',      '{"alg":"dir","enc":"A128GCM","zip":"GZIP"}|("zip":"GZIP") is not supported', '|')]
+    [TestCase('Lowercase zip',    '{"alg":"dir","enc":"A128GCM","zip":"def"}|("zip":"def") is not supported', '|')]
+    [TestCase('Non-string zip',   '{"alg":"dir","enc":"A128GCM","zip":1}|is not supported', '|')]
     [TestCase('crit',             '{"alg":"dir","enc":"A128GCM","crit":["exp"],"exp":1}|"crit"', '|')]
     procedure DecryptRejectsHeaderBeforeCrypto(const AHeader, AExpectedMessage: string);
 
@@ -209,6 +214,44 @@ type
 
     [Test]
     procedure MissingRSAEncryptionProviderIsReportedAsSuch;
+  end;
+
+  /// <summary>
+  ///   "zip":"DEF" (raw DEFLATE): the compression algorithm on its own. Pure
+  ///   RTL, so it runs here; the JWE-level cases run per provider stack
+  /// </summary>
+  [TestFixture]
+  TTestDeflateCompression = class
+  public
+    [Test]
+    procedure RegistryResolvesOnlyDEF;
+
+    [Test]
+    [TestCase('Empty',   '0')]
+    [TestCase('Short',   '10')]
+    [TestCase('Chunk+1', '16385')]
+    [TestCase('Large',   '200000')]
+    procedure RoundTrip(ALength: Integer);
+
+    [Test]
+    procedure CompressesRepetitiveData;
+
+    // Raw DEFLATE produced by .NET's DeflateStream
+    [Test]
+    procedure DecompressesDotNetDeflate;
+
+    // zlib-wrapped data (header 78 9C) is not raw DEFLATE
+    [Test]
+    procedure RejectsZlibWrappedData;
+
+    [Test]
+    procedure RejectsGarbage;
+
+    [Test]
+    procedure CapIsEnforcedWhileInflating;
+
+    [Test]
+    procedure CapIsInclusive;
   end;
 
   /// <summary>
@@ -932,7 +975,127 @@ begin
     EJOSEException);
 end;
 
+{ TTestDeflateCompression }
+
+const
+  // .NET: DeflateStream(CompressionLevel.Optimal) over the ASCII of DOTNET_DEFLATE_TEXT
+  // (which ends with a space)
+  DOTNET_DEFLATE_TEXT = 'JOSE compression test: ' +
+    'the quick brown fox jumps over the lazy dog. the quick brown fox jumps over the lazy dog. ' +
+    'the quick brown fox jumps over the lazy dog. the quick brown fox jumps over the lazy dog. ';
+  DOTNET_DEFLATE_HEX =
+    'f3f20f765548cecf2d284a2d2ececccf5328492d2eb15228c94855282ccd4cce56482aca2fcf5348cbaf50c82acd2d28' +
+    '56c82f4b2d024be72456552aa4e4a7eb0d16c500';
+
+function Deflate: IJOSECompressionAlgorithm;
+begin
+  Result := TJOSEAlgorithmRegistryFactory.Instance.CompressionAlgorithmRegistry.GetAlgorithm('DEF');
+end;
+
+function HexToBytes(const AHex: string): TBytes;
+begin
+  SetLength(Result, Length(AHex) div 2);
+  if Length(Result) > 0 then
+    HexToBin(PChar(AHex), PByte(Result), Length(Result));
+end;
+
+procedure TTestDeflateCompression.RegistryResolvesOnlyDEF;
+var
+  LRegistry: TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>;
+begin
+  LRegistry := TJOSEAlgorithmRegistryFactory.Instance.CompressionAlgorithmRegistry;
+  Assert.IsNotNull(LRegistry.GetAlgorithm('DEF'));
+  Assert.IsNull(LRegistry.GetAlgorithm('def'), '"zip" is case-sensitive');
+  Assert.IsNull(LRegistry.GetAlgorithm('GZIP'));
+  Assert.IsNull(LRegistry.GetAlgorithm(''));
+end;
+
+procedure TTestDeflateCompression.RoundTrip(ALength: Integer);
+var
+  LData: TBytes;
+begin
+  LData := TJOSEBytes.RandomBytes(ALength);
+  Assert.IsTrue(TJOSEBytes(Deflate.Decompress(Deflate.Compress(LData), 1000000)) = LData);
+end;
+
+procedure TTestDeflateCompression.CompressesRepetitiveData;
+var
+  LData: TBytes;
+begin
+  LData := TEncoding.ASCII.GetBytes(DOTNET_DEFLATE_TEXT);
+  Assert.IsTrue(Length(Deflate.Compress(LData)) < Length(LData) div 2);
+end;
+
+procedure TTestDeflateCompression.DecompressesDotNetDeflate;
+begin
+  Assert.AreEqual(DOTNET_DEFLATE_TEXT,
+    TEncoding.ASCII.GetString(Deflate.Decompress(HexToBytes(DOTNET_DEFLATE_HEX), 1000)));
+end;
+
+procedure TTestDeflateCompression.RejectsZlibWrappedData;
+var
+  LZlib: TBytes;
+begin
+  // ZCompress writes a zlib stream (2-byte header, Adler-32 trailer)
+  ZCompress(TEncoding.ASCII.GetBytes(DOTNET_DEFLATE_TEXT), LZlib);
+  Assert.AreEqual($78, Integer(LZlib[0]), 'Not a zlib stream: the test proves nothing');
+
+  Assert.WillRaise(
+    procedure
+    begin
+      Deflate.Decompress(LZlib, 1000);
+    end,
+    EJOSEException);
+end;
+
+procedure TTestDeflateCompression.RejectsGarbage;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      Deflate.Decompress(TBytes.Create($FF, $FF, $FF, $FF, $FF, $FF), 1000);
+    end,
+    EJOSEException);
+end;
+
+procedure TTestDeflateCompression.CapIsEnforcedWhileInflating;
+var
+  LBomb: TBytes;
+  LMessage: string;
+begin
+  // 10 MB of zeros deflates to about 10 KB
+  SetLength(LBomb, 10 * 1024 * 1024);
+  FillChar(LBomb[0], Length(LBomb), 0);
+  LBomb := Deflate.Compress(LBomb);
+  Assert.IsTrue(Length(LBomb) < 20000, 'Not a bomb: the test proves nothing');
+
+  LMessage := '';
+  try
+    Deflate.Decompress(LBomb, 250000);
+  except
+    on E: EJOSEException do
+      LMessage := E.Message;
+  end;
+  Assert.Contains(LMessage, 'more than 250000 bytes');
+end;
+
+procedure TTestDeflateCompression.CapIsInclusive;
+var
+  LCompressed: TBytes;
+begin
+  LCompressed := Deflate.Compress(TJOSEBytes.RandomBytes(1000));
+
+  Assert.AreEqual(1000, Length(Deflate.Decompress(LCompressed, 1000)), 'Exactly the cap is allowed');
+  Assert.WillRaise(
+    procedure
+    begin
+      Deflate.Decompress(LCompressed, 999);
+    end,
+    EJOSEException);
+end;
+
 initialization
+  TDUnitX.RegisterTestFixture(TTestDeflateCompression);
   TDUnitX.RegisterTestFixture(TTestJWEWiring);
   TDUnitX.RegisterTestFixture(TTestJWEParsing);
   TDUnitX.RegisterTestFixture(TTestJWEIdentifiers);

@@ -52,7 +52,11 @@ type
     property EncryptionId: TJOSEEncryptionAlgorithmId read GetEncryptionId write SetEncryptionId;
     /// <summary>The "cty" member</summary>
     property ContentType: string read GetContentType write SetContentType;
-    /// <summary>The "zip" member. Read-only: compression is not supported yet</summary>
+    /// <summary>
+    ///   The "zip" member. To have a token compressed, set "zip":"DEF" on the
+    ///   TJWT's header before encrypting (TJWTHeader.SetHeaderParam): this
+    ///   header is rebuilt from that one on every encryption
+    /// </summary>
     property Compression: string read GetCompression;
     /// <summary>True when the header has a "zip" member, whatever its value</summary>
     property HasCompression: Boolean read GetHasCompression;

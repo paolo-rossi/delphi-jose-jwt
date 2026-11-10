@@ -191,7 +191,10 @@ begin
     .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A192CBC_HS384.AsString, TAESCBCHMACAlgorithm.A192CBC_HS384)
     .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A256CBC_HS512.AsString, TAESCBCHMACAlgorithm.A256CBC_HS512);
 
+  // JWE "zip". Pure RTL, so unconditional
   FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('zip');
+  FCompressionAlgorithmRegistry
+    .RegisterAlgorithm(JWE_COMPRESSION_DEFLATE, TDeflateCompressionAlgorithm.Deflate);
 end;
 
 destructor TJOSEAlgorithmRegistryFactory.Destroy;
