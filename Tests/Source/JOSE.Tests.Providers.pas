@@ -146,6 +146,8 @@ type
     [Test]
     procedure JWEReportsTheMissingCapability;
     [Test]
+    procedure JWEVersionIsChecked;
+    [Test]
     procedure JWSIsUnaffected;
   end;
 
@@ -524,7 +526,7 @@ begin
       on E: EJOSEProvidersNotRegistered do
         LMessage := E.Message;
     end;
-    Assert.Contains(LMessage, '1.0.1', 'Decrypt');
+    Assert.Contains(LMessage, '1.0.2', 'Decrypt');
 
     LMessage := '';
     try
@@ -533,10 +535,38 @@ begin
       on E: EJOSEProvidersNotRegistered do
         LMessage := E.Message;
     end;
-    Assert.Contains(LMessage, '1.0.1', 'Encrypt');
+    Assert.Contains(LMessage, '1.0.2', 'Encrypt');
   finally
     LToken.Free;
   end;
+end;
+
+procedure TTestDefaultJWEWithoutSupport.JWEVersionIsChecked;
+var
+  LKey: TJOSEBytes;
+  LToken: TJWT;
+begin
+  // A real JWE operation loads the library and resolves the JWE symbols first,
+  // so the checks below have something to look at
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'alice';
+    TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+
+  // 1.0.2 is the first release whose RSA-OAEP digest controls JWE needs:
+  // OPENSSL_VERSION_NUMBER is 0xMNNFFPPS, so 1.0.1 sorts below 1.0.2
+  Assert.IsFalse(JoseSSL.VersionSupportsJWE(0), 'No version must not pass');
+  Assert.IsFalse(JoseSSL.VersionSupportsJWE($1000100F), '1.0.1 final must not pass');
+  Assert.IsTrue(JoseSSL.VersionSupportsJWE($10002000), '1.0.2 must pass');
+  Assert.IsTrue(JoseSSL.VersionSupportsJWE($1000200F), '1.0.2 final must pass');
+  Assert.IsTrue(JoseSSL.VersionSupportsJWE($10100000), '1.1.0 must pass');
+
+  // And the library the suite runs against is one of the accepted ones
+  Assert.IsTrue(JoseSSL.EnsureJWESupport, 'The OpenSSL in Tests\Exe must support JWE');
 end;
 
 procedure TTestDefaultJWEWithoutSupport.JWSIsUnaffected;

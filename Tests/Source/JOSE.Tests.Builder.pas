@@ -75,6 +75,8 @@ type
     procedure TestVerifyOrRaisePropagatesMalformedToken;
     [Test]
     procedure TestVerifyWithoutKeyRaises;
+    [Test]
+    procedure TestSignWithoutKeyRaises;
 
     // A claims class can now be passed to DeserializeCompact
     [Test]
@@ -302,6 +304,22 @@ begin
   Assert.WillRaise(
     procedure begin TJOSE.Verify(TJWK(nil), LToken).Free end,
     EJOSEException);
+end;
+
+procedure TTestBuilder.TestSignWithoutKeyRaises;
+var
+  LToken: TJWT;
+begin
+  LToken := NewToken;
+  try
+    // A nil key used to be dereferenced inside TJWS (AKey.Key), raising an
+    // access violation instead of a JOSE error, while Verify already guarded
+    Assert.WillRaise(
+      procedure begin TJOSE.Sign(TJWK(nil), TJOSEAlgorithmId.HS256, LToken) end,
+      EJOSEException);
+  finally
+    LToken.Free;
+  end;
 end;
 
 procedure TTestBuilder.TestDeserializeCompactUsesTheClaimsClass;

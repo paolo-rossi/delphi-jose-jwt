@@ -176,6 +176,7 @@ resourcestring
   SJOSENotAJWE = 'The token is not a JWE: a JWE Compact Serialization has 5 parts';
   SJOSEDecryptionKeyRequired = 'A decryption key is required to decrypt the token';
   SJOSEEncryptionKeyRequired = 'An encryption key is required to encrypt the token';
+  SJOSESigningKeyRequired = 'A signing key is required to sign the token';
   SJOSENestedUseDecryptAndVerify = 'The JWE carries a nested JWT ("cty":"JWT"): use DecryptAndVerify, ' +
     'which also verifies the inner signature';
   SJOSENotNested = 'The JWE does not carry a nested JWT ("cty":"JWT")';
@@ -281,6 +282,9 @@ var
   LOuter: TJWT;
   LJWE: TJWE;
 begin
+  if not Assigned(ASignKey) then
+    raise EJOSEException.Create(SJOSESigningKeyRequired);
+
   if not Assigned(AEncryptKey) then
     raise EJOSEException.Create(SJOSEEncryptionKeyRequired);
 
@@ -422,6 +426,9 @@ class function TJOSE.Sign(AKey: TJWK; AAlg: TJOSEAlgorithmId; AToken: TJWT): TJO
 var
   LSigner: TJWS;
 begin
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSESigningKeyRequired);
+
   LSigner := TJWS.Create(AToken);
   try
     Result := LSigner.Sign(AKey, AAlg);

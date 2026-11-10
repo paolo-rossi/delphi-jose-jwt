@@ -636,6 +636,13 @@ begin
   if (LEncId = TJOSEEncryptionAlgorithmId.Unknown) or not (LEncId in FExpectedEncryptionAlgorithms) then
     raise EJOSEException.CreateFmt(SJOSEUnexpectedEncryptionAlgorithm, [AJWE.Header.Encryption]);
 
+  // A plain JWE carries its claims directly, so it has no signature: a consumer
+  // that requires one can never accept it, and decrypting (and decompressing)
+  // it first would only waste the work. Rejecting on the header is safe, since
+  // it can only deny, and the header is public anyway
+  if FRequireSignature and not AJWE.Header.IsNestedJWT then
+    raise EJOSEException.Create(SJOSESignatureRequired);
+
   // Fills the context's claims, unless the payload is a nested JWT
   LKey := TJWK.Create(FDecryptionKey);
   try

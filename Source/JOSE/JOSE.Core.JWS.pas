@@ -105,6 +105,7 @@ resourcestring
   SJOSESigningAlgorithmNotSupported = 'Signing algorithm (%s) is not supported.';
   SJOSECompactSerializationEmpty = 'The JWS Compact Serialization is empty';
   SJOSECompactSerializationPartCount = 'A JWS Compact Serialization must have %d parts';
+  SJOSEKeyRequired = 'A key is required to sign or verify the token';
 
 class function TJWS.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 var
@@ -252,6 +253,12 @@ end;
 
 procedure TJWS.SetKey(const AKey: TJWK);
 begin
+  // A nil key used to raise an access violation here (reading AKey.Key). The
+  // rest of the API reports a missing key as an EJOSEException, and so must
+  // the lowest common point of every signing and verifying path
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEKeyRequired);
+
   FKey := AKey.Key;
 end;
 

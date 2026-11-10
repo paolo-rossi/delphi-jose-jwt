@@ -216,6 +216,14 @@ type
     [Test]
     procedure NestedJWT_LeavesClaimsAlone;
 
+    // A token object describes one token: parsing and decrypting another one
+    // must not leave the previous token's claims or plaintext behind
+    [Test]
+    procedure ReusedObjectsDoNotKeepThePreviousClaims;
+
+    [Test]
+    procedure FailedDecryptionClearsThePayload;
+
     // RSA-OAEP. RFC 7516 A.1 (2048-bit key) and RFC 7520 par. 5.2 (4096-bit
     // key), both RSA-OAEP + A256GCM, extracted from the RFC text by script
     // and decrypted end to end with .NET (RSA OaepSHA1 + AesGcm) before they
@@ -1241,6 +1249,94 @@ begin
   end;
 end;
 
+procedure TJWETokenTestBase.ReusedObjectsDoNotKeepThePreviousClaims;
+const
+  INNER = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2ln';
+var
+  LKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LPlain, LNested: TJOSEBytes;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    // A claims JWE first, so that the reading token holds claims of its own
+    LToken.Claims.Subject := 'alice';
+    LPlain := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+
+    // Then a nested JWT: its claims are the inner JWS's, so this one fills none
+    LToken.Header.SetHeaderParam('cty', 'JWT');
+    LNested := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir,
+      TJOSEEncryptionAlgorithmId.A256GCM, INNER);
+
+    LReadJWE.CompactToken := LPlain;
+    LReadJWE.Decrypt(LKey);
+    Assert.AreEqual('alice', LReadToken.Claims.Subject);
+
+    LReadJWE.CompactToken := LNested;
+    LReadJWE.Decrypt(LKey);
+
+    Assert.AreEqual(INNER, LReadJWE.Payload.AsString);
+    Assert.IsFalse(LReadToken.Claims.HasSubject,
+      'The previous token''s claims must not survive the parse of a nested one');
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.FailedDecryptionClearsThePayload;
+var
+  LKey, LWrongKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LError: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LWrongKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LToken.Claims.Subject := 'alice';
+
+    LReadJWE.CompactToken := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir,
+      TJOSEEncryptionAlgorithmId.A256GCM);
+    LReadJWE.Decrypt(LKey);
+    Assert.AreEqual('alice', LReadToken.Claims.Subject);
+    Assert.IsFalse(LReadJWE.Payload.IsEmpty, 'A successful decryption must expose the plaintext');
+
+    // The same token with the wrong key: the plaintext of the previous attempt
+    // must not still be readable as this one's
+    LError := '';
+    try
+      LReadJWE.Decrypt(LWrongKey);
+    except
+      on E: EJOSEException do
+        LError := E.Message;
+    end;
+
+    Assert.AreEqual(JWE_DECRYPTION_FAILED, LError);
+    Assert.IsTrue(LReadJWE.Payload.IsEmpty, 'A failed decryption must leave no plaintext');
+    Assert.IsFalse(LReadToken.Claims.HasSubject, 'A failed decryption must leave no claims');
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LWrongKey.Free;
+    LKey.Free;
+  end;
+end;
+
 
 { RSA-OAEP vectors }
 
@@ -1742,6 +1838,15 @@ begin
   // Encrypted, but not signed: the default signature requirement refuses it
   LError := ErrorOf(procedure begin NestedConsumer('', LKey).Build.Process(LCompact); end);
   Assert.Contains(LError, 'has no signature');
+
+  // And it is refused without being decrypted: a wrong key gives the same
+  // policy error, not "JWE decryption failed"
+  LError := ErrorOf(
+    procedure
+    begin
+      NestedConsumer('', TJOSEBytes.RandomBytes(32)).Build.Process(LCompact);
+    end);
+  Assert.Contains(LError, 'has no signature', 'The signature requirement must be checked before decrypting');
 end;
 
 procedure TJWEConsumerTestBase.Consumer_NestedJWT_ValidatesInnerClaims;

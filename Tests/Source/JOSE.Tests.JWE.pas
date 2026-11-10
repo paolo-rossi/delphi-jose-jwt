@@ -286,6 +286,9 @@ type
     procedure VerificationAndDecryptionKeysAreSeparate;
 
     [Test]
+    procedure SignAndEncryptRequiresASigningKey;
+
+    [Test]
     procedure TJOSEDecryptRejectsAJWS;
 
     [Test]
@@ -922,6 +925,31 @@ begin
     .Process(HS256Token('alice'));
 
   Assert.Pass;
+end;
+
+procedure TTestJWEWiring.SignAndEncryptRequiresASigningKey;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'alice';
+
+    // A missing signing key used to be dereferenced inside SerializeCompact:
+    // an access violation, not the JOSE error the encryption key already got
+    Assert.WillRaise(
+      procedure
+      begin
+        TJOSE.SignAndEncrypt(TJWK(nil), TJOSEAlgorithmId.HS256, LKey,
+          TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A128GCM, LToken);
+      end,
+      EJOSEException);
+  finally
+    LToken.Free;
+    LKey.Free;
+  end;
 end;
 
 procedure TTestJWEWiring.TJOSEDecryptRejectsAJWS;

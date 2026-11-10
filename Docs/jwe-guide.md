@@ -543,7 +543,7 @@ they appear in the token.
 | Inner JWS of a nested JWT: unexpected `alg`, invalid signature | `EJOSEException` | as for a JWS |
 | Claim validation failures | `EInvalidJWTException` | lists every failed validator |
 | No provider for AES-GCM/AES-CBC/RSA-OAEP registered | `EJOSEProvidersNotRegistered` | |
-| The OpenSSL library has no JWE functions (default stack, before 1.0.1) | `EJOSEProvidersNotRegistered` | says which version is needed |
+| The OpenSSL library has no JWE functions (default stack, before 1.0.2) | `EJOSEProvidersNotRegistered` | says which version is needed |
 
 The last two are configuration problems, not properties of the token, so they keep their own
 exception and message even while decrypting.
@@ -624,16 +624,16 @@ provider every stack already has; compression is pure RTL):
 
 | Provider stack | Unit | JWE |
 |---|---|---|
-| `TJOSEDefaultProviders` (registered automatically) | `JOSE.Providers.Default` | yes: AES-GCM needs OpenSSL **1.0.1**, RSA-OAEP-256 **1.0.2** (AES-CBC is in every 1.0.x) |
+| `TJOSEDefaultProviders` (registered automatically) | `JOSE.Providers.Default` | yes: OpenSSL **1.0.2** or later (AES-GCM, AES-CBC and both RSA-OAEP variants) |
 | `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | yes: OpenSSL 1.1.x/3.x/4.x |
 | `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | yes: pure Pascal, no DLLs |
 
 On the default stack the JWE functions are loaded the first time JWE is used, and only then: an
 OpenSSL library without them does not affect JWS at all, and JWE raises an
-`EJOSEProvidersNotRegistered` that says which version it needs. With OpenSSL 1.0.1 (GCM, but no
-OAEP digest control) `RSA-OAEP-256` is the one thing that cannot work: encrypting raises
-`RSA-OAEP encryption error (init)`, and decrypting fails like any other decryption. The test
-suite runs the default stack on OpenSSL 1.0.2.
+`EJOSEProvidersNotRegistered` that says OpenSSL 1.0.2 is required. The check covers the version
+number as well as the symbols: the RSA-OAEP digest controls arrived in 1.0.2 and are macros, so a
+1.0.1 library that exports everything else is refused up front rather than failing later (on
+decryption, with the generic message). The test suite runs the default stack on OpenSSL 1.0.2.
 
 `dir`, AES-GCM, AES-CBC-HMAC and compression do not depend on RSA. RSA-OAEP is compiled out together with RS*/PS* where
 `RSA_SIGNING` is switched off in `Source\JOSE.inc`.

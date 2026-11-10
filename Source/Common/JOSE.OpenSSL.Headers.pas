@@ -36,6 +36,7 @@ type
   JoseSSL = class
   private const
     fn_SSLeay_version = 'SSLeay_version';
+    fn_SSLeay = 'SSLeay';
 
     fn_PEM_read_bio_PUBKEY = 'PEM_read_bio_PUBKEY';
     fn_PEM_write_bio_PUBKEY = 'PEM_write_bio_PUBKEY';
@@ -175,8 +176,15 @@ type
     // can recover the NID after a PEM write/read round-trip.
     OPENSSL_EC_NAMED_CURVE = $001;
 
+    /// <summary>First OpenSSL release with every entry point JWE needs: the RSA-OAEP
+    ///   digest controls (EVP_PKEY_CTRL_RSA_OAEP_MD/MGF1_MD) appeared in 1.0.2</summary>
+    OPENSSL_JWE_MIN_VERSION = $10002000;
+
   public class var
     SSLeay_version: function(_type: Integer): PIdAnsiChar cdecl;
+    /// <summary>OPENSSL_VERSION_NUMBER of the loaded library (SSLeay is the 1.x name;
+    ///   nil when the library does not export it)</summary>
+    SSLeay: function(): LongWord cdecl;
 
     PEM_read_bio_PUBKEY: function(bp: PBIO; x: PPEVP_PKEY; cb: ppem_password_cb; u: Pointer): PEVP_PKEY; cdecl;
     PEM_write_bio_PUBKEY: function(bp: PBIO; x: PEVP_PKEY): Integer; cdecl;
@@ -304,6 +312,9 @@ type
     class function ECDSA_SIG_set0(const sig: PECDSA_SIG; const r: PBIGNUM; const s: PBIGNUM): Integer;
     class function GetLastError(): string;
   public
+    /// <summary>True when an OPENSSL_VERSION_NUMBER has the entry points JWE needs: at
+    ///   least <c>OPENSSL_JWE_MIN_VERSION</c> (1.0.2)</summary>
+    class function VersionSupportsJWE(const AVersionNumber: LongWord): Boolean;
     class function Load: Boolean;
     class procedure Unload;
     /// <summary>
@@ -324,7 +335,8 @@ type
     ///   Lazily loads the JWE symbols: the EVP cipher API with AES-GCM and AES-CBC, and the EVP_PKEY
     ///   encrypt/decrypt API that RSA-OAEP goes through. Non-fatal like
     ///   <c>EnsureECKeySupport</c>: returns False rather than raising, so a library without
-    ///   them (OpenSSL before 1.0.1 has no GCM) leaves JWS users unaffected
+    ///   them leaves JWS users unaffected. JWE also requires OpenSSL 1.0.2 or later: the RSA-OAEP
+    ///   digest controls are header macros that no symbol lookup can detect
     /// </summary>
     class function EnsureJWESupport: Boolean;
   end;
@@ -479,6 +491,11 @@ begin
   end;
 end;
 
+class function JoseSSL.VersionSupportsJWE(const AVersionNumber: LongWord): Boolean;
+begin
+  Result := AVersionNumber >= OPENSSL_JWE_MIN_VERSION;
+end;
+
 class function JoseSSL.EnsureJWESupport: Boolean;
 var
   LErrors: Integer;
@@ -528,6 +545,17 @@ begin
     @EVP_PKEY_encrypt := Resolve(fn_EVP_PKEY_encrypt);
     @EVP_PKEY_decrypt_init := Resolve(fn_EVP_PKEY_decrypt_init);
     @EVP_PKEY_decrypt := Resolve(fn_EVP_PKEY_decrypt);
+    // SSLeay is the 1.x name of OpenSSL_version_num. Resolved here rather than
+    // in Load: JWS does not need it, only JWE's minimum version does
+    @SSLeay := Resolve(fn_SSLeay);
+
+    // The RSA-OAEP digest controls are macros in evp.h/rsa.h, so resolving a
+    // symbol cannot prove they are there: the version number is the only
+    // reliable test. 1.0.2 is the first release that has them, and JWE is
+    // reported available only from there - a half-working JWE (GCM on 1.0.1 but
+    // OAEP not) would fail later with the generic decryption error instead
+    if Assigned(SSLeay) and not VersionSupportsJWE(SSLeay()) then
+      Inc(LErrors);
 
     FJWESupportAvailable := LErrors = 0;
     FJWESupportLoaded := True;
@@ -603,6 +631,7 @@ end;
 
 class procedure JoseSSL.Unload;
 begin
+  @SSLeay := nil;
   @PEM_read_bio_PUBKEY := nil;
   @PEM_write_bio_PUBKEY := nil;
   @PEM_read_bio_RSA_PUBKEY := nil;

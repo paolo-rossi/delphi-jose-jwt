@@ -113,8 +113,8 @@ type
   end;
 
   /// <summary>
-  ///   OpenSSL-backed AES-GCM (JWE A128GCM/A192GCM/A256GCM). Needs OpenSSL 1.0.1 or later:
-  ///   with an older library every call raises EJOSEProvidersNotRegistered (see
+  ///   OpenSSL-backed AES-GCM (JWE A128GCM/A192GCM/A256GCM). JWE needs OpenSSL 1.0.2 or later:
+  ///   with an older library every JWE call raises EJOSEProvidersNotRegistered (see
   ///   <c>JoseSSL.EnsureJWESupport</c>), and JWS keeps working.
   /// </summary>
   TDefaultAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
@@ -135,8 +135,8 @@ type
 
   /// <summary>
   ///   OpenSSL-backed RSAES-OAEP (JWE RSA-OAEP/RSA-OAEP-256), through the EVP_PKEY API with
-  ///   the OAEP and MGF1 digests set explicitly. RSA-OAEP-256 needs OpenSSL 1.0.2 or later,
-  ///   the first version with the OAEP digest control.
+  ///   the OAEP and MGF1 digests set explicitly. Both variants need the OAEP digest controls,
+  ///   which OpenSSL 1.0.2 introduced: that is the minimum for JWE on this stack.
   /// </summary>
   /// <remarks>
   ///   Derives from TDefaultRSAProvider only to share its PEM key loading (PKCS#1, SPKI and
@@ -196,8 +196,7 @@ resourcestring
   SJOSERSAUnsupportedAlgorithm = '[RSA] Unsupported signing algorithm!';
   SJOSERSASignFailed = '[RSA] Unable to sign RSA message digest';
   SJOSERSAPSSUnavailable = '[RSA] The loaded OpenSSL library does not provide the RSASSA-PSS functions';
-  SJOSEJWEUnavailable = '[OpenSSL] The loaded OpenSSL library does not provide the JWE functions ' +
-    '(AES-GCM needs 1.0.1, RSA-OAEP-256 1.0.2)';
+  SJOSEJWEUnavailable = '[OpenSSL] The loaded OpenSSL library does not provide the JWE functions: OpenSSL 1.0.2 or later is required';
   SJOSEGCMKeyLength = '[OpenSSL] AES-GCM key must be 16, 24 or 32 bytes, not %d';
   SJOSEGCMIVLength = '[OpenSSL] AES-GCM IV must be 12 bytes, not %d';
   SJOSEGCMTagLength = '[OpenSSL] AES-GCM authentication tag must be 16 bytes, not %d';
@@ -1399,9 +1398,10 @@ const
   DEFAULT_GCM_TAG_BYTES = 16;
 
 /// <summary>
-///   Loads OpenSSL and the JWE symbols. A library without them is a configuration problem:
-///   it raises EJOSEProvidersNotRegistered, which the JWE layer lets through, rather than
-///   EJOSECryptoException, which it would turn into the generic "JWE decryption failed"
+///   Loads OpenSSL and the JWE symbols. A library without them, or older than 1.0.2, is a
+///   configuration problem: it raises EJOSEProvidersNotRegistered, which the JWE layer lets
+///   through, rather than EJOSECryptoException, which it would turn into the generic "JWE
+///   decryption failed"
 /// </summary>
 procedure RequireJWESupport;
 begin
@@ -2020,7 +2020,7 @@ begin
   TJOSEProviders.RSAKeyMaterial := TDefaultRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TDefaultECKeyMaterialProvider.Create;
   // JWE: registered whatever the OpenSSL version, so that a library without the JWE
-  // functions is reported when JWE is used ("needs 1.0.1/1.0.2") rather than as a
+  // functions is reported when JWE is used ("needs 1.0.2") rather than as a
   // missing provider, and never at registration, where it would break JWS users
   TJOSEProviders.AESGCM := TDefaultAESGCMProvider.Create;
   TJOSEProviders.AESCBC := TDefaultAESCBCProvider.Create;

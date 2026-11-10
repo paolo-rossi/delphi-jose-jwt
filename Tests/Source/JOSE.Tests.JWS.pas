@@ -91,6 +91,8 @@ type
     [Test]
     procedure TestKeyOverloadsAreEquivalent;
     [Test]
+    procedure TestSetKeyRejectsNilKey;
+    [Test]
     procedure TestSignWithoutAlgorithmHeaderRaises;
     [Test]
     procedure TestSignWithUnregisteredAlgorithmRaises;
@@ -271,6 +273,22 @@ begin
   finally
     LKey.Free;
   end;
+end;
+
+procedure TTestJWS.TestSetKeyRejectsNilKey;
+var
+  LToken: string;
+begin
+  LToken := SignedToken;
+
+  // A nil key used to be dereferenced (AKey.Key), raising an access violation
+  // instead of the JOSE error every other entry point raises for a missing key
+  Assert.WillRaise(
+    procedure begin FJWS.SetKey(TJWK(nil)) end,
+    EJOSEException);
+  Assert.WillRaise(
+    procedure begin FJWS.VerifySignature(TJWK(nil), LToken) end,
+    EJOSEException);
 end;
 
 procedure TTestJWS.TestSignWithoutAlgorithmHeaderRaises;

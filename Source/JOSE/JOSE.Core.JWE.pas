@@ -116,7 +116,7 @@ type
     /// <summary>
     ///   Decrypts the token set through CompactToken into the token's claims.
     ///   When the header says that the payload is a nested JWT ("cty":"JWT")
-    ///   the claims are left alone: the payload is a JWS, read from Payload
+    ///   the claims are left empty: the payload is a JWS, read from Payload
     /// </summary>
     procedure Decrypt(AKey: TJWK);
 
@@ -264,7 +264,12 @@ begin
   for LIndex := 0 to COMPACT_PARTS - 1 do
     FParts[LIndex] := LCompact[LIndex];
 
+  // A parse starts a new token: the previous token's plaintext and claims must
+  // not survive it. Parsing fills neither, and Decrypt leaves the claims empty
+  // for a nested JWT, so without this a reused TJWE/TJWT would still report the
+  // claims of the token decrypted before it
   FPayload := TJOSEBytes.Empty;
+  FToken.Claims.Clear;
 end;
 
 function TJWE.GetKeyManagementAlgorithm(const AAlg: string): IJOSEKeyManagementAlgorithm;
@@ -378,6 +383,11 @@ var
   LEncryptedKey, LCEK: TJOSEBytes;
   LParts: TEncryptionParts;
 begin
+  // Payload describes the last decryption, not the last *successful* one: a
+  // failed attempt must not leave the previous plaintext where a caller that
+  // catches the exception could read it as this token's
+  FPayload := TJOSEBytes.Empty;
+
   if FParts[0].IsEmpty then
     raise EJOSEException.Create(SJOSEJWENotParsed);
   if not Assigned(AKey) then
@@ -419,6 +429,11 @@ end;
 
 procedure TJWE.Decrypt(AKey: TJWK);
 begin
+  // The claims describe this attempt: a failed one must not leave the claims of
+  // a previous successful decryption (even of the same token) where a caller
+  // that caught the exception could still read them
+  FToken.Claims.Clear;
+
   DecryptPayload(AKey);
 
   if not FHeader.IsNestedJWT then
