@@ -77,7 +77,9 @@ type
   /// </summary>
   TJOSEEncryptionAlgorithmId = (
     Unknown,
-    A128GCM, A192GCM, A256GCM
+    A128GCM, A192GCM, A256GCM,
+    // AES-CBC + HMAC-SHA2 (RFC 7518 par. 5.2)
+    A128CBC_HS256, A192CBC_HS384, A256CBC_HS512
   );
   TJOSEEncryptionAlgorithmIdHelper = record helper for TJOSEEncryptionAlgorithmId
   private
@@ -257,6 +259,10 @@ begin
     TJOSEEncryptionAlgorithmId.A128GCM: Result := 16;
     TJOSEEncryptionAlgorithmId.A192GCM: Result := 24;
     TJOSEEncryptionAlgorithmId.A256GCM: Result := 32;
+    // Twice the AES key: the first half is the MAC key (RFC 7518 par. 5.2.2.1)
+    TJOSEEncryptionAlgorithmId.A128CBC_HS256: Result := 32;
+    TJOSEEncryptionAlgorithmId.A192CBC_HS384: Result := 48;
+    TJOSEEncryptionAlgorithmId.A256CBC_HS512: Result := 64;
   else
     Result := 0;
   end;
@@ -268,6 +274,9 @@ begin
     TJOSEEncryptionAlgorithmId.A128GCM: Result := 'A128GCM';
     TJOSEEncryptionAlgorithmId.A192GCM: Result := 'A192GCM';
     TJOSEEncryptionAlgorithmId.A256GCM: Result := 'A256GCM';
+    TJOSEEncryptionAlgorithmId.A128CBC_HS256: Result := 'A128CBC-HS256';
+    TJOSEEncryptionAlgorithmId.A192CBC_HS384: Result := 'A192CBC-HS384';
+    TJOSEEncryptionAlgorithmId.A256CBC_HS512: Result := 'A256CBC-HS512';
   else
     Result := '';
   end;
@@ -283,6 +292,12 @@ begin
     Self := TJOSEEncryptionAlgorithmId.A192GCM
   else if AValue = 'A256GCM' then
     Self := TJOSEEncryptionAlgorithmId.A256GCM
+  else if AValue = 'A128CBC-HS256' then
+    Self := TJOSEEncryptionAlgorithmId.A128CBC_HS256
+  else if AValue = 'A192CBC-HS384' then
+    Self := TJOSEEncryptionAlgorithmId.A192CBC_HS384
+  else if AValue = 'A256CBC-HS512' then
+    Self := TJOSEEncryptionAlgorithmId.A256CBC_HS512
   else
     Self := TJOSEEncryptionAlgorithmId.Unknown;
 end;

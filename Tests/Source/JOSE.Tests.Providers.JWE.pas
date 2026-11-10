@@ -176,6 +176,9 @@ type
     [TestCase('A128GCM', 'A128GCM')]
     [TestCase('A192GCM', 'A192GCM')]
     [TestCase('A256GCM', 'A256GCM')]
+    [TestCase('A128CBC-HS256', 'A128CBC_HS256')]
+    [TestCase('A192CBC-HS384', 'A192CBC_HS384')]
+    [TestCase('A256CBC-HS512', 'A256CBC_HS512')]
     procedure Dir_ClaimsRoundTrip(AEnc: TJOSEEncryptionAlgorithmId);
 
     [Test]
@@ -230,6 +233,8 @@ type
     [TestCase('RSA-OAEP-256 A128GCM', 'RSA_OAEP_256,A128GCM')]
     [TestCase('RSA-OAEP-256 A192GCM', 'RSA_OAEP_256,A192GCM')]
     [TestCase('RSA-OAEP-256 A256GCM', 'RSA_OAEP_256,A256GCM')]
+    [TestCase('RSA-OAEP A128CBC-HS256', 'RSA_OAEP,A128CBC_HS256')]
+    [TestCase('RSA-OAEP-256 A256CBC-HS512', 'RSA_OAEP_256,A256CBC_HS512')]
     procedure RSAOAEP_ClaimsRoundTrip(AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId);
 
     [Test]
@@ -246,6 +251,36 @@ type
 
     [Test]
     procedure RSAOAEP_WrongPrivateKey_IsRejected;
+
+    // AES-CBC-HMAC. RFC 7518 Appendix B decrypted at the algorithm level
+    // (the same vectors as the CBC provider tests)
+    [Test]
+    [TestCase('B.1 A128CBC-HS256', 'B1')]
+    [TestCase('B.2 A192CBC-HS384', 'B2')]
+    [TestCase('B.3 A256CBC-HS512', 'B3')]
+    procedure CBCHMAC_RFC7518_Decrypts(const ACase: string);
+
+    // The tag is checked before anything is decrypted: a tampered ciphertext
+    // fails on the tag, never on the padding
+    [Test]
+    [TestCase('Ciphertext', 'Ciphertext')]
+    [TestCase('Tag',        'Tag')]
+    [TestCase('IV',         'IV')]
+    [TestCase('AAD',        'AAD')]
+    procedure CBCHMAC_TamperingFailsOnTheTag(const AWhat: string);
+
+    [Test]
+    procedure CBCHMAC_TruncatedTagIsRejected;
+
+    // A dir + A128CBC-HS256 JWE built with .NET (Aes.EncryptCbc + HMACSHA256)
+    [Test]
+    procedure CBCHMAC_DecryptsDotNetToken;
+
+    [Test]
+    [TestCase('IV',         '2')]
+    [TestCase('Ciphertext', '3')]
+    [TestCase('Tag',        '4')]
+    procedure CBCHMAC_TamperedDotNetToken_IsRejected(APart: Integer);
   end;
 
   /// <summary>
@@ -278,6 +313,9 @@ type
     [TestCase('HS256 in dir A256GCM',           'HS256,Dir,A256GCM')]
     [TestCase('RS256 in RSA-OAEP-256 A256GCM',  'RS256,RSA_OAEP_256,A256GCM')]
     [TestCase('PS256 in RSA-OAEP A128GCM',      'PS256,RSA_OAEP,A128GCM')]
+    // Keycloak's default for encrypted tokens
+    [TestCase('RS256 in RSA-OAEP A128CBC-HS256', 'RS256,RSA_OAEP,A128CBC_HS256')]
+    [TestCase('HS512 in dir A256CBC-HS512',     'HS512,Dir,A256CBC_HS512')]
     procedure TJOSE_SignAndEncrypt_DecryptAndVerify(ASignAlg, AAlg: TJOSEAlgorithmId;
       AEnc: TJOSEEncryptionAlgorithmId);
 
@@ -326,6 +364,8 @@ uses
   JOSE.Core.JWK,
   JOSE.Core.JWT,
   JOSE.Core.JWE,
+  JOSE.Core.JWA.Encryption,
+  JOSE.Core.JWA.Factory,
   JOSE.Core.Builder;
 
 const
@@ -1738,6 +1778,122 @@ begin
 
   NestedConsumer(LVerify, LDecrypt).SetEnableRequireEncryption.Build.Process(LCompact);
   Assert.Pass;
+end;
+
+{ AES-CBC-HMAC (TJWETokenTestBase) }
+
+const
+  // dir + A128CBC-HS256, built with .NET: Aes.EncryptCbc (PKCS#7) under the
+  // second half of the key, HMACSHA256 under the first half over
+  // AAD || IV || E || AL, tag = first 16 bytes. Header
+  // {"alg":"dir","enc":"A128CBC-HS256","kid":"dotnet-interop"}, plaintext
+  // {"sub":"alice","iss":"dotnet"}
+  DOTNET_CBC_KEY_HEX = '4a6f73654a5745496e7465726f7031323341434243484d414331323874657374';
+  DOTNET_CBC_TOKEN =
+    'eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2Iiwia2lkIjoiZG90bmV0LWludGVyb3AifQ' +
+    '..AAECAwQFBgcICQoLDA0ODw' +
+    '.sm-BgZbBUM5RkNJc70csTWa9IkC--my4VV7RPOpAlf4' +
+    '._Gw8BO0kGrAZdY4vTDmiRA';
+
+function CBCAlgorithm(const ACase: string): IJOSEEncryptionAlgorithm;
+const
+  ENC: array[0..2] of string = ('A128CBC-HS256', 'A192CBC-HS384', 'A256CBC-HS512');
+begin
+  Result := TJOSEAlgorithmRegistryFactory.Instance.EncryptionAlgorithmRegistry
+    .GetAlgorithm(ENC[StrToInt(ACase.Substring(1)) - 1]);
+end;
+
+// The message of the EJOSEException AProc raises; fails the test when it
+// raises nothing or something else
+function JOSEErrorOf(const AProc: TProc): string;
+begin
+  Result := '';
+  try
+    AProc();
+  except
+    on E: EJOSEException do
+      Exit(E.Message);
+  end;
+  Assert.Fail('Expected EJOSEException');
+end;
+
+procedure TJWETokenTestBase.CBCHMAC_RFC7518_Decrypts(const ACase: string);
+var
+  LKey, LCiphertext, LTag: TBytes;
+  LPlaintext: TBytes;
+begin
+  CBCCase(ACase, LKey, LCiphertext, LTag);
+
+  LPlaintext := CBCAlgorithm(ACase).Decrypt(
+    TEncryptionParts.Create(HexToBytes(RFC7518_B_IV), LCiphertext, LTag),
+    HexToBytes(RFC7518_B_A), LKey);
+
+  Assert.AreEqual(RFC7518_B_P, LowerCase(BytesToHex(LPlaintext)));
+end;
+
+procedure TJWETokenTestBase.CBCHMAC_TamperingFailsOnTheTag(const AWhat: string);
+var
+  LKey, LCiphertext, LTag, LIV, LAAD: TBytes;
+  LMessage: string;
+begin
+  CBCCase('B1', LKey, LCiphertext, LTag);
+  LIV := HexToBytes(RFC7518_B_IV);
+  LAAD := HexToBytes(RFC7518_B_A);
+
+  if AWhat = 'Ciphertext' then
+    // The byte that, decrypted unauthenticated, would break the padding
+    LCiphertext := FlipBit(LCiphertext, Length(LCiphertext) - 17)
+  else if AWhat = 'Tag' then
+    LTag := FlipBit(LTag, 15)
+  else if AWhat = 'IV' then
+    LIV := FlipBit(LIV, 0)
+  else if AWhat = 'AAD' then
+    LAAD := FlipBit(LAAD, 0);
+
+  LMessage := JOSEErrorOf(
+    procedure
+    begin
+      CBCAlgorithm('B1').Decrypt(TEncryptionParts.Create(LIV, LCiphertext, LTag), LAAD, LKey);
+    end);
+
+  Assert.AreEqual('The authentication tag does not match', LMessage);
+end;
+
+procedure TJWETokenTestBase.CBCHMAC_TruncatedTagIsRejected;
+var
+  LKey, LCiphertext, LTag: TBytes;
+begin
+  CBCCase('B1', LKey, LCiphertext, LTag);
+  SetLength(LTag, 15);
+
+  JOSEErrorOf(
+    procedure
+    begin
+      CBCAlgorithm('B1').Decrypt(TEncryptionParts.Create(HexToBytes(RFC7518_B_IV), LCiphertext, LTag),
+        HexToBytes(RFC7518_B_A), LKey);
+    end);
+end;
+
+procedure TJWETokenTestBase.CBCHMAC_DecryptsDotNetToken;
+var
+  LToken: TJWT;
+begin
+  LToken := TJOSE.Decrypt(TJOSEBytes(HexToBytes(DOTNET_CBC_KEY_HEX)), DOTNET_CBC_TOKEN);
+  try
+    Assert.AreEqual('A128CBC-HS256', LToken.Header.JSON.GetValue<string>('enc'));
+    Assert.AreEqual('dotnet-interop', LToken.Header.KeyID);
+    Assert.AreEqual('alice', LToken.Claims.Subject);
+    Assert.AreEqual('dotnet', LToken.Claims.Issuer);
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.CBCHMAC_TamperedDotNetToken_IsRejected(APart: Integer);
+begin
+  Assert.AreEqual(JWE_DECRYPTION_FAILED,
+    DecryptError(FlipPartBit(DOTNET_CBC_TOKEN, APart), HexToBytes(DOTNET_CBC_KEY_HEX)));
+  Assert.AreEqual('', DecryptError(DOTNET_CBC_TOKEN, HexToBytes(DOTNET_CBC_KEY_HEX)), 'The original still decrypts');
 end;
 
 end.

@@ -65,11 +65,15 @@ type
     [TestCase('A128GCM', 'A128GCM,16')]
     [TestCase('A192GCM', 'A192GCM,24')]
     [TestCase('A256GCM', 'A256GCM,32')]
+    [TestCase('A128CBC-HS256', 'A128CBC-HS256,32')]
+    [TestCase('A192CBC-HS384', 'A192CBC-HS384,48')]
+    [TestCase('A256CBC-HS512', 'A256CBC-HS512,64')]
     procedure EncRoundTripsWithCEKLength(const AValue: string; ACEKLength: Integer);
 
     [Test]
     [TestCase('Lowercase', 'a256gcm')]
-    [TestCase('CBC (not yet)', 'A256CBC-HS512')]
+    [TestCase('Key wrap (an alg)', 'A128KW')]
+    [TestCase('CBC lowercase', 'a128cbc-hs256')]
     [TestCase('Empty', '')]
     procedure UnsupportedEncIsUnknown(const AValue: string);
 
@@ -191,7 +195,7 @@ type
     [TestCase('none',             '{"alg":"none","enc":"A128GCM"}|not a JWE key management', '|')]
     [TestCase('Unknown alg',      '{"alg":"XYZ","enc":"A128GCM"}|not supported', '|')]
     [TestCase('No alg',           '{"enc":"A128GCM"}|not supported', '|')]
-    [TestCase('Unknown enc',      '{"alg":"dir","enc":"A256CBC-HS512"}|not supported', '|')]
+    [TestCase('Unknown enc',      '{"alg":"dir","enc":"A512GCM"}|not supported', '|')]
     [TestCase('No enc',           '{"alg":"dir"}|not supported', '|')]
     [TestCase('zip',              '{"alg":"dir","enc":"A128GCM","zip":"DEF"}|"zip"', '|')]
     [TestCase('crit',             '{"alg":"dir","enc":"A128GCM","crit":["exp"],"exp":1}|"crit"', '|')]
@@ -565,6 +569,10 @@ begin
   Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256GCM'));
   Assert.AreEqual(16, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A128GCM').GetCEKLength);
   Assert.AreEqual(32, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256GCM').GetCEKLength);
+  // Step 2
+  Assert.AreEqual(32, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A128CBC-HS256').GetCEKLength);
+  Assert.AreEqual(48, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A192CBC-HS384').GetCEKLength);
+  Assert.AreEqual(64, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256CBC-HS512').GetCEKLength);
 end;
 
 procedure TTestJWEParsing.ParsesTheHeaderAndKeepsThePartsVerbatim;

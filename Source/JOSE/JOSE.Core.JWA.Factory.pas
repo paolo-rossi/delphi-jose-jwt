@@ -186,7 +186,10 @@ begin
   FEncryptionAlgorithmRegistry
     .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A128GCM.AsString, TAESGCMAlgorithm.A128GCM)
     .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A192GCM.AsString, TAESGCMAlgorithm.A192GCM)
-    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A256GCM.AsString, TAESGCMAlgorithm.A256GCM);
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A256GCM.AsString, TAESGCMAlgorithm.A256GCM)
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A128CBC_HS256.AsString, TAESCBCHMACAlgorithm.A128CBC_HS256)
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A192CBC_HS384.AsString, TAESCBCHMACAlgorithm.A192CBC_HS384)
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A256CBC_HS512.AsString, TAESCBCHMACAlgorithm.A256CBC_HS512);
 
   FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('zip');
 end;
