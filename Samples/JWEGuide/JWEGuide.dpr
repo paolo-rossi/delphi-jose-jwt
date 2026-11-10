@@ -25,6 +25,7 @@ program JWEGuide;
 
 uses
   System.SysUtils,
+  System.StrUtils,
   System.DateUtils,
   System.IOUtils,
   JOSE.Types.Bytes,
@@ -233,6 +234,86 @@ begin
   end;
 end;
 
+// ---------------------------------------------------------------- snippet 10
+function Snippet_KeycloakStyle: TJOSEBytes;
+var
+  LSignKey, LEncryptKey: TJWK;
+  LToken: TJWT;
+begin
+  // RS256 inside RSA-OAEP + A128CBC-HS256: the shape of Keycloak's encrypted tokens
+  LSignKey := TJWK.Create(TFile.ReadAllBytes('rsa-private.pem'));
+  LEncryptKey := TJWK.Create(TFile.ReadAllBytes('rsa-public.pem'));
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'paolo.rossi';
+    Result := TJOSE.SignAndEncrypt(LSignKey, TJOSEAlgorithmId.RS256,
+      LEncryptKey, TJOSEAlgorithmId.RSA_OAEP, TJOSEEncryptionAlgorithmId.A128CBC_HS256, LToken);
+  finally
+    LToken.Free;
+    LEncryptKey.Free;
+    LSignKey.Free;
+  end;
+end;
+
+procedure Snippet_KeycloakStyleConsumer(const ACompactToken: TJOSEBytes);
+begin
+  TJOSEConsumerBuilder.NewConsumer
+    .SetDecryptionKey(TFile.ReadAllBytes('rsa-private.pem'))
+    .SetVerificationKey(TFile.ReadAllBytes('rsa-public.pem'))
+    .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.RSA_OAEP, TJOSEAlgorithmId.RSA_OAEP_256])
+    .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A128CBC_HS256,
+      TJOSEEncryptionAlgorithmId.A256GCM])
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.RS256])
+    .SetRequireSubject
+    .Build
+    .Process(ACompactToken);
+
+  Writeln('RSA-OAEP + A128CBC-HS256 nested token accepted');
+end;
+
+// ---------------------------------------------------------------- snippet 11
+function Snippet_Compressed(const AKey: TJOSEBytes): TJOSEBytes;
+var
+  LToken: TJWT;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'paolo.rossi';
+    LToken.Claims.SetClaim('permissions', DupeString('documents:read ', 100));
+
+    // Compression is never automatic: ask for it in the header
+    LToken.Header.SetHeaderParam('zip', 'DEF');
+    Result := TJOSE.Encrypt(AKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure Snippet_DecompressionCap(const AKey, ACompactToken: TJOSEBytes);
+var
+  LToken: TJWT;
+begin
+  // Process-wide, 250 000 bytes unless changed: set it at startup
+  TJWE.MaxDecompressedSize := 1024;
+  try
+    try
+      TJOSE.Decrypt(AKey, ACompactToken).Free;
+    except
+      on E: EJOSEException do
+        Writeln('JOSE error: ', E.Message);
+    end;
+  finally
+    TJWE.MaxDecompressedSize := 250000;
+  end;
+
+  LToken := TJOSE.Decrypt(AKey, ACompactToken);
+  try
+    Writeln('decompressed permissions: ', Length(LToken.Claims.JSON.GetValue<string>('permissions')), ' chars');
+  finally
+    LToken.Free;
+  end;
+end;
+
 // ---------------------------------------------------------------- snippet 9
 procedure Snippet_ErrorHandling(AConsumer: IJOSEConsumer; const ACompactToken: TJOSEBytes);
 begin
@@ -287,6 +368,17 @@ begin
   Snippet_ErrorHandling(Snippet_NestedConsumer, Tamper(LNested));
   // A consumer that was never told about JWE
   Snippet_ErrorHandling(TJOSEConsumerBuilder.NewConsumer.SetVerificationKey(HMAC_SECRET).Build, LNested);
+
+  Writeln('--- RSA-OAEP + A128CBC-HS256 (Keycloak style)');
+  LNested := Snippet_KeycloakStyle;
+  Snippet_InspectHeader(LNested);
+  Snippet_KeycloakStyleConsumer(LNested);
+
+  Writeln('--- compression');
+  LCompact := Snippet_Compressed(LDirKey);
+  Snippet_InspectHeader(LCompact);
+  Writeln('token length: ', LCompact.Size, ' chars');
+  Snippet_DecompressionCap(LDirKey, LCompact);
 end;
 
 const

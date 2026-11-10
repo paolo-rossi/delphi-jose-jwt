@@ -19,7 +19,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
 ![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
 
-[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS and [JWE](#json-web-encryption-jwe-support) compact serializations with several JOSE algorithms (JWE: `dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM, nested JWTs included), plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.0.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS and [JWE](#json-web-encryption-jwe-support) compact serializations with several JOSE algorithms (JWE: `dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM or AES-CBC-HMAC, `"zip":"DEF"` compression and nested JWTs included), plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.0.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
@@ -96,9 +96,10 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 | `IJOSERSAKeyMaterialProvider` | Raw RSA key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
 | `IJOSEECKeyMaterialProvider` | Raw EC key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
 | `IJOSEAESGCMProvider` | AES-GCM ([JWE](#json-web-encryption-jwe-support) content encryption: `A128GCM`/`A192GCM`/`A256GCM`) |
+| `IJOSEAESCBCProvider` | AES-CBC with PKCS#7 padding ([JWE](#json-web-encryption-jwe-support) content encryption: the AES half of `A*CBC-HS*`) |
 | `IJOSERSAEncryptionProvider` | RSAES-OAEP ([JWE](#json-web-encryption-jwe-support) key management: `RSA-OAEP`/`RSA-OAEP-256`) |
 
-`RSAKeyMaterial`/`ECKeyMaterial` and the two JWE capabilities, `AESGCM`/`RSAEncryption`, are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM` or use JWE. Every stack that ships with the library implements all four, but if you assign providers individually and leave them unset, ordinary signing and verification are unaffected; it just means those features will raise `EJOSEProvidersNotRegistered` until you supply an implementation.
+`RSAKeyMaterial`/`ECKeyMaterial` and the three JWE capabilities, `AESGCM`/`AESCBC`/`RSAEncryption`, are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM` or use JWE. Every stack that ships with the library implements all five, but if you assign providers individually and leave them unset, ordinary signing and verification are unaffected; it just means those features will raise `EJOSEProvidersNotRegistered` until you supply an implementation.
 
 ## :question: What is JOSE
 
@@ -179,11 +180,16 @@ the PSS entry points reports that plainly instead of failing at load time.
 |  `A128GCM`                   | ✔️ new! 🌟 |
 |  `A192GCM`                   | ✔️ new! 🌟 |
 |  `A256GCM`                   | ✔️ new! 🌟 |
-|  `A128CBC-HS256`/`A256CBC-HS512` | next |
+|  `A128CBC-HS256`             | ✔️ new! 🌟 |
+|  `A192CBC-HS384`             | ✔️ new! 🌟 |
+|  `A256CBC-HS512`             | ✔️ new! 🌟 |
 
-Compact serialization only, single recipient. Compression (`"zip":"DEF"`) is not supported yet: a
-token that uses it is rejected rather than decrypted to the wrong bytes. See
-[JWE support](#json-web-encryption-jwe-support) below.
+| _Compression (`zip`)_ | _Supported_ |
+| ----------------------| ----------- |
+|  `DEF`                | ✔️ new! 🌟 always accepted on decryption, used on encryption only when asked |
+
+Compact serialization only, single recipient. See [JWE support](#json-web-encryption-jwe-support)
+below.
 
 #### Security notes
 
@@ -343,13 +349,14 @@ end;
 [RFC 7516](https://tools.ietf.org/html/rfc7516) JSON Web Encryption, compact serialization, single recipient:
 
 - Key management: `dir` (a shared secret) and `RSA-OAEP`/`RSA-OAEP-256` (encrypted to an RSA public key, 2048 bits or more; an X.509 certificate is accepted as the key container)
-- Content encryption: `A128GCM`/`A192GCM`/`A256GCM`, with a fresh random IV for every token
+- Content encryption: `A128GCM`/`A192GCM`/`A256GCM` and `A128CBC-HS256`/`A192CBC-HS384`/`A256CBC-HS512` (Keycloak's default is `RSA-OAEP` + `A128CBC-HS256`), with a fresh random IV for every token; the CBC-HMAC tag is checked before anything is decrypted
+- Compression (`"zip":"DEF"`): compressed tokens are always decrypted, with a cap on the decompressed size (`TJWE.MaxDecompressedSize`); a token is compressed only when its header asks for it, since compressing before encrypting can leak secrets through the length ([RFC 8725 §3.6](https://tools.ietf.org/html/rfc8725#section-3.6))
 - Nested JWTs (signed, then encrypted, `"cty":"JWT"`): `TJOSE.SignAndEncrypt` / `TJOSE.DecryptAndVerify`
 - `TJOSE.Encrypt` / `TJOSE.Decrypt` for encrypted (not signed) claims
 - `TJOSEConsumer` support, with separate decryption and verification keys and JWE algorithm allowlists
-- All three [provider stacks](#custom-crypto-providers-bring-your-own-crypto), checked against the RFC 7516/7520 test vectors
+- All three [provider stacks](#custom-crypto-providers-bring-your-own-crypto), checked against the RFC 7516/7518/7520 test vectors
 
-> :book: **[JWE Practical Guide](Docs/jwe-guide.md)** — choosing between signing, encrypting or both, `dir` and RSA-OAEP, nested JWTs, validating encrypted tokens with the consumer, error handling, memory ownership rules. Its snippets are the runnable `Samples\JWEGuide` console project.
+> :book: **[JWE Practical Guide](Docs/jwe-guide.md)** — choosing between signing, encrypting or both, `dir` and RSA-OAEP, nested JWTs, validating encrypted tokens with the consumer, Keycloak-style tokens (AES-CBC-HMAC), compression, error handling, memory ownership rules. Its snippets are the runnable `Samples\JWEGuide` console project.
 
 #### Sign, then encrypt (nested JWT)
 
@@ -404,9 +411,8 @@ TJOSEConsumerBuilder.NewConsumer
 ```
 
 `TJOSE.Decrypt` refuses a nested JWT and `TJOSE.Verify` refuses any JWE, so a signature check cannot
-be skipped by calling the wrong function. Not supported yet: `A128CBC-HS256`/`A256CBC-HS512` and
-compression (next), AES key wrap and ECDH-ES (later), the JSON serializations, and JWE in
-`TJOSEProducer`.
+be skipped by calling the wrong function. Not supported yet: AES key wrap, ECDH-ES, the JSON
+serializations, and JWE in `TJOSEProducer`.
 
 ## Projects using Delphi JOSE and JWT
 
@@ -416,7 +422,7 @@ compression (next), AES key wrap and ECDH-ES (later), the JSON serializations, a
 ## :wrench: Todo
 
 ##### Features
-- JWE: `A128CBC-HS256`/`A256CBC-HS512` and `"zip":"DEF"` compression next, then AES key wrap (`A*KW`), `ECDH-ES` and JWE in `TJOSEProducer` (`dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM are [supported](#json-web-encryption-jwe-support))
+- JWE: AES key wrap (`A*KW`), `ECDH-ES` and JWE in `TJOSEProducer` (`dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM and AES-CBC-HMAC, and compression, are [supported](#json-web-encryption-jwe-support))
 - More crypto providers on top of the [provider abstraction](#custom-crypto-providers-bring-your-own-crypto) (e.g. TMS Cryptography Pack) — OpenSSL and [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) are supported today
 
 ##### Code

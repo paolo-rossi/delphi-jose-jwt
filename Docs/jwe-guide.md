@@ -14,6 +14,8 @@ Every snippet in this document is compiled and executed by the companion sample
 - [Encrypting to an RSA key (RSA-OAEP)](#encrypting-to-an-rsa-key-rsa-oaep)
 - [Nested JWT: sign, then encrypt](#nested-jwt-sign-then-encrypt)
 - [Validating encrypted tokens with the consumer](#validating-encrypted-tokens-with-the-consumer)
+- [Tokens from Keycloak and other IdPs (AES-CBC-HMAC)](#tokens-from-keycloak-and-other-idps-aes-cbc-hmac)
+- [Compression](#compression)
 - [Reading the header without decrypting](#reading-the-header-without-decrypting)
 - [Error handling](#error-handling)
 - [Security notes](#security-notes)
@@ -32,12 +34,13 @@ JWE compact serialization ([RFC 7516](https://tools.ietf.org/html/rfc7516)), sin
 | `alg` (key management) | `dir` | The shared key *is* the content encryption key (CEK) |
 | | `RSA-OAEP`, `RSA-OAEP-256` | A random CEK, encrypted to the recipient's RSA public key (2048 bits or more) |
 | `enc` (content encryption) | `A128GCM`, `A192GCM`, `A256GCM` | AES-GCM with a fresh random 96-bit IV per token |
+| | `A128CBC-HS256`, `A192CBC-HS384`, `A256CBC-HS512` | AES-CBC plus an HMAC-SHA2 tag, fresh random 128-bit IV per token. `A128CBC-HS256` is Keycloak's default |
+| `zip` (compression) | `DEF` | Raw DEFLATE. Always accepted on decryption, used on encryption only [when asked](#compression) |
 
-Not supported (yet): `A128CBC-HS256`/`A256CBC-HS512`, compression (`zip`), AES key wrap
-(`A*KW`), ECDH-ES, password-based encryption, and the JSON serializations. A token that uses any
-of them is rejected with an error that names it. `RSA1_5` is left out on purpose: it is
-vulnerable to padding-oracle attacks and [RFC 8725](https://tools.ietf.org/html/rfc8725)
-advises against it.
+Not supported (yet): AES key wrap (`A*KW`), ECDH-ES, AES-GCM key wrap, password-based encryption,
+and the JSON serializations. A token that uses any of them is rejected with an error that names
+it. `RSA1_5` is left out on purpose: it is vulnerable to padding-oracle attacks and
+[RFC 8725](https://tools.ietf.org/html/rfc8725) advises against it.
 
 Units you will normally need:
 
@@ -92,7 +95,8 @@ end;
 ```
 
 With `dir` the key length is fixed by `enc`: **16 bytes for `A128GCM`, 24 for `A192GCM`, 32 for
-`A256GCM`**. A key of any other length is refused (`A "dir" key must be exactly as long as the
+`A256GCM`; 32, 48 and 64 for `A128CBC-HS256`, `A192CBC-HS384` and `A256CBC-HS512`** (half HMAC
+key, half AES key). A key of any other length is refused (`A "dir" key must be exactly as long as the
 content encryption key`), never truncated or padded. Generate one with
 `TJOSEBytes.RandomBytes(32)`, which uses the operating system's cryptographic generator.
 
@@ -360,6 +364,133 @@ included.
 
 ---
 
+## Tokens from Keycloak and other IdPs (AES-CBC-HMAC)
+
+Identity providers that encrypt their tokens mostly use RSA-OAEP for the key, and often the
+AES-CBC-HMAC family for the content: Keycloak's defaults are `RSA-OAEP` and `A128CBC-HS256`.
+Nothing changes in the code, only the algorithm values:
+
+```delphi
+function Snippet_KeycloakStyle: TJOSEBytes;
+var
+  LSignKey, LEncryptKey: TJWK;
+  LToken: TJWT;
+begin
+  // RS256 inside RSA-OAEP + A128CBC-HS256: the shape of Keycloak's encrypted tokens
+  LSignKey := TJWK.Create(TFile.ReadAllBytes('rsa-private.pem'));
+  LEncryptKey := TJWK.Create(TFile.ReadAllBytes('rsa-public.pem'));
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'paolo.rossi';
+    Result := TJOSE.SignAndEncrypt(LSignKey, TJOSEAlgorithmId.RS256,
+      LEncryptKey, TJOSEAlgorithmId.RSA_OAEP, TJOSEEncryptionAlgorithmId.A128CBC_HS256, LToken);
+  finally
+    LToken.Free;
+    LEncryptKey.Free;
+    LSignKey.Free;
+  end;
+end;
+
+procedure Snippet_KeycloakStyleConsumer(const ACompactToken: TJOSEBytes);
+begin
+  TJOSEConsumerBuilder.NewConsumer
+    .SetDecryptionKey(TFile.ReadAllBytes('rsa-private.pem'))
+    .SetVerificationKey(TFile.ReadAllBytes('rsa-public.pem'))
+    .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.RSA_OAEP, TJOSEAlgorithmId.RSA_OAEP_256])
+    .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A128CBC_HS256,
+      TJOSEEncryptionAlgorithmId.A256GCM])
+    .SetExpectedAlgorithms([TJOSEAlgorithmId.RS256])
+    .SetRequireSubject
+    .Build
+    .Process(ACompactToken);
+
+  Writeln('RSA-OAEP + A128CBC-HS256 nested token accepted');
+end;
+```
+
+In a real deployment the decryption key is **your** private key (the IdP encrypts to the public
+key you registered with it), and the verification key is the **IdP's** public signing key.
+
+With AES-CBC-HMAC the key splits in two: the first half is the HMAC key, the second the AES key,
+so a `dir` key is twice as long as for GCM (32, 48 and 64 bytes). The tag covers the protected
+header, the IV and the ciphertext, and it is checked **before** anything is decrypted: a tampered
+token never reaches the CBC padding, which is what keeps CBC safe from padding-oracle attacks.
+
+---
+
+## Compression
+
+`"zip":"DEF"` compresses the payload (raw DEFLATE) before it is encrypted. On the receiving side
+it is always supported: a compressed token decrypts like any other. On the sending side it is
+**never automatic**. You ask for it by putting `zip` in the token header:
+
+```delphi
+function Snippet_Compressed(const AKey: TJOSEBytes): TJOSEBytes;
+var
+  LToken: TJWT;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'paolo.rossi';
+    LToken.Claims.SetClaim('permissions', DupeString('documents:read ', 100));
+
+    // Compression is never automatic: ask for it in the header
+    LToken.Header.SetHeaderParam('zip', 'DEF');
+    Result := TJOSE.Encrypt(AKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+end;
+```
+
+The 1 500-character claim above makes a 199-character token. Why it is opt-in: the size of the
+compressed data depends on how much of it repeats, so when part of the payload is controlled by
+an attacker and the rest is secret, the ciphertext length can leak the secret one guess at a time
+(the CRIME/BREACH family of attacks, [RFC 8725 §3.6](https://tools.ietf.org/html/rfc8725#section-3.6)).
+Compress only payloads that contain no attacker-chosen data next to secrets.
+
+**Decompression is capped.** A few kilobytes of DEFLATE can expand to gigabytes, so a payload that
+decompresses to more than `TJWE.MaxDecompressedSize` bytes (250 000 by default) is rejected while
+it is being inflated:
+
+```delphi
+procedure Snippet_DecompressionCap(const AKey, ACompactToken: TJOSEBytes);
+var
+  LToken: TJWT;
+begin
+  // Process-wide, 250 000 bytes unless changed: set it at startup
+  TJWE.MaxDecompressedSize := 1024;
+  try
+    try
+      TJOSE.Decrypt(AKey, ACompactToken).Free;
+    except
+      on E: EJOSEException do
+        Writeln('JOSE error: ', E.Message);
+    end;
+  finally
+    TJWE.MaxDecompressedSize := 250000;
+  end;
+
+  LToken := TJOSE.Decrypt(AKey, ACompactToken);
+  try
+    Writeln('decompressed permissions: ', Length(LToken.Claims.JSON.GetValue<string>('permissions')), ' chars');
+  finally
+    LToken.Free;
+  end;
+end;
+```
+
+```
+JOSE error: The JWE payload decompresses to more than 1024 bytes (TJWE.MaxDecompressedSize)
+decompressed permissions: 1500 chars
+```
+
+Decompression runs after the tag check, so a tampered compressed token fails like any other
+(`JWE decryption failed`) and never reaches the decompressor. Any `zip` value other than `DEF` is
+rejected, on encryption and decryption alike.
+
+---
+
 ## Reading the header without decrypting
 
 To choose a key by `kid` before decrypting, parse the token with `TJWE`. Setting `CompactToken`
@@ -405,12 +536,13 @@ they appear in the token.
 | Failure | Exception | Message |
 |---|---|---|
 | Malformed token (part count, base64url, header not JSON) | `EJOSEException` | names the problem |
-| `alg`/`enc` unsupported, `zip` or `crit` present | `EJOSEException` | names the value or the member |
+| `alg`/`enc` unsupported, `zip` other than `DEF`, `crit` present | `EJOSEException` | names the value or the member |
 | `alg`/`enc` not in the consumer's allowlists | `EJOSEException` | names the value |
 | **Anything that goes wrong while decrypting** (wrong key, tampered part, bad tag, wrong `dir` key length) | `EJOSEException` | always `JWE decryption failed` |
+| Compressed payload that does not inflate, or inflates past `TJWE.MaxDecompressedSize` | `EJOSEException` | names the problem (the token is authentic by then) |
 | Inner JWS of a nested JWT: unexpected `alg`, invalid signature | `EJOSEException` | as for a JWS |
 | Claim validation failures | `EInvalidJWTException` | lists every failed validator |
-| No provider for AES-GCM/RSA-OAEP registered | `EJOSEProvidersNotRegistered` | |
+| No provider for AES-GCM/AES-CBC/RSA-OAEP registered | `EJOSEProvidersNotRegistered` | |
 | The OpenSSL library has no JWE functions (default stack, before 1.0.1) | `EJOSEProvidersNotRegistered` | says which version is needed |
 
 The last two are configuration problems, not properties of the token, so they keep their own
@@ -453,8 +585,13 @@ JOSE error: JWE key management algorithm [RSA-OAEP-256] is not listed among thos
 
 - **Authenticated header.** The protected header is authenticated exactly as it appears in the
   token. Changing it, even only reordering its members, makes decryption fail.
-- **Fresh IV.** Every encryption uses a new random 96-bit IV from the operating system's
-  generator: never encrypt with a fixed IV, and there is no API to pass one.
+- **Fresh IV.** Every encryption uses a new random IV (96 bits for GCM, 128 for CBC) from the
+  operating system's generator: never encrypt with a fixed IV, and there is no API to pass one.
+- **MAC before CBC.** With AES-CBC-HMAC the tag is checked, in constant time, before anything is
+  decrypted, so the CBC padding is never examined for a ciphertext that is not authentic: no
+  padding oracle.
+- **Compression is opt-in and capped.** Never automatic on encryption (it can leak secrets
+  through the length, RFC 8725 §3.6), and decompression stops at `TJWE.MaxDecompressedSize`.
 - **No unauthenticated plaintext.** If the tag check fails, the partly decrypted plaintext is
   wiped and never returned.
 - **One nesting level.** Only one level is followed, so a token cannot make the consumer decrypt
@@ -481,12 +618,13 @@ JOSE error: JWE key management algorithm [RSA-OAEP-256] is not listed among thos
 
 ## Provider requirements
 
-JWE goes through two optional provider capabilities, `TJOSEProviders.AESGCM` and
-`TJOSEProviders.RSAEncryption`:
+JWE goes through three optional provider capabilities, `TJOSEProviders.AESGCM`,
+`TJOSEProviders.AESCBC` and `TJOSEProviders.RSAEncryption` (the CBC-HMAC tag uses the HMAC
+provider every stack already has; compression is pure RTL):
 
 | Provider stack | Unit | JWE |
 |---|---|---|
-| `TJOSEDefaultProviders` (registered automatically) | `JOSE.Providers.Default` | yes: AES-GCM needs OpenSSL **1.0.1**, RSA-OAEP-256 **1.0.2** |
+| `TJOSEDefaultProviders` (registered automatically) | `JOSE.Providers.Default` | yes: AES-GCM needs OpenSSL **1.0.1**, RSA-OAEP-256 **1.0.2** (AES-CBC is in every 1.0.x) |
 | `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | yes: OpenSSL 1.1.x/3.x/4.x |
 | `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | yes: pure Pascal, no DLLs |
 
@@ -497,7 +635,7 @@ OAEP digest control) `RSA-OAEP-256` is the one thing that cannot work: encryptin
 `RSA-OAEP encryption error (init)`, and decrypting fails like any other decryption. The test
 suite runs the default stack on OpenSSL 1.0.2.
 
-`dir` and AES-GCM do not depend on RSA. RSA-OAEP is compiled out together with RS*/PS* where
+`dir`, AES-GCM, AES-CBC-HMAC and compression do not depend on RSA. RSA-OAEP is compiled out together with RS*/PS* where
 `RSA_SIGNING` is switched off in `Source\JOSE.inc`.
 
 ---
@@ -532,4 +670,12 @@ inner alg: HS256, sub: paolo.rossi
 Valid token
 JOSE error: JWE decryption failed
 JOSE error: JWE key management algorithm [RSA-OAEP-256] is not listed among those expected
+--- RSA-OAEP + A128CBC-HS256 (Keycloak style)
+kid= alg=RSA-OAEP enc=A128CBC-HS256 nested=True
+RSA-OAEP + A128CBC-HS256 nested token accepted
+--- compression
+kid= alg=dir enc=A256GCM nested=False
+token length: 199 chars
+JOSE error: The JWE payload decompresses to more than 1024 bytes (TJWE.MaxDecompressedSize)
+decompressed permissions: 1500 chars
 ```
