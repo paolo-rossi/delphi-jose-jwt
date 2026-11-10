@@ -102,7 +102,7 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 | `IJOSEAESCBCProvider` | AES-CBC with PKCS#7 padding ([JWE](#json-web-encryption-jwe-support) content encryption: the AES half of `A*CBC-HS*`) |
 | `IJOSERSAEncryptionProvider` | RSAES-OAEP ([JWE](#json-web-encryption-jwe-support) key management: `RSA-OAEP`/`RSA-OAEP-256`) |
 
-`RSAKeyMaterial`/`ECKeyMaterial` and the three JWE capabilities, `AESGCM`/`AESCBC`/`RSAEncryption`, are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM` or use JWE. Every stack that ships with the library implements all five, but if you assign providers individually and leave them unset, ordinary signing and verification are unaffected; it just means those features will raise `EJOSEProvidersNotRegistered` until you supply an implementation.
+`RSAKeyMaterial`/`ECKeyMaterial` and the three JWE capabilities, `AESGCM`/`AESCBC`/`RSAEncryption`, are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM` (the two key-material ones) or use JWE (the three JWE ones). JWE key management does not need `RSAKeyMaterial`: RSA-OAEP asks the `RSAEncryption` provider for the key size. Every stack that ships with the library implements all five, but if you assign providers individually and leave them unset, ordinary signing and verification are unaffected; it just means those features will raise `EJOSEProvidersNotRegistered` until you supply an implementation.
 
 ## :question: What is JOSE
 

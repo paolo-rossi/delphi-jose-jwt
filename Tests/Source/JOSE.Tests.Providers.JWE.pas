@@ -251,6 +251,10 @@ type
     [Test]
     procedure RSAOAEP_RejectsKeyBelow2048Bits;
 
+    // The size check must not depend on the optional RSAKeyMaterial (JWK) capability
+    [Test]
+    procedure RSAOAEP_WorksWithoutRSAKeyMaterial;
+
     [Test]
     procedure RSAOAEP_TamperedEncryptedKey_IsRejected;
 
@@ -1554,6 +1558,41 @@ begin
     LJWE.Free;
     LToken.Free;
     LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_WorksWithoutRSAKeyMaterial;
+var
+  LPublic, LPrivate: TJWK;
+  LToken, LRead: TJWT;
+  LJWE, LReadJWE: TJWE;
+begin
+  // The 2048-bit check used to read the modulus through RSAKeyMaterial (the JWK
+  // PEM capability): a stack that provides RSAEncryption but not RSAKeyMaterial
+  // could not use RSA-OAEP at all. The fixture's TearDown registers the whole
+  // stack again, RSAKeyMaterial included.
+  LPublic := TJWK.Create(ReadKey('rsa-public.pem'));
+  LPrivate := TJWK.Create(ReadKey('rsa-private.pem'));
+  LToken := TJWT.Create;
+  LRead := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LRead);
+  try
+    LToken.Claims.Subject := 'alice';
+    TJOSEProviders.RSAKeyMaterial := nil;
+
+    LReadJWE.CompactToken := LJWE.Encrypt(LPublic, TJOSEAlgorithmId.RSA_OAEP_256,
+      TJOSEEncryptionAlgorithmId.A256GCM);
+    LReadJWE.Decrypt(LPrivate);
+
+    Assert.AreEqual('alice', LRead.Claims.Subject);
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LRead.Free;
+    LToken.Free;
+    LPrivate.Free;
+    LPublic.Free;
   end;
 end;
 

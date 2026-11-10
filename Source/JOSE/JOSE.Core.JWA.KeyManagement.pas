@@ -94,7 +94,7 @@ type
   TRSAOAEPAlgorithm = class(TJOSEAlgorithm, IJOSEKeyManagementAlgorithm)
   private
     FDigest: TJOSEOAEPDigest;
-    class procedure CheckKeySize(const AKey: TJOSEBytes); static;
+    class procedure CheckKeySize(const AKey: TJOSEBytes; AIsPrivate: Boolean); static;
   public
     constructor Create(AAlgorithmId: TJOSEAlgorithmId; ADigest: TJOSEOAEPDigest);
     class function RSAOAEP: IJOSEKeyManagementAlgorithm;
@@ -194,30 +194,17 @@ begin
   Result := TRSAOAEPAlgorithm.Create(TJOSEAlgorithmId.RSA_OAEP_256, TJOSEOAEPDigest.SHA256);
 end;
 
-class procedure TRSAOAEPAlgorithm.CheckKeySize(const AKey: TJOSEBytes);
+class procedure TRSAOAEPAlgorithm.CheckKeySize(const AKey: TJOSEBytes; AIsPrivate: Boolean);
 var
-  LModulus: TBytes;
-  LIndex, LBits: Integer;
-  LTop: Byte;
+  LBits: Integer;
 begin
-  LModulus := TJOSEProviders.RSAKeyMaterial.ImportPEM(AKey.AsBytes).Modulus;
-
-  // Leading zero bytes and bits do not count
-  LIndex := 0;
-  while (LIndex < Length(LModulus)) and (LModulus[LIndex] = 0) do
-    Inc(LIndex);
-
-  LBits := 0;
-  if LIndex < Length(LModulus) then
-  begin
-    LBits := (Length(LModulus) - LIndex) * 8;
-    LTop := LModulus[LIndex];
-    while (LTop and $80) = 0 do
-    begin
-      Dec(LBits);
-      LTop := Byte(LTop shl 1);
-    end;
-  end;
+  // The RSA encryption capability owns the key parsing, so it is asked for the
+  // modulus size; the minimum itself is the RFC 7518 par. 4.3 rule and stays
+  // here, in one place for every provider stack
+  if AIsPrivate then
+    LBits := TJOSEProviders.RSAEncryption.PrivateKeyBits(AKey.AsBytes)
+  else
+    LBits := TJOSEProviders.RSAEncryption.PublicKeyBits(AKey.AsBytes);
 
   if LBits < RSA_OAEP_MIN_KEY_BITS then
     raise EJOSEException.CreateFmt(SJOSERSAOAEPKeyTooSmall, [RSA_OAEP_MIN_KEY_BITS, LBits]);
@@ -235,7 +222,7 @@ begin
   else
     LPublicKey := AKey;
 
-  CheckKeySize(LPublicKey);
+  CheckKeySize(LPublicKey, False);
 
   Result.CEK := TJOSEBytes.RandomBytes(ACEKLength);
   Result.EncryptedKey := TJOSEProviders.RSAEncryption.Encrypt(Result.CEK.AsBytes, LPublicKey.AsBytes, FDigest);
@@ -247,7 +234,7 @@ begin
   if AEncryptedKey.IsEmpty then
     raise EJOSEException.Create(SJOSERSAOAEPNoEncryptedKey);
 
-  CheckKeySize(AKey);
+  CheckKeySize(AKey, True);
 
   // RFC 7516 par. 11.5: when the CEK does not decrypt, or decrypts to the
   // wrong length, carry on with a random CEK instead of failing here. The

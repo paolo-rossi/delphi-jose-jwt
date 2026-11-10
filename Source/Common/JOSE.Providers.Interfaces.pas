@@ -128,6 +128,17 @@ type
   /// </summary>
   IJOSERSAEncryptionProvider = interface
     ['{BBDF3F88-D2C5-4069-984E-C3381CD7285F}']
+    /// <summary>
+    ///   Size in bits of the RSA modulus of APublicKey (a PEM public key, or an
+    ///   X.509 certificate carrying it). Raises EJOSECryptoException when the
+    ///   key cannot be read or is not RSA
+    /// </summary>
+    function PublicKeyBits(const APublicKey: TBytes): Integer;
+    /// <summary>
+    ///   Size in bits of the RSA modulus of APrivateKey (a PEM private key).
+    ///   Raises EJOSECryptoException when the key cannot be read or is not RSA
+    /// </summary>
+    function PrivateKeyBits(const APrivateKey: TBytes): Integer;
     function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
     /// <summary>
     ///   Raises EJOSECryptoException when the ciphertext does not decrypt, with no

@@ -127,6 +127,8 @@ type
     function LoadPrivateKey(const AKey: TBytes): Pointer;
   public
     constructor Create(const ACertificate: IJOSECertificateProvider);
+    function PublicKeyBits(const APublicKey: TBytes): Integer;
+    function PrivateKeyBits(const APrivateKey: TBytes): Integer;
     function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
     function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
   end;
@@ -1724,6 +1726,34 @@ begin
   begin
     EVP_PKEY_free(Result);
     raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPKeyNotRSA);
+  end;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.PublicKeyBits(const APublicKey: TBytes): Integer;
+var
+  LKey: PEVP_PKEY;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+
+  LKey := LoadPublicKey(APublicKey);
+  try
+    Result := EVP_PKEY_bits(LKey);
+  finally
+    EVP_PKEY_free(LKey);
+  end;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.PrivateKeyBits(const APrivateKey: TBytes): Integer;
+var
+  LKey: PEVP_PKEY;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+
+  LKey := LoadPrivateKey(APrivateKey);
+  try
+    Result := EVP_PKEY_bits(LKey);
+  finally
+    EVP_PKEY_free(LKey);
   end;
 end;
 

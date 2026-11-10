@@ -122,6 +122,8 @@ type
     FCertificate: IJOSECertificateProvider;
   public
     constructor Create(const ACertificate: IJOSECertificateProvider);
+    function PublicKeyBits(const APublicKey: TBytes): Integer;
+    function PrivateKeyBits(const APrivateKey: TBytes): Integer;
     function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
     function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
   end;
@@ -1239,6 +1241,34 @@ constructor TCryptoLibRSAEncryptionProvider.Create(const ACertificate: IJOSECert
 begin
   inherited Create;
   FCertificate := ACertificate;
+end;
+
+function TCryptoLibRSAEncryptionProvider.PublicKeyBits(const APublicKey: TBytes): Integer;
+var
+  LKey: IAsymmetricKeyParameter;
+  LRsa: IRsaKeyParameters;
+begin
+  // Key errors keep their message: the key is the caller's configuration,
+  // not attacker input
+  LKey := TJOSECryptoLibPem.ReadPublicKey(APublicKey, FCertificate, TJOSECertificatePublicKey.RSA);
+  if not Supports(LKey, IRsaKeyParameters, LRsa) then
+    raise EJOSECryptoException.Create(SJOSECryptoLibKeyNotRSA);
+
+  Result := LRsa.Modulus.BitLength;
+end;
+
+function TCryptoLibRSAEncryptionProvider.PrivateKeyBits(const APrivateKey: TBytes): Integer;
+var
+  LKey: IAsymmetricKeyParameter;
+  LRsa: IRsaKeyParameters;
+begin
+  LKey := TJOSECryptoLibPem.ReadPrivateKey(APrivateKey);
+  if not Supports(LKey, IRsaKeyParameters, LRsa) then
+    raise EJOSECryptoException.Create(SJOSECryptoLibKeyNotRSAPrivate);
+  if not LRsa.IsPrivate then
+    raise EJOSECryptoException.Create(SJOSECryptoLibRSAPEMNoPrivateKey);
+
+  Result := LRsa.Modulus.BitLength;
 end;
 
 function TCryptoLibRSAEncryptionProvider.Encrypt(const APlaintext, APublicKey: TBytes;

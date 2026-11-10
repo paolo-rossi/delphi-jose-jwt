@@ -105,8 +105,10 @@ type
     class property RSA: IJOSESignerRSA read GetRSA write SetRSA;
     class property ECDSA: IJOSESignerECDSA read GetECDSA write SetECDSA;
     /// <summary>Optional capability: raw RSA key import/export (JWK PEM support). Not required by
-    ///   ordinary RSA signing/verification, so registering a provider stack without it (e.g. a
-    ///   CryptoLib-only stack) does not affect <c>RSA</c>/<c>ECDSA</c>/<c>Certificate</c>.</summary>
+    ///   ordinary RSA signing/verification or by JWE key management (RSA-OAEP asks the
+    ///   <c>RSAEncryption</c> provider for the key size), so registering a provider stack without it
+    ///   (e.g. a CryptoLib-only stack) does not affect <c>RSA</c>/<c>ECDSA</c>/<c>Certificate</c>
+    ///   or JWE.</summary>
     class property RSAKeyMaterial: IJOSERSAKeyMaterialProvider read GetRSAKeyMaterial write SetRSAKeyMaterial;
     /// <summary>Optional capability: raw EC key import/export (JWK PEM support). See <c>RSAKeyMaterial</c>.</summary>
     class property ECKeyMaterial: IJOSEECKeyMaterialProvider read GetECKeyMaterial write SetECKeyMaterial;

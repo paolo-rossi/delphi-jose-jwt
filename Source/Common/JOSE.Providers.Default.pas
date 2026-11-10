@@ -146,6 +146,8 @@ type
   private
     class function WrapRSA(ARsa: PRSA): PEVP_PKEY; static;
   public
+    function PublicKeyBits(const APublicKey: TBytes): Integer;
+    function PrivateKeyBits(const APrivateKey: TBytes): Integer;
     function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
     function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
   end;
@@ -1670,6 +1672,35 @@ begin
 
   if Result = nil then
     raise EJOSECryptoException.Create(SJOSEOAEPKeyError);
+end;
+
+function TDefaultRSAEncryptionProvider.PublicKeyBits(const APublicKey: TBytes): Integer;
+var
+  LRsa: PRSA;
+begin
+  RequireJWESupport;
+
+  // PKCS#1, SPKI or an X.509 certificate, as for RS*/PS* verification
+  LRsa := LoadPublicKey(APublicKey);
+  try
+    Result := JoseSSL.BN_num_bits(LRsa.n);
+  finally
+    RSA_Free(LRsa);
+  end;
+end;
+
+function TDefaultRSAEncryptionProvider.PrivateKeyBits(const APrivateKey: TBytes): Integer;
+var
+  LRsa: PRSA;
+begin
+  RequireJWESupport;
+
+  LRsa := LoadPrivateKey(APrivateKey);
+  try
+    Result := JoseSSL.BN_num_bits(LRsa.n);
+  finally
+    RSA_Free(LRsa);
+  end;
 end;
 
 function TDefaultRSAEncryptionProvider.Encrypt(const APlaintext, APublicKey: TBytes;
