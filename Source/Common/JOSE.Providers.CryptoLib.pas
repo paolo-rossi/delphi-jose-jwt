@@ -109,6 +109,13 @@ type
     function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
   end;
 
+  /// <summary>CryptoLib-backed AES-CBC with PKCS#7 padding, for JWE A128CBC-HS256/A192CBC-HS384/A256CBC-HS512.</summary>
+  TCryptoLibAESCBCProvider = class(TInterfacedObject, IJOSEAESCBCProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+  end;
+
   /// <summary>CryptoLib-backed RSAES-OAEP, for JWE key management (RSA-OAEP/RSA-OAEP-256).</summary>
   TCryptoLibRSAEncryptionProvider = class(TInterfacedObject, IJOSERSAEncryptionProvider)
   strict private
@@ -171,6 +178,9 @@ uses
   ClpRsaBlindedEngine,
   ClpOaepEncoding,
   ClpDigestUtilities,
+  ClpCipherUtilities,
+  ClpIBufferedCipher,
+  ClpParametersWithIV,
   JOSE.Signing.Base;
 
 resourcestring
@@ -195,6 +205,11 @@ resourcestring
   SJOSECryptoLibGCMEncryptError = '[CryptoLib] AES-GCM encryption error: %s';
   // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
   SJOSECryptoLibGCMDecryptFailed = '[CryptoLib] AES-GCM decryption failed';
+  SJOSECryptoLibCBCKeyLength = '[CryptoLib] AES-CBC key must be 16, 24 or 32 bytes, not %d';
+  SJOSECryptoLibCBCIVLength = '[CryptoLib] AES-CBC IV must be 16 bytes, not %d';
+  SJOSECryptoLibCBCEncryptError = '[CryptoLib] AES-CBC encryption error: %s';
+  // Deliberately without detail: see IJOSEAESCBCProvider.Decrypt
+  SJOSECryptoLibCBCDecryptFailed = '[CryptoLib] AES-CBC decryption failed';
   SJOSECryptoLibOAEPEncryptError = '[CryptoLib] RSA-OAEP encryption error: %s';
   // Deliberately without detail: see IJOSERSAEncryptionProvider.Decrypt
   SJOSECryptoLibOAEPDecryptFailed = '[CryptoLib] RSA-OAEP decryption failed';
@@ -1140,6 +1155,65 @@ begin
   end;
 end;
 
+{ AES-CBC }
+
+const
+  CBC_IV_BYTES = 16;
+
+procedure CheckCBCKeyAndIV(const AKey, AIV: TBytes);
+begin
+  if (Length(AKey) <> 16) and (Length(AKey) <> 24) and (Length(AKey) <> 32) then
+    raise EJOSECryptoException.CreateFmt(SJOSECryptoLibCBCKeyLength, [Length(AKey)]);
+  if Length(AIV) <> CBC_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSECryptoLibCBCIVLength, [Length(AIV)]);
+end;
+
+function CBCProcess(AForEncryption: Boolean; const AInput, AKey, AIV: TBytes): TBytes;
+var
+  LCipher: IBufferedCipher;
+begin
+  LCipher := TCipherUtilities.GetCipher('AES/CBC/PKCS7PADDING');
+  LCipher.Init(AForEncryption, TParametersWithIV.Create(TKeyParameter.Create(AKey) as ICipherParameters, AIV)
+    as ICipherParameters);
+  // DoFinal(AInput) refuses an empty array, yet an empty plaintext still
+  // encrypts to one block of padding
+  if Length(AInput) = 0 then
+    Result := LCipher.DoFinal()
+  else
+    Result := LCipher.DoFinal(AInput);
+end;
+
+{ TCryptoLibAESCBCProvider }
+
+function TCryptoLibAESCBCProvider.Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+begin
+  CheckCBCKeyAndIV(AKey, AIV);
+  try
+    Result := CBCProcess(True, APlaintext, AKey, AIV);
+  except
+    on E: Exception do
+      raise EJOSECryptoException.CreateFmt(SJOSECryptoLibCBCEncryptError, [E.Message]);
+  end;
+end;
+
+function TCryptoLibAESCBCProvider.Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+begin
+  CheckCBCKeyAndIV(AKey, AIV);
+
+  // A CBC ciphertext is always one or more whole blocks. CryptoLib would
+  // return an empty plaintext for an empty input, without complaint
+  if (Length(ACiphertext) = 0) or (Length(ACiphertext) mod CBC_IV_BYTES <> 0) then
+    raise EJOSECryptoException.Create(SJOSECryptoLibCBCDecryptFailed);
+
+  try
+    Result := CBCProcess(False, ACiphertext, AKey, AIV);
+  except
+    // Bad padding, a length that is not a multiple of the block: one message
+    on E: Exception do
+      raise EJOSECryptoException.Create(SJOSECryptoLibCBCDecryptFailed);
+  end;
+end;
+
 { RSAES-OAEP }
 
 // MGF1 gets its own instance of the same digest (RFC 7518 par. 4.3): passing
@@ -1227,6 +1301,7 @@ begin
   TJOSEProviders.RSAKeyMaterial := TCryptoLibRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TCryptoLibECKeyMaterialProvider.Create;
   TJOSEProviders.AESGCM := TCryptoLibAESGCMProvider.Create;
+  TJOSEProviders.AESCBC := TCryptoLibAESCBCProvider.Create;
   TJOSEProviders.RSAEncryption := TCryptoLibRSAEncryptionProvider.Create(LCert);
 end;
 
@@ -1240,6 +1315,7 @@ begin
   TJOSEProviders.RSAKeyMaterial := nil;
   TJOSEProviders.ECKeyMaterial := nil;
   TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.AESCBC := nil;
   TJOSEProviders.RSAEncryption := nil;
 end;
 

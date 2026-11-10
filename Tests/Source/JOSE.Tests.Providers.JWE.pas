@@ -50,6 +50,7 @@ type
   TJWEPrimitivesTestBase = class(TJWEStackTestBase)
   protected
     function GCM: IJOSEAESGCMProvider;
+    function CBC: IJOSEAESCBCProvider;
     function OAEP: IJOSERSAEncryptionProvider;
   public
     [Test]
@@ -125,6 +126,36 @@ type
 
     [Test]
     procedure OAEP_DecryptFailuresLookTheSame;
+
+    // AES-CBC with PKCS#7 padding. Known answers: ENC_KEY, IV, P and E of the
+    // three RFC 7518 Appendix B test cases, extracted from the RFC text by
+    // script and checked against .NET (Aes.EncryptCbc) before they were
+    // committed
+    [Test]
+    [TestCase('B.1 AES-128', 'B1')]
+    [TestCase('B.2 AES-192', 'B2')]
+    [TestCase('B.3 AES-256', 'B3')]
+    procedure CBC_KnownAnswer(const ACase: string);
+
+    [Test]
+    [TestCase('AES-128 empty',       '16,0')]
+    [TestCase('AES-128 short',       '16,15')]
+    [TestCase('AES-192 one block',   '24,16')]
+    [TestCase('AES-256 block + 1',   '32,17')]
+    procedure CBC_RoundTrip(AKeyLength, APlaintextLength: Integer);
+
+    [Test]
+    procedure CBC_BadPaddingIsRejected;
+
+    [Test]
+    [TestCase('Truncated ciphertext', 'Truncated')]
+    [TestCase('Empty ciphertext',     'Empty')]
+    [TestCase('IV of 12 bytes',       'IV')]
+    [TestCase('Key of 20 bytes',      'Key')]
+    procedure CBC_DecryptRejectsBadInput(const AWhat: string);
+
+    [Test]
+    procedure CBC_DecryptFailuresLookTheSame;
   end;
 
   /// <summary>
@@ -363,6 +394,11 @@ end;
 
 { TJWEPrimitivesTestBase }
 
+function TJWEPrimitivesTestBase.CBC: IJOSEAESCBCProvider;
+begin
+  Result := TJOSEProviders.AESCBC;
+end;
+
 function TJWEPrimitivesTestBase.GCM: IJOSEAESGCMProvider;
 begin
   Result := TJOSEProviders.AESGCM;
@@ -372,6 +408,53 @@ function TJWEPrimitivesTestBase.OAEP: IJOSERSAEncryptionProvider;
 begin
   Result := TJOSEProviders.RSAEncryption;
 end;
+
+// RFC 7518 Appendix B (AES_CBC_HMAC_SHA2), generated from the RFC text: see CBC_KnownAnswer
+const
+  RFC7518_B_P =
+    '41206369706865722073797374656d206d757374206e6f7420626520726571756972656420746f206265207365637265' +
+    '742c20616e64206974206d7573742062652061626c6520746f2066616c6c20696e746f207468652068616e6473206f66' +
+    '2074686520656e656d7920776974686f757420696e636f6e76656e69656e6365';
+
+  RFC7518_B_IV =
+    '1af38c2dc2b96ffdd86694092341bc04';
+
+  RFC7518_B_A =
+    '546865207365636f6e64207072696e6369706c65206f662041756775737465204b6572636b686f666673';
+
+  RFC7518_B1_K =
+    '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f';
+
+  RFC7518_B1_E =
+    'c80edfa32ddf39d5ef00c0b468834279a2e46a1b8049f792f76bfe54b903a9c9a94ac9b47ad2655c5f10f9aef71427e2' +
+    'fc6f9b3f399a221489f16362c703233609d45ac69864e3321cf82935ac4096c86e133314c54019e8ca7980dfa4b9cf1b' +
+    '384c486f3a54c51078158ee5d79de59fbd34d848b3d69550a67646344427ade54b8851ffb598f7f80074b9473c82e2db';
+
+  RFC7518_B1_T =
+    '652c3fa36b0a7c5b3219fab3a30bc1c4';
+
+  RFC7518_B2_K =
+    '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f';
+
+  RFC7518_B2_E =
+    'ea65da6b59e61edb419be62d19712ae5d303eeb50052d0dfd6697f77224c8edb000d279bdc14c1072654bd30944230c6' +
+    '57bed4ca0c9f4a8466f22b226d1746214bf8cfc2400add9f5126e479663fc90b3bed787a2f0ffcbf3904be2a641d5c21' +
+    '05bfe591bae23b1d7449e532eef60a9ac8bb6c6b01d35d49787bcd57ef484927f280adc91ac0c4e79c7b11efc60054e3';
+
+  RFC7518_B2_T =
+    '8490ac0e58949bfe51875d733f93ac2075168039ccc733d7';
+
+  RFC7518_B3_K =
+    '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f' +
+    '303132333435363738393a3b3c3d3e3f';
+
+  RFC7518_B3_E =
+    '4affaaadb78c31c5da4b1b590d10ffbd3dd8d5d302423526912da037ecbcc7bd822c301dd67c373bccb584ad3e9279c2' +
+    'e6d12a1374b77f077553df829410446b36ebd97066296ae6427ea75c2e0846a11a09ccf5370dc80bfecbad28c73f09b3' +
+    'a3b75e662a2594410ae496b2e2e6609e31e6e02cc837f053d21f37ff4f51950bbe2638d09dd7a4930930806d0703b1f6';
+
+  RFC7518_B3_T =
+    '4dd3b4c088a7f45c216839645b2012bf2e6269a8c56a816dbc1b267761955bc5';
 
 { TJWEStackTestBase }
 
@@ -394,6 +477,7 @@ end;
 procedure TJWEPrimitivesTestBase.JWEProvidersAreRegistered;
 begin
   Assert.IsTrue(TJOSEProviders.HasAESGCM, 'AES-GCM provider missing');
+  Assert.IsTrue(TJOSEProviders.HasAESCBC, 'AES-CBC provider missing');
   Assert.IsTrue(TJOSEProviders.HasRSAEncryption, 'RSA-OAEP provider missing');
 end;
 
@@ -571,6 +655,127 @@ begin
 
   Assert.AreEqual(LTampered, LWrongDigest);
   Assert.AreEqual(LTampered, LTruncated);
+end;
+
+{ AES-CBC }
+
+// The key K, ciphertext E and tag T of an RFC 7518 Appendix B case
+procedure CBCCase(const ACase: string; out AKey, ACiphertext, ATag: TBytes);
+begin
+  if ACase = 'B1' then
+  begin
+    AKey := HexToBytes(RFC7518_B1_K);
+    ACiphertext := HexToBytes(RFC7518_B1_E);
+    ATag := HexToBytes(RFC7518_B1_T);
+  end
+  else if ACase = 'B2' then
+  begin
+    AKey := HexToBytes(RFC7518_B2_K);
+    ACiphertext := HexToBytes(RFC7518_B2_E);
+    ATag := HexToBytes(RFC7518_B2_T);
+  end
+  else
+  begin
+    AKey := HexToBytes(RFC7518_B3_K);
+    ACiphertext := HexToBytes(RFC7518_B3_E);
+    ATag := HexToBytes(RFC7518_B3_T);
+  end;
+end;
+
+// ENC_KEY is the second half of K (RFC 7518 par. 5.2.2.1)
+function EncKeyOf(const AKey: TBytes): TBytes;
+begin
+  Result := Copy(AKey, Length(AKey) div 2, Length(AKey) div 2);
+end;
+
+procedure TJWEPrimitivesTestBase.CBC_KnownAnswer(const ACase: string);
+var
+  LKey, LExpected, LTag: TBytes;
+begin
+  CBCCase(ACase, LKey, LExpected, LTag);
+
+  Assert.AreEqual(LowerCase(BytesToHex(LExpected)),
+    LowerCase(BytesToHex(CBC.Encrypt(HexToBytes(RFC7518_B_P), EncKeyOf(LKey), HexToBytes(RFC7518_B_IV)))),
+    'Ciphertext');
+  Assert.AreEqual(RFC7518_B_P,
+    LowerCase(BytesToHex(CBC.Decrypt(LExpected, EncKeyOf(LKey), HexToBytes(RFC7518_B_IV)))),
+    'Plaintext');
+end;
+
+procedure TJWEPrimitivesTestBase.CBC_RoundTrip(AKeyLength, APlaintextLength: Integer);
+var
+  LKey, LIV, LPlaintext, LCiphertext: TBytes;
+begin
+  LKey := TJOSEBytes.RandomBytes(AKeyLength);
+  LIV := TJOSEBytes.RandomBytes(16);
+  LPlaintext := TJOSEBytes.RandomBytes(APlaintextLength);
+
+  LCiphertext := CBC.Encrypt(LPlaintext, LKey, LIV);
+  // PKCS#7 always adds 1 to 16 bytes, so a whole block is added to a whole block
+  Assert.AreEqual((APlaintextLength div 16 + 1) * 16, Length(LCiphertext));
+  Assert.IsTrue(TJOSEBytes(CBC.Decrypt(LCiphertext, LKey, LIV)) = LPlaintext);
+end;
+
+procedure TJWEPrimitivesTestBase.CBC_BadPaddingIsRejected;
+var
+  LKey, LCiphertext, LTag: TBytes;
+begin
+  CBCCase('B1', LKey, LCiphertext, LTag);
+
+  // P is 8 whole blocks, so the last block decrypts to 16 bytes of padding
+  // 0x10. Flipping the low bit of the matching byte of the previous block
+  // turns the last padding byte into 0x11: invalid, whatever the key
+  LCiphertext[Length(LCiphertext) - 17] := LCiphertext[Length(LCiphertext) - 17] xor $01;
+
+  CryptoErrorOf(
+    procedure
+    begin
+      CBC.Decrypt(LCiphertext, EncKeyOf(LKey), HexToBytes(RFC7518_B_IV));
+    end);
+end;
+
+procedure TJWEPrimitivesTestBase.CBC_DecryptRejectsBadInput(const AWhat: string);
+var
+  LKey, LIV, LCiphertext, LTag: TBytes;
+begin
+  CBCCase('B1', LKey, LCiphertext, LTag);
+  LKey := EncKeyOf(LKey);
+  LIV := HexToBytes(RFC7518_B_IV);
+
+  if AWhat = 'Truncated' then
+    SetLength(LCiphertext, Length(LCiphertext) - 1)
+  else if AWhat = 'Empty' then
+    LCiphertext := nil
+  else if AWhat = 'IV' then
+    SetLength(LIV, 12)
+  else if AWhat = 'Key' then
+    SetLength(LKey, 20);
+
+  CryptoErrorOf(
+    procedure
+    begin
+      CBC.Decrypt(LCiphertext, LKey, LIV);
+    end);
+end;
+
+procedure TJWEPrimitivesTestBase.CBC_DecryptFailuresLookTheSame;
+var
+  LKey, LIV, LCiphertext, LBadPadding, LTag: TBytes;
+  LPadding, LTruncated, LEmpty: string;
+begin
+  CBCCase('B1', LKey, LCiphertext, LTag);
+  LKey := EncKeyOf(LKey);
+  LIV := HexToBytes(RFC7518_B_IV);
+
+  LBadPadding := Copy(LCiphertext);
+  LBadPadding[Length(LBadPadding) - 17] := LBadPadding[Length(LBadPadding) - 17] xor $01;
+
+  LPadding := CryptoErrorOf(procedure begin CBC.Decrypt(LBadPadding, LKey, LIV); end);
+  LTruncated := CryptoErrorOf(procedure begin CBC.Decrypt(Copy(LCiphertext, 0, 143), LKey, LIV); end);
+  LEmpty := CryptoErrorOf(procedure begin CBC.Decrypt(nil, LKey, LIV); end);
+
+  Assert.AreEqual(LPadding, LTruncated);
+  Assert.AreEqual(LPadding, LEmpty);
 end;
 
 { RFC 7520 par. 5.6 }

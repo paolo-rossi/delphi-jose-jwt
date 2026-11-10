@@ -90,6 +90,9 @@ type
     fn_EVP_aes_128_gcm = 'EVP_aes_128_gcm';
     fn_EVP_aes_192_gcm = 'EVP_aes_192_gcm';
     fn_EVP_aes_256_gcm = 'EVP_aes_256_gcm';
+    fn_EVP_aes_128_cbc = 'EVP_aes_128_cbc';
+    fn_EVP_aes_192_cbc = 'EVP_aes_192_cbc';
+    fn_EVP_aes_256_cbc = 'EVP_aes_256_cbc';
     fn_EVP_sha1 = 'EVP_sha1';
     fn_EVP_PKEY_new = 'EVP_PKEY_new';
     fn_EVP_PKEY_set1_RSA = 'EVP_PKEY_set1_RSA';
@@ -264,6 +267,9 @@ type
     EVP_aes_128_gcm: function(): PEVP_CIPHER cdecl;
     EVP_aes_192_gcm: function(): PEVP_CIPHER cdecl;
     EVP_aes_256_gcm: function(): PEVP_CIPHER cdecl;
+    EVP_aes_128_cbc: function(): PEVP_CIPHER cdecl;
+    EVP_aes_192_cbc: function(): PEVP_CIPHER cdecl;
+    EVP_aes_256_cbc: function(): PEVP_CIPHER cdecl;
     EVP_sha1: function(): PEVP_MD cdecl;
     EVP_PKEY_new: function(): PEVP_PKEY cdecl;
     EVP_PKEY_set1_RSA: function(pkey: PEVP_PKEY; key: PRSA): Integer cdecl;
@@ -315,7 +321,7 @@ type
     /// </summary>
     class function EnsurePSSSupport: Boolean;
     /// <summary>
-    ///   Lazily loads the JWE symbols: the EVP cipher API with AES-GCM, and the EVP_PKEY
+    ///   Lazily loads the JWE symbols: the EVP cipher API with AES-GCM and AES-CBC, and the EVP_PKEY
     ///   encrypt/decrypt API that RSA-OAEP goes through. Non-fatal like
     ///   <c>EnsureECKeySupport</c>: returns False rather than raising, so a library without
     ///   them (OpenSSL before 1.0.1 has no GCM) leaves JWS users unaffected
@@ -506,6 +512,9 @@ begin
     @EVP_aes_128_gcm := Resolve(fn_EVP_aes_128_gcm);
     @EVP_aes_192_gcm := Resolve(fn_EVP_aes_192_gcm);
     @EVP_aes_256_gcm := Resolve(fn_EVP_aes_256_gcm);
+    @EVP_aes_128_cbc := Resolve(fn_EVP_aes_128_cbc);
+    @EVP_aes_192_cbc := Resolve(fn_EVP_aes_192_cbc);
+    @EVP_aes_256_cbc := Resolve(fn_EVP_aes_256_cbc);
     @EVP_sha1 := Resolve(fn_EVP_sha1);
     // Shared with EnsurePSSSupport: resolving it again yields the same address
     @EVP_sha256 := Resolve(fn_EVP_sha256);
@@ -667,6 +676,9 @@ begin
   @EVP_aes_128_gcm := nil;
   @EVP_aes_192_gcm := nil;
   @EVP_aes_256_gcm := nil;
+  @EVP_aes_128_cbc := nil;
+  @EVP_aes_192_cbc := nil;
+  @EVP_aes_256_cbc := nil;
   @EVP_sha1 := nil;
   @EVP_PKEY_new := nil;
   @EVP_PKEY_set1_RSA := nil;

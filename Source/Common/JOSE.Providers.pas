@@ -42,6 +42,7 @@ type
     class var FBase64: IJOSEBase64Provider;
     class var FHMAC: IJOSEHmacProvider;
     class var FAESGCM: IJOSEAESGCMProvider;
+    class var FAESCBC: IJOSEAESCBCProvider;
 {$IFDEF RSA_SIGNING}
     class var FCertificate: IJOSECertificateProvider;
     class var FRSA: IJOSESignerRSA;
@@ -53,6 +54,7 @@ type
     class procedure RequireBase64; static;
     class procedure RequireHMAC; static;
     class procedure RequireAESGCM; static;
+    class procedure RequireAESCBC; static;
 {$IFDEF RSA_SIGNING}
     class procedure RequireSigningStack; static;
     class procedure RequireRSAKeyMaterial; static;
@@ -65,6 +67,8 @@ type
     class procedure SetHMAC(const AValue: IJOSEHmacProvider); static;
     class function GetAESGCM: IJOSEAESGCMProvider; static;
     class procedure SetAESGCM(const AValue: IJOSEAESGCMProvider); static;
+    class function GetAESCBC: IJOSEAESCBCProvider; static;
+    class procedure SetAESCBC(const AValue: IJOSEAESCBCProvider); static;
 {$IFDEF RSA_SIGNING}
     class function GetCertificate: IJOSECertificateProvider; static;
     class function GetRSA: IJOSESignerRSA; static;
@@ -91,6 +95,11 @@ type
     class property AESGCM: IJOSEAESGCMProvider read GetAESGCM write SetAESGCM;
     /// <summary>True when the registered stack provides AES-GCM. Never raises</summary>
     class function HasAESGCM: Boolean; static;
+    /// <summary>Optional capability: AES-CBC, for the JWE A*CBC-HS* content encryption. See
+    ///   <c>AESGCM</c>.</summary>
+    class property AESCBC: IJOSEAESCBCProvider read GetAESCBC write SetAESCBC;
+    /// <summary>True when the registered stack provides AES-CBC. Never raises</summary>
+    class function HasAESCBC: Boolean; static;
 {$IFDEF RSA_SIGNING}
     class property Certificate: IJOSECertificateProvider read GetCertificate write SetCertificate;
     class property RSA: IJOSESignerRSA read GetRSA write SetRSA;
@@ -153,6 +162,28 @@ end;
 class function TJOSEProviders.HasAESGCM: Boolean;
 begin
   Result := FAESGCM <> nil;
+end;
+
+class procedure TJOSEProviders.RequireAESCBC;
+begin
+  if FAESCBC = nil then
+    raise EJOSEProvidersNotRegistered.Create(SJOSEProviderCapabilityMissing);
+end;
+
+class function TJOSEProviders.GetAESCBC: IJOSEAESCBCProvider;
+begin
+  RequireAESCBC;
+  Result := FAESCBC;
+end;
+
+class procedure TJOSEProviders.SetAESCBC(const AValue: IJOSEAESCBCProvider);
+begin
+  FAESCBC := AValue;
+end;
+
+class function TJOSEProviders.HasAESCBC: Boolean;
+begin
+  Result := FAESCBC <> nil;
 end;
 
 class function TJOSEProviders.GetBase64: IJOSEBase64Provider;

@@ -63,6 +63,24 @@ type
     function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
   end;
 
+  /// <summary>
+  ///   AES in CBC mode with PKCS#7 padding: the encryption half of the JWE
+  ///   "A128CBC-HS256", "A192CBC-HS384" and "A256CBC-HS512" content
+  ///   encryption (RFC 7518 par. 5.2). The HMAC half is done by the caller
+  /// </summary>
+  /// <remarks>
+  ///   The key length (16, 24 or 32 bytes) selects AES-128/192/256 and the IV
+  ///   is always 16 bytes: anything else raises EJOSECryptoException.
+  ///   CBC is not authenticated: callers must check a MAC before Decrypt, as
+  ///   the JWE layer does, or a padding error becomes an oracle
+  /// </remarks>
+  IJOSEAESCBCProvider = interface
+    ['{3B7DCD4D-10D5-402D-8A9B-FAA3D546C530}']
+    function Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+    /// <summary>Raises EJOSECryptoException, with no detail, when the padding is wrong</summary>
+    function Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+  end;
+
 {$IFDEF RSA_SIGNING}
 
   /// <summary>

@@ -109,6 +109,13 @@ type
     function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
   end;
 
+  /// <summary>AES-CBC with PKCS#7 padding (JWE A*CBC-HS*) via the TaurusTLS EVP cipher API.</summary>
+  TTaurusTLSAESCBCProvider = class(TInterfacedObject, IJOSEAESCBCProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+  end;
+
   /// <summary>
   ///   RSAES-OAEP (JWE RSA-OAEP/RSA-OAEP-256) via TaurusTLS. Uses the EVP_PKEY API, with the
   ///   OAEP and MGF1 digests set explicitly: the legacy RSA_public_encrypt only does SHA-1.
@@ -208,6 +215,11 @@ resourcestring
   SJOSETaurusTLSGCMEncryptError = '[TaurusTLS] AES-GCM encryption error (%s)';
   // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
   SJOSETaurusTLSGCMDecryptFailed = '[TaurusTLS] AES-GCM decryption failed';
+  SJOSETaurusTLSCBCKeyLength = '[TaurusTLS] AES-CBC key must be 16, 24 or 32 bytes, not %d';
+  SJOSETaurusTLSCBCIVLength = '[TaurusTLS] AES-CBC IV must be 16 bytes, not %d';
+  SJOSETaurusTLSCBCEncryptError = '[TaurusTLS] AES-CBC encryption error (%s)';
+  // Deliberately without detail: see IJOSEAESCBCProvider.Decrypt
+  SJOSETaurusTLSCBCDecryptFailed = '[TaurusTLS] AES-CBC decryption failed';
   SJOSETaurusTLSOAEPKeyNotRSA = '[TaurusTLS] RSA-OAEP needs an RSA key';
   SJOSETaurusTLSOAEPLoadPublicKeyError = '[TaurusTLS] RSA-OAEP: unable to load the public key';
   SJOSETaurusTLSOAEPLoadPrivateKeyError = '[TaurusTLS] RSA-OAEP: unable to load the private key';
@@ -1497,6 +1509,103 @@ begin
   end;
 end;
 
+{ AES-CBC }
+
+const
+  TAURUS_CBC_IV_BYTES = 16;
+  TAURUS_AES_BLOCK_BYTES = 16;
+
+function TaurusCBCCipher(AKeyLength: Integer): PEVP_CIPHER;
+begin
+  case AKeyLength of
+    16: Result := EVP_aes_128_cbc;
+    24: Result := EVP_aes_192_cbc;
+    32: Result := EVP_aes_256_cbc;
+  else
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSCBCKeyLength, [AKeyLength]);
+  end;
+end;
+
+// One AES-CBC pass with PKCS#7 padding (OpenSSL's default). Returns False on
+// any failure; on decryption the output written so far is wiped
+function TaurusCBCProcess(AForEncryption: Boolean; const AInput, AKey, AIV: TBytes;
+  out AOutput: TBytes): Boolean;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LCipher: PEVP_CIPHER;
+  LLen, LTotal: TIdC_INT;
+  LEmpty: Byte;
+begin
+  LCipher := TaurusCBCCipher(Length(AKey));
+  if Length(AIV) <> TAURUS_CBC_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSCBCIVLength, [Length(AIV)]);
+
+  // Room for the input plus one padding block
+  SetLength(AOutput, Length(AInput) + TAURUS_AES_BLOCK_BYTES);
+  LTotal := 0;
+  LLen := 0;
+
+  LCtx := EVP_CIPHER_CTX_new;
+  if LCtx = nil then
+    Exit(False);
+  try
+    if AForEncryption then
+      Result := EVP_EncryptInit_ex(LCtx, LCipher, nil, @AKey[0], @AIV[0]) = 1
+    else
+      Result := EVP_DecryptInit_ex(LCtx, LCipher, nil, @AKey[0], @AIV[0]) = 1;
+
+    if Result and (Length(AInput) > 0) then
+    begin
+      if AForEncryption then
+        Result := EVP_EncryptUpdate(LCtx, AOutput[0], LLen, AInput[0], Length(AInput)) = 1
+      else
+        Result := EVP_DecryptUpdate(LCtx, AOutput[0], LLen, AInput[0], Length(AInput)) = 1;
+      LTotal := LLen;
+    end;
+
+    if Result then
+    begin
+      // Final writes the padding block (encryption) or checks it (decryption)
+      LLen := 0;
+      if AForEncryption then
+        Result := EVP_EncryptFinal_ex(LCtx, AOutput[LTotal], LLen) = 1
+      else if LTotal < Length(AOutput) then
+        Result := EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), AOutput[LTotal], LLen) > 0
+      else
+        Result := EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), LEmpty, LLen) > 0;
+      Inc(LTotal, LLen);
+    end;
+  finally
+    EVP_CIPHER_CTX_free(LCtx);
+  end;
+
+  if Result then
+    SetLength(AOutput, LTotal)
+  else
+  begin
+    if Length(AOutput) > 0 then
+      FillChar(AOutput[0], Length(AOutput), 0);
+    AOutput := nil;
+  end;
+end;
+
+{ TTaurusTLSAESCBCProvider }
+
+function TTaurusTLSAESCBCProvider.Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+  if not TaurusCBCProcess(True, APlaintext, AKey, AIV, Result) then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSCBCEncryptError, ['encrypt']);
+end;
+
+function TTaurusTLSAESCBCProvider.Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+  // Bad padding, a length that is not a multiple of the block: one message
+  if not TaurusCBCProcess(False, ACiphertext, AKey, AIV, Result) then
+    raise EJOSECryptoException.Create(SJOSETaurusTLSCBCDecryptFailed);
+end;
+
 { RSAES-OAEP }
 
 function BytesStartWith(const ABuf, APrefix: TBytes): Boolean;
@@ -1710,11 +1819,13 @@ begin
   TJOSEProviders.RSAKeyMaterial := TTaurusTLSRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TTaurusTLSECKeyMaterialProvider.Create;
   TJOSEProviders.AESGCM := TTaurusTLSAESGCMProvider.Create;
+  TJOSEProviders.AESCBC := TTaurusTLSAESCBCProvider.Create;
   TJOSEProviders.RSAEncryption := TTaurusTLSRSAEncryptionProvider.Create(LCert);
 {$ELSE}
   // No OpenSSL on this target: cleared rather than left alone, so that
   // registering over another stack cannot keep that stack's providers
   TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.AESCBC := nil;
 {$ENDIF}
 end;
 
@@ -1730,6 +1841,7 @@ begin
   TJOSEProviders.ECKeyMaterial := nil;
 {$ENDIF}
   TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.AESCBC := nil;
 {$IFDEF RSA_SIGNING}
   TJOSEProviders.RSAEncryption := nil;
 {$ENDIF}

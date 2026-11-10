@@ -124,6 +124,16 @@ type
   end;
 
   /// <summary>
+  ///   OpenSSL-backed AES-CBC with PKCS#7 padding (JWE A*CBC-HS*). Loaded with the other JWE
+  ///   symbols, see <c>JoseSSL.EnsureJWESupport</c>.
+  /// </summary>
+  TDefaultAESCBCProvider = class(TInterfacedObject, IJOSEAESCBCProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+  end;
+
+  /// <summary>
   ///   OpenSSL-backed RSAES-OAEP (JWE RSA-OAEP/RSA-OAEP-256), through the EVP_PKEY API with
   ///   the OAEP and MGF1 digests set explicitly. RSA-OAEP-256 needs OpenSSL 1.0.2 or later,
   ///   the first version with the OAEP digest control.
@@ -194,6 +204,11 @@ resourcestring
   SJOSEGCMEncryptError = '[OpenSSL] AES-GCM encryption error (%s)';
   // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
   SJOSEGCMDecryptFailed = '[OpenSSL] AES-GCM decryption failed';
+  SJOSECBCKeyLength = '[OpenSSL] AES-CBC key must be 16, 24 or 32 bytes, not %d';
+  SJOSECBCIVLength = '[OpenSSL] AES-CBC IV must be 16 bytes, not %d';
+  SJOSECBCEncryptError = '[OpenSSL] AES-CBC encryption error';
+  // Deliberately without detail: see IJOSEAESCBCProvider.Decrypt
+  SJOSECBCDecryptFailed = '[OpenSSL] AES-CBC decryption failed';
   SJOSEOAEPKeyError = '[OpenSSL] RSA-OAEP: unable to use the RSA key';
   SJOSEOAEPEncryptError = '[OpenSSL] RSA-OAEP encryption error (%s)';
   // Deliberately without detail: see IJOSERSAEncryptionProvider.Decrypt
@@ -1529,6 +1544,94 @@ begin
   end;
 end;
 
+{ TDefaultAESCBCProvider }
+
+const
+  DEFAULT_CBC_IV_BYTES = 16;
+  DEFAULT_AES_BLOCK_BYTES = 16;
+
+/// <summary>
+///   One AES-CBC pass with PKCS#7 padding (OpenSSL's default). Returns False on any
+///   failure; on decryption the output written so far is wiped
+/// </summary>
+function DefaultCBCProcess(AForEncryption: Boolean; const AInput, AKey, AIV: TBytes;
+  out AOutput: TBytes): Boolean;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LCipher: PEVP_CIPHER;
+  LLen, LTotal: Integer;
+begin
+  case Length(AKey) of
+    16: LCipher := JoseSSL.EVP_aes_128_cbc();
+    24: LCipher := JoseSSL.EVP_aes_192_cbc();
+    32: LCipher := JoseSSL.EVP_aes_256_cbc();
+  else
+    raise EJOSECryptoException.CreateFmt(SJOSECBCKeyLength, [Length(AKey)]);
+  end;
+  if Length(AIV) <> DEFAULT_CBC_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSECBCIVLength, [Length(AIV)]);
+
+  // Room for the input plus one padding block
+  SetLength(AOutput, Length(AInput) + DEFAULT_AES_BLOCK_BYTES);
+  LTotal := 0;
+  LLen := 0;
+
+  LCtx := JoseSSL.EVP_CIPHER_CTX_new();
+  if LCtx = nil then
+    Exit(False);
+  try
+    if AForEncryption then
+      Result := JoseSSL.EVP_EncryptInit_ex(LCtx, LCipher, nil, @AKey[0], @AIV[0]) = 1
+    else
+      Result := JoseSSL.EVP_DecryptInit_ex(LCtx, LCipher, nil, @AKey[0], @AIV[0]) = 1;
+
+    if Result and (Length(AInput) > 0) then
+    begin
+      if AForEncryption then
+        Result := JoseSSL.EVP_EncryptUpdate(LCtx, @AOutput[0], @LLen, @AInput[0], Length(AInput)) = 1
+      else
+        Result := JoseSSL.EVP_DecryptUpdate(LCtx, @AOutput[0], @LLen, @AInput[0], Length(AInput)) = 1;
+      LTotal := LLen;
+    end;
+
+    if Result then
+    begin
+      // Final writes the padding block (encryption) or checks it (decryption)
+      LLen := 0;
+      if AForEncryption then
+        Result := JoseSSL.EVP_EncryptFinal_ex(LCtx, @AOutput[LTotal], @LLen) = 1
+      else
+        Result := JoseSSL.EVP_DecryptFinal_ex(LCtx, @AOutput[LTotal], @LLen) > 0;
+      Inc(LTotal, LLen);
+    end;
+  finally
+    JoseSSL.EVP_CIPHER_CTX_free(LCtx);
+  end;
+
+  if Result then
+    SetLength(AOutput, LTotal)
+  else
+  begin
+    FillChar(AOutput[0], Length(AOutput), 0);
+    AOutput := nil;
+  end;
+end;
+
+function TDefaultAESCBCProvider.Encrypt(const APlaintext, AKey, AIV: TBytes): TBytes;
+begin
+  RequireJWESupport;
+  if not DefaultCBCProcess(True, APlaintext, AKey, AIV, Result) then
+    raise EJOSECryptoException.Create(SJOSECBCEncryptError);
+end;
+
+function TDefaultAESCBCProvider.Decrypt(const ACiphertext, AKey, AIV: TBytes): TBytes;
+begin
+  RequireJWESupport;
+  // Bad padding, a length that is not a multiple of the block: one message
+  if not DefaultCBCProcess(False, ACiphertext, AKey, AIV, Result) then
+    raise EJOSECryptoException.Create(SJOSECBCDecryptFailed);
+end;
+
 { TDefaultRSAEncryptionProvider }
 
 /// <summary>
@@ -1920,11 +2023,13 @@ begin
   // functions is reported when JWE is used ("needs 1.0.1/1.0.2") rather than as a
   // missing provider, and never at registration, where it would break JWS users
   TJOSEProviders.AESGCM := TDefaultAESGCMProvider.Create;
+  TJOSEProviders.AESCBC := TDefaultAESCBCProvider.Create;
   TJOSEProviders.RSAEncryption := TDefaultRSAEncryptionProvider.Create(LCert);
 {$ELSE}
   // No OpenSSL on this target: cleared rather than left alone, so that
   // registering over another stack cannot keep that stack's providers
   TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.AESCBC := nil;
   {$IFDEF RSA_SIGNING}
   TJOSEProviders.RSAEncryption := nil;
   {$ENDIF}
@@ -1943,6 +2048,7 @@ begin
   TJOSEProviders.ECKeyMaterial := nil;
 {$ENDIF}
   TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.AESCBC := nil;
 {$IFDEF RSA_SIGNING}
   TJOSEProviders.RSAEncryption := nil;
 {$ENDIF}
