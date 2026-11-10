@@ -279,6 +279,7 @@ uses
 resourcestring
   SJOSEUnexpectedAlgorithm = 'JWS algorithm [%s] is not listed among those expected';
   SJOSEInvalidSignature = 'JWS signature is invalid';
+  SJOSEVerificationKeyRequired = 'A verification key is required to verify the token';
   SJOSESignatureRequired = 'The JWT has no signature but the JWT Consumer is configured to require one';
   SJOSEEncryptionRequired = 'The JWT is not encrypted but the JWT Consumer is configured to require encryption';
   SJOSEClaimsRejected = 'JWT rejected due to invalid claims.';
@@ -606,6 +607,13 @@ begin
   begin
     if not (AJWS.HeaderAlgorithmId in FExpectedAlgorithms) then
       raise EJOSEException.CreateFmt(SJOSEUnexpectedAlgorithm, [AJWS.HeaderAlgorithm]);
+
+    // A JWS, or the inner JWS of a nested JWT, needs the verification key.
+    // Saying so is clearer than the algorithm's "Key is null", and it is what
+    // an upgrader sees when SetDecryptionKey used to double as the verification
+    // key and no longer does. "none" is the exception: it takes no key at all.
+    if (AJWS.HeaderAlgorithmId <> TJOSEAlgorithmId.None) and FVerificationKey.IsEmpty then
+      raise EJOSEException.Create(SJOSEVerificationKeyRequired);
 
     if FSkipVerificationKeyValidation then
       AJWS.SkipKeyValidation := True;

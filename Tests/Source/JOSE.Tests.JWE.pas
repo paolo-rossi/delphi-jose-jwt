@@ -298,6 +298,9 @@ type
     procedure VerificationAndDecryptionKeysAreSeparate;
 
     [Test]
+    procedure JWSWithoutVerificationKeySaysSo;
+
+    [Test]
     procedure SignAndEncryptRequiresASigningKey;
 
     [Test]
@@ -1082,6 +1085,21 @@ begin
     LToken.Free;
     LKey.Free;
   end;
+end;
+
+procedure TTestJWEWiring.JWSWithoutVerificationKeySaysSo;
+begin
+  // SetDecryptionKey does not double as the verification key: a JWS needs the
+  // latter, and the error names the missing key instead of the algorithm's
+  // "Key is null"
+  Assert.AreEqual('EJOSEException: A verification key is required to verify the token', ErrorOf(
+    procedure
+    begin
+      TJOSEConsumerBuilder.NewConsumer
+        .SetDecryptionKey(TJOSEBytes.RandomBytes(32))
+        .Build
+        .Process(HS256Token('alice'));
+    end));
 end;
 
 procedure TTestJWEWiring.TJOSEDecryptRejectsAJWS;

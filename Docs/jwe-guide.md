@@ -345,6 +345,11 @@ What the consumer does with a JWE:
    of nesting is accepted: an inner token that is itself a JWE is rejected.
 4. Validates the claims, as for any token.
 
+`SetDecryptionKey` does not also set the verification key, so a JWS (or the inner JWS of a nested
+JWT) needs `SetVerificationKey` explicitly, even if a previous version accepted only the decryption
+key. A JWS verified without a verification key raises `A verification key is required to verify the
+token`.
+
 After `ProcessContext` (or `Process`), the context's `GetHeader` and `GetClaims` describe the same
 layer: for a nested JWT that is the inner JWS, so `GetHeader.Algorithm` is the signing algorithm
 that was verified. The outer JWE header stays available through `GetJWEHeader` (`alg`, `enc`,
