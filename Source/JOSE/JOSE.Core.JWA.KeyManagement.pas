@@ -157,7 +157,11 @@ end;
 function TDirAlgorithm.ManageForDecrypt(const AKey, AEncryptedKey: TJOSEBytes; ACEKLength: Integer;
   AHeader: TJWEHeader): TJOSEBytes;
 begin
-  // RFC 7516 par. 5.2 step 10
+  // RFC 7516 par. 5.2 step 10: a "dir" token with a non-empty Encrypted Key is
+  // malformed. The error below is masked by TJWE.DecryptPayload, which replaces
+  // every decryption failure with its one generic message on purpose; it is
+  // here for the rule's sake (and for a debugger), not for the caller to read.
+  // The same applies to CheckKeyLength in this method.
   if not AEncryptedKey.IsEmpty then
     raise EJOSEException.Create(SJOSEDirEncryptedKeyNotEmpty);
 

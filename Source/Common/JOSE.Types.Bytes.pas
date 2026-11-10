@@ -44,16 +44,10 @@ type
 
     class function Empty: TJOSEBytes; static;
     class function RandomBytes(ANumberOfBytes: Integer): TJOSEBytes; static;
-    class function IsValidString(const AValue: TJOSEBytes): Boolean; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
     procedure Clear;
-    /// <summary>
-    ///   A copy of ALength bytes from AStart (0-based). Raises
-    ///   ERangeError when the range is not inside the payload
-    /// </summary>
-    function Slice(AStart, ALength: Integer): TJOSEBytes;
 
     function Contains(const AByte: Byte): Boolean; overload;
     function Contains(const ABytes: TBytes): Boolean; overload;
@@ -239,18 +233,6 @@ begin
   Result := Size = 0;
 end;
 
-class function TJOSEBytes.IsValidString(const AValue: TJOSEBytes): Boolean;
-var
-  LStr: string;
-begin
-  try
-    LStr := AValue.AsString;
-  except
-    Exit(False);
-  end;
-  Result := True;
-end;
-
 class function TJOSEBytes.RandomBytes(ANumberOfBytes: Integer): TJOSEBytes;
 begin
   SetLength(Result.FPayload, ANumberOfBytes);
@@ -260,16 +242,6 @@ end;
 function TJOSEBytes.Size: Integer;
 begin
   Result := Length(FPayload);
-end;
-
-function TJOSEBytes.Slice(AStart, ALength: Integer): TJOSEBytes;
-begin
-  // Checked explicitly: System.Copy clamps an out-of-range request silently,
-  // and a short tag or key must fail loudly, not come back truncated
-  if (AStart < 0) or (ALength < 0) or (AStart > Size - ALength) then
-    raise ERangeError.CreateFmt('Slice(%d, %d) is outside a payload of %d bytes', [AStart, ALength, Size]);
-
-  Result.FPayload := Copy(FPayload, AStart, ALength);
 end;
 
 class operator TJOSEBytes.Implicit(const AValue: string): TJOSEBytes;

@@ -128,7 +128,7 @@ resourcestring
   SJOSEProvidersNotRegistered = 'JOSE global providers are not registered. ' +
     'Call TJOSEProviders.RegisterProvider, TJOSECryptoLibProviders.Register or TJOSETaurusTLSProviders.Register.';
   SJOSEProviderCapabilityMissing = 'The registered JOSE provider stack does not support this operation ' +
-    '(JWE encryption). Register a stack that implements it.';
+    '(JWE encryption or decryption). Register a stack that implements it.';
 
 { TJOSEProviders }
 

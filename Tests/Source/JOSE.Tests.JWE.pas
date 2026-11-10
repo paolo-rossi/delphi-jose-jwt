@@ -149,19 +149,6 @@ type
   TTestJOSEBytesForJWE = class
   public
     [Test]
-    procedure SliceMiddle;
-
-    [Test]
-    procedure SliceWholeAndEmpty;
-
-    [Test]
-    [TestCase('Negative start',  '-1,1')]
-    [TestCase('Negative length', '0,-1')]
-    [TestCase('Past the end',    '3,2')]
-    [TestCase('Start past end',  '5,0')]
-    procedure SliceOutOfRangeRaises(AStart, ALength: Integer);
-
-    [Test]
     procedure ConcatenationWithEmptyOperands;
 
     [Test]
@@ -584,41 +571,6 @@ begin
 end;
 
 { TTestJOSEBytesForJWE }
-
-procedure TTestJOSEBytesForJWE.SliceMiddle;
-var
-  LBytes: TJOSEBytes;
-begin
-  LBytes := TBytes.Create(1, 2, 3, 4, 5);
-
-  Assert.IsTrue(LBytes.Slice(1, 3) = TBytes.Create(2, 3, 4));
-  Assert.IsTrue(LBytes.Slice(3, 2) = TBytes.Create(4, 5));
-end;
-
-procedure TTestJOSEBytesForJWE.SliceWholeAndEmpty;
-var
-  LBytes: TJOSEBytes;
-begin
-  LBytes := TBytes.Create(1, 2, 3, 4, 5);
-
-  Assert.IsTrue(LBytes.Slice(0, 5) = LBytes);
-  Assert.IsTrue(LBytes.Slice(5, 0).IsEmpty, 'A zero-length slice at the end is legal');
-  Assert.IsTrue(TJOSEBytes.Empty.Slice(0, 0).IsEmpty);
-end;
-
-procedure TTestJOSEBytesForJWE.SliceOutOfRangeRaises(AStart, ALength: Integer);
-var
-  LBytes: TJOSEBytes;
-begin
-  LBytes := TBytes.Create(1, 2, 3, 4);
-
-  Assert.WillRaise(
-    procedure
-    begin
-      LBytes.Slice(AStart, ALength);
-    end,
-    ERangeError);
-end;
 
 procedure TTestJOSEBytesForJWE.ConcatenationWithEmptyOperands;
 var

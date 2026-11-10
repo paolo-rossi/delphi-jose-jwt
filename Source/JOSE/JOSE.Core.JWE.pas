@@ -161,7 +161,7 @@ resourcestring
   SJOSEJWEAlgNotSupported = 'JWE key management algorithm (%s) is not supported';
   SJOSEJWEEncNotSupported = 'JWE content encryption algorithm (%s) is not supported';
   SJOSEJWECompressionNotSupported = 'JWE compression ("zip":"%s") is not supported: only "DEF" is';
-  SJOSEJWECriticalNotSupported = 'The JWE header has a "crit" member, and none of the extensions it can name is supported';
+  SJOSEJWECriticalNotSupported = 'The JWE header has a "crit" member: critical extensions are not supported';
   // Deliberately one message for every decryption failure: see the class remarks
   SJOSEJWEDecryptionFailed = 'JWE decryption failed';
 
@@ -204,7 +204,7 @@ begin
   if LHeader.IsEmpty then
     Exit(False);
 
-  Result := TJOSEBytes.IsValidString(LHeader) and TJSONUtils.IsValidJSONObject(LHeader);
+  Result := TJSONUtils.IsValidJSONObject(LHeader);
 end;
 
 constructor TJWE.Create(AToken: TJWT);

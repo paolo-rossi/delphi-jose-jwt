@@ -1536,7 +1536,6 @@ var
   LCtx: PEVP_CIPHER_CTX;
   LCipher: PEVP_CIPHER;
   LLen, LTotal: TIdC_INT;
-  LEmpty: Byte;
 begin
   LCipher := TaurusCBCCipher(Length(AKey));
   if Length(AIV) <> TAURUS_CBC_IV_BYTES then
@@ -1567,14 +1566,14 @@ begin
 
     if Result then
     begin
-      // Final writes the padding block (encryption) or checks it (decryption)
+      // Final writes the padding block (encryption) or checks it (decryption).
+      // AOutput has room for the whole input plus one block, and Update writes
+      // at most the input length, so AOutput[LTotal] is always in range
       LLen := 0;
       if AForEncryption then
         Result := EVP_EncryptFinal_ex(LCtx, AOutput[LTotal], LLen) = 1
-      else if LTotal < Length(AOutput) then
-        Result := EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), AOutput[LTotal], LLen) > 0
       else
-        Result := EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), LEmpty, LLen) > 0;
+        Result := EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), AOutput[LTotal], LLen) > 0;
       Inc(LTotal, LLen);
     end;
   finally

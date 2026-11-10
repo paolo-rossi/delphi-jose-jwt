@@ -135,17 +135,11 @@ begin
   if LPart.IsEmpty then
     Exit(False);
 
-  if not TJOSEBytes.IsValidString(LPart) then
-    Exit(False);
-
   if not TJSONUtils.IsValidJSONObject(LPart) then
     Exit(False);
 
   LPart := TBase64.TryURLDecode(LCompact[1]);
   if LPart.IsEmpty then
-    Exit(False);
-
-  if not TJOSEBytes.IsValidString(LPart) then
     Exit(False);
 
   if not TJSONUtils.IsValidJSONObject(LPart) then
