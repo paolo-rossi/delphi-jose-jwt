@@ -353,6 +353,20 @@ type
     procedure TJOSE_SignAndEncrypt_DecryptAndVerify(ASignAlg, AAlg: TJOSEAlgorithmId;
       AEnc: TJOSEEncryptionAlgorithmId);
 
+    // The outer JWE header can describe the encryption key (kid) and ask for
+    // compression; the JWK overloads take the material from a TJSONWebKey
+    [Test]
+    procedure TJOSE_SignAndEncrypt_WithOuterHeader;
+
+    [Test]
+    procedure TJOSE_JWK_EncryptDecrypt_Dir;
+
+    [Test]
+    procedure TJOSE_JWK_EncryptDecrypt_RSA;
+
+    [Test]
+    procedure TJOSE_JWK_SignAndEncrypt_DecryptAndVerify;
+
     [Test]
     procedure TJOSE_DecryptAndVerify_WrongVerificationKey;
 
@@ -1788,6 +1802,173 @@ begin
   finally
     LDecrypt.Free;
     LVerify.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_SignAndEncrypt_WithOuterHeader;
+var
+  LSignKey, LEncryptKey: TJWK;
+  LVerifyKey, LDecryptKey, LSignBytes, LEncryptBytes: TJOSEBytes;
+  LHeader: TJWTHeader;
+  LToken, LRead, LOuter: TJWT;
+  LCompact: TJOSEBytes;
+  LJWE: TJWE;
+begin
+  SigningKeys(TJOSEAlgorithmId.HS256, LSignBytes, LVerifyKey);
+  EncryptionKeys(TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM,
+    LEncryptBytes, LDecryptKey);
+
+  LSignKey := TJWK.Create(LSignBytes);
+  LEncryptKey := TJWK.Create(LEncryptBytes);
+  LToken := ClaimsToken('alice');
+  LHeader := TJWTHeader.Create;
+  try
+    // The encryption key's kid and compression belong to the outer JWE header
+    LHeader.KeyID := 'enc-2026-11';
+    LHeader.SetHeaderParam('zip', 'DEF');
+
+    LCompact := TJOSE.SignAndEncrypt(LSignKey, TJOSEAlgorithmId.HS256,
+      LEncryptKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM,
+      LToken, LHeader);
+  finally
+    LHeader.Free;
+    LToken.Free;
+    LEncryptKey.Free;
+    LSignKey.Free;
+  end;
+
+  // The outer header carries the caller's members, plus the forced "cty"
+  LOuter := TJWT.Create;
+  LJWE := TJWE.Create(LOuter);
+  try
+    LJWE.CompactToken := LCompact;
+    Assert.AreEqual('enc-2026-11', LJWE.Header.KeyID);
+    Assert.AreEqual('DEF', LJWE.Header.Compression);
+    Assert.IsTrue(LJWE.Header.IsNestedJWT, '"cty":"JWT" must be forced');
+  finally
+    LJWE.Free;
+    LOuter.Free;
+  end;
+
+  // And the compressed nested token still decrypts and verifies
+  LRead := TJOSE.DecryptAndVerify(LDecryptKey, LVerifyKey, LCompact);
+  try
+    Assert.AreEqual('alice', LRead.Claims.Subject);
+    Assert.IsTrue(LRead.Verified);
+  finally
+    LRead.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_JWK_EncryptDecrypt_Dir;
+var
+  LKey: TJSONWebKey;
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  LKey := TJSONWebKey.CreateOct(TJOSEBytes.RandomBytes(32));
+  try
+    LToken := ClaimsToken('alice');
+    try
+      LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir,
+        TJOSEEncryptionAlgorithmId.A256GCM);
+    finally
+      LToken.Free;
+    end;
+
+    LRead := TJOSE.Decrypt(LKey, LCompact);
+    try
+      Assert.AreEqual('alice', LRead.Claims.Subject);
+      Assert.AreEqual('dir', LRead.Header.Algorithm);
+    finally
+      LRead.Free;
+    end;
+  finally
+    LKey.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_JWK_EncryptDecrypt_RSA;
+var
+  LPublic, LPrivate: TJSONWebKey;
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LPublic := TJSONWebKey.FromPEM(ReadKey('rsa-public.pem'));
+  LPrivate := TJSONWebKey.FromPEM(ReadKey('rsa-private.pem'));
+  try
+    LToken := ClaimsToken('alice');
+    try
+      LCompact := TJOSE.Encrypt(LPublic, LToken, TJOSEAlgorithmId.RSA_OAEP_256,
+        TJOSEEncryptionAlgorithmId.A256GCM);
+    finally
+      LToken.Free;
+    end;
+
+    LRead := TJOSE.Decrypt(LPrivate, LCompact);
+    try
+      Assert.AreEqual('alice', LRead.Claims.Subject);
+    finally
+      LRead.Free;
+    end;
+
+    // A public-only JWK has no private half: it is refused, not tried
+    LError := ErrorOf(procedure begin TJOSE.Decrypt(LPublic, LCompact).Free; end);
+    Assert.Contains(LError, 'decryption key');
+  finally
+    LPrivate.Free;
+    LPublic.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_JWK_SignAndEncrypt_DecryptAndVerify;
+var
+  LSignKey, LEncryptKey, LPublicOnly: TJSONWebKey;
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LSignKey := TJSONWebKey.CreateOct(TJOSEBytes.RandomBytes(64));
+  LEncryptKey := TJSONWebKey.CreateOct(TJOSEBytes.RandomBytes(32));
+  try
+    // A public-only JWK cannot sign: the private half is empty
+    LPublicOnly := TJSONWebKey.FromPEM(ReadKey('rsa-public.pem'));
+    try
+      LToken := ClaimsToken('alice');
+      try
+        LError := ErrorOf(
+          procedure
+          begin
+            TJOSE.SignAndEncrypt(LPublicOnly, TJOSEAlgorithmId.RS256, LEncryptKey,
+              TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM, LToken);
+          end);
+      finally
+        LToken.Free;
+      end;
+      Assert.Contains(LError, 'signing key');
+    finally
+      LPublicOnly.Free;
+    end;
+
+    LToken := ClaimsToken('alice');
+    try
+      LCompact := TJOSE.SignAndEncrypt(LSignKey, TJOSEAlgorithmId.HS256, LEncryptKey,
+        TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM, LToken);
+    finally
+      LToken.Free;
+    end;
+
+    LRead := TJOSE.DecryptAndVerify(LEncryptKey, LSignKey, LCompact);
+    try
+      Assert.AreEqual('alice', LRead.Claims.Subject);
+      Assert.IsTrue(LRead.Verified);
+    finally
+      LRead.Free;
+    end;
+  finally
+    LEncryptKey.Free;
+    LSignKey.Free;
   end;
 end;
 

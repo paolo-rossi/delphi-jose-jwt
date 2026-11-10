@@ -256,6 +256,11 @@ end;
 Any signing algorithm works for the inner token (HS*, RS*, PS*, ES*), with any of the encryption
 algorithms for the outer one.
 
+`SignAndEncrypt` takes an optional outer header: pass a `TJWTHeader` (or `TJWEHeader`) to put the
+encryption key's `kid`, a `"zip":"DEF"` or any custom JWE parameter on the outer token. The header is
+copied, never modified, and its `cty` is always forced to `JWT`; with no header the outer token
+carries only `typ` and `cty`.
+
 The counterpart is `TJOSE.DecryptAndVerify`, which decrypts with one key and verifies the inner
 signature with the other:
 
@@ -288,6 +293,11 @@ inner alg: HS256, sub: paolo.rossi
 
 The token that comes back is the **inner** one: its header is the JWS header, its claims are the
 signed claims.
+
+`Encrypt`, `Decrypt`, `SignAndEncrypt` and `DecryptAndVerify` also have `TJSONWebKey` overloads: the
+public half is used to encrypt and to verify (the secret for `oct` keys), the private half to sign
+and to decrypt. A key that carries no private half (a public-only RSA JWK, for instance) is refused
+with a clear error rather than failing inside the provider.
 
 `TJOSE.Decrypt` refuses a nested JWT (`use DecryptAndVerify, which also verifies the inner
 signature`), so the signature cannot be skipped by accident. `DecryptAndVerify` in turn refuses a
