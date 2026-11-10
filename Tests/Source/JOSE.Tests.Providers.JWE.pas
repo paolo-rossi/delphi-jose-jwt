@@ -22,9 +22,11 @@ uses
   DUnitX.TestFramework,
 
   JOSE.Tests.Classes,
+  JOSE.Types.Bytes,
   JOSE.Crypto.Algorithms,
   JOSE.Providers.Interfaces,
-  JOSE.Core.JWA;
+  JOSE.Core.JWA,
+  JOSE.Consumer;
 
 type
   /// <summary>
@@ -215,18 +217,85 @@ type
     procedure RSAOAEP_WrongPrivateKey_IsRejected;
   end;
 
+  /// <summary>
+  ///   TJOSE and TJOSEConsumer end to end with JWE, nested JWTs included, on
+  ///   a provider stack. Not registered itself: register the subclasses
+  /// </summary>
+  TJWEConsumerTestBase = class(TJWEStackTestBase)
+  protected
+    /// <summary>The signing and verification keys for a JWS algorithm</summary>
+    procedure SigningKeys(AAlg: TJOSEAlgorithmId; out ASignKey, AVerifyKey: TJOSEBytes);
+    /// <summary>The encryption and decryption keys for a JWE "alg"/"enc" pair</summary>
+    procedure EncryptionKeys(AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
+      out AEncryptKey, ADecryptKey: TJOSEBytes);
+    /// <summary>A nested JWT (sub=ASubject) signed with ASignAlg, encrypted with AAlg/AEnc</summary>
+    function NestedJWT(const ASubject: string; ASignAlg, AAlg: TJOSEAlgorithmId;
+      AEnc: TJOSEEncryptionAlgorithmId; out AVerifyKey, ADecryptKey: TJOSEBytes): TJOSEBytes;
+    /// <summary>A consumer for nested HS256-in-dir/A256GCM tokens</summary>
+    function NestedConsumer(const AVerifyKey, ADecryptKey: TJOSEBytes): IJOSEConsumerBuilder;
+  public
+    [Test]
+    procedure TJOSE_EncryptDecrypt_Dir;
+
+    [Test]
+    procedure TJOSE_EncryptDecrypt_RSAOAEP256;
+
+    [Test]
+    procedure TJOSE_DecryptRefusesNestedJWT;
+
+    [Test]
+    [TestCase('HS256 in dir A256GCM',           'HS256,Dir,A256GCM')]
+    [TestCase('RS256 in RSA-OAEP-256 A256GCM',  'RS256,RSA_OAEP_256,A256GCM')]
+    [TestCase('PS256 in RSA-OAEP A128GCM',      'PS256,RSA_OAEP,A128GCM')]
+    procedure TJOSE_SignAndEncrypt_DecryptAndVerify(ASignAlg, AAlg: TJOSEAlgorithmId;
+      AEnc: TJOSEEncryptionAlgorithmId);
+
+    [Test]
+    procedure TJOSE_DecryptAndVerify_WrongVerificationKey;
+
+    [Test]
+    procedure TJOSE_DecryptAndVerify_RefusesPlainJWE;
+
+    [Test]
+    procedure Consumer_PlainJWE_ValidatesClaims;
+
+    [Test]
+    procedure Consumer_PlainJWE_FailsRequireSignature;
+
+    [Test]
+    procedure Consumer_NestedJWT_ValidatesInnerClaims;
+
+    [Test]
+    procedure Consumer_NestedJWT_InnerClaimsRejected;
+
+    [Test]
+    procedure Consumer_NestedJWT_InnerAlgorithmNotExpected;
+
+    [Test]
+    procedure Consumer_NestedJWT_InnerSignatureInvalid;
+
+    [Test]
+    procedure Consumer_NestedJWT_WrongDecryptionKey;
+
+    [Test]
+    procedure Consumer_NestedJWE_IsRefused;
+
+    [Test]
+    procedure Consumer_RequireEncryption_AcceptsJWE;
+  end;
+
 implementation
 
 uses
   System.Classes,
   System.IOUtils,
-  JOSE.Types.Bytes,
   JOSE.Encoding.Base64,
   JOSE.Providers,
   JOSE.Core.Base,
   JOSE.Core.JWK,
   JOSE.Core.JWT,
-  JOSE.Core.JWE;
+  JOSE.Core.JWE,
+  JOSE.Core.Builder;
 
 const
   // See the comment over OAEP_RoundTrip
@@ -1081,6 +1150,389 @@ procedure TJWETokenTestBase.RSAOAEP_WrongPrivateKey_IsRejected;
 begin
   // Same failure, same message, as a tampered ciphertext
   Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(RFC7516_A1_TOKEN, ReadKey('rsa-private.pem')));
+end;
+
+{ TJWEConsumerTestBase }
+
+// The message of the exception AProc raises, prefixed with its class name;
+// '' when it raises nothing
+function ErrorOf(const AProc: TProc): string;
+begin
+  Result := '';
+  try
+    AProc();
+  except
+    on E: Exception do
+      Result := E.ClassName + ': ' + E.Message;
+  end;
+end;
+
+function ClaimsToken(const ASubject: string): TJWT;
+begin
+  Result := TJWT.Create;
+  Result.Claims.Subject := ASubject;
+end;
+
+procedure TJWEConsumerTestBase.SigningKeys(AAlg: TJOSEAlgorithmId; out ASignKey, AVerifyKey: TJOSEBytes);
+begin
+  if AAlg in [TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.HS384, TJOSEAlgorithmId.HS512] then
+  begin
+    ASignKey := TJOSEBytes.RandomBytes(64);
+    AVerifyKey := ASignKey;
+  end
+  else
+  begin
+    ASignKey := ReadKey('rsa-private.pem');
+    AVerifyKey := ReadKey('rsa-public.pem');
+  end;
+end;
+
+procedure TJWEConsumerTestBase.EncryptionKeys(AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
+  out AEncryptKey, ADecryptKey: TJOSEBytes);
+begin
+  if AAlg = TJOSEAlgorithmId.Dir then
+  begin
+    AEncryptKey := TJOSEBytes.RandomBytes(AEnc.CEKLength);
+    ADecryptKey := AEncryptKey;
+  end
+  else
+  begin
+    AEncryptKey := ReadKey('rsa-public.pem');
+    ADecryptKey := ReadKey('rsa-private.pem');
+  end;
+end;
+
+function TJWEConsumerTestBase.NestedJWT(const ASubject: string; ASignAlg, AAlg: TJOSEAlgorithmId;
+  AEnc: TJOSEEncryptionAlgorithmId; out AVerifyKey, ADecryptKey: TJOSEBytes): TJOSEBytes;
+var
+  LSignKey, LEncryptKey: TJOSEBytes;
+  LSign, LEncrypt: TJWK;
+  LToken: TJWT;
+begin
+  SigningKeys(ASignAlg, LSignKey, AVerifyKey);
+  EncryptionKeys(AAlg, AEnc, LEncryptKey, ADecryptKey);
+
+  LSign := TJWK.Create(LSignKey);
+  LEncrypt := TJWK.Create(LEncryptKey);
+  LToken := ClaimsToken(ASubject);
+  try
+    Result := TJOSE.SignAndEncrypt(LSign, ASignAlg, LEncrypt, AAlg, AEnc, LToken);
+  finally
+    LToken.Free;
+    LEncrypt.Free;
+    LSign.Free;
+  end;
+end;
+
+function TJWEConsumerTestBase.NestedConsumer(const AVerifyKey, ADecryptKey: TJOSEBytes): IJOSEConsumerBuilder;
+begin
+  Result := TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(AVerifyKey)
+    .SetDecryptionKey(ADecryptKey)
+    .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.Dir])
+    .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A256GCM]);
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_EncryptDecrypt_Dir;
+var
+  LKey: TJOSEBytes;
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := ClaimsToken('alice');
+  try
+    LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+
+  LRead := TJOSE.Decrypt(LKey, LCompact);
+  try
+    Assert.AreEqual('alice', LRead.Claims.Subject);
+    Assert.AreEqual('dir', LRead.Header.Algorithm);
+  finally
+    LRead.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_EncryptDecrypt_RSAOAEP256;
+var
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  LToken := ClaimsToken('alice');
+  try
+    LCompact := TJOSE.Encrypt(TJOSEBytes(ReadKey('rsa-public.pem')), LToken,
+      TJOSEAlgorithmId.RSA_OAEP_256, TJOSEEncryptionAlgorithmId.A128GCM);
+  finally
+    LToken.Free;
+  end;
+
+  LRead := TJOSE.Decrypt(TJOSEBytes(ReadKey('rsa-private.pem')), LCompact);
+  try
+    Assert.AreEqual('alice', LRead.Claims.Subject);
+  finally
+    LRead.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_DecryptRefusesNestedJWT;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  LError := ErrorOf(procedure begin TJOSE.Decrypt(LDecrypt, LCompact).Free; end);
+  Assert.Contains(LError, 'DecryptAndVerify');
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_SignAndEncrypt_DecryptAndVerify(ASignAlg, AAlg: TJOSEAlgorithmId;
+  AEnc: TJOSEEncryptionAlgorithmId);
+var
+  LVerifyKey, LDecryptKey, LCompact: TJOSEBytes;
+  LVerify, LDecrypt: TJWK;
+  LToken, LRead: TJWT;
+  LJWE: TJWE;
+begin
+  LCompact := NestedJWT('alice', ASignAlg, AAlg, AEnc, LVerifyKey, LDecryptKey);
+
+  // The outer header marks the payload as a nested JWT
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := LCompact;
+    Assert.IsTrue(LJWE.Header.IsNestedJWT, '"cty":"JWT" expected');
+    Assert.AreEqual(AAlg.AsString, LJWE.Header.Algorithm);
+  finally
+    LJWE.Free;
+    LToken.Free;
+  end;
+
+  LVerify := TJWK.Create(LVerifyKey);
+  LDecrypt := TJWK.Create(LDecryptKey);
+  try
+    LRead := TJOSE.DecryptAndVerify(LDecrypt, LVerify, LCompact);
+    try
+      Assert.AreEqual('alice', LRead.Claims.Subject);
+      Assert.AreEqual(ASignAlg.AsString, LRead.Header.Algorithm, 'The inner JWS header comes back');
+      Assert.IsTrue(LRead.Verified);
+    finally
+      LRead.Free;
+    end;
+  finally
+    LDecrypt.Free;
+    LVerify.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_DecryptAndVerify_WrongVerificationKey;
+var
+  LVerifyKey, LDecryptKey, LCompact: TJOSEBytes;
+  LVerify, LDecrypt: TJWK;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerifyKey, LDecryptKey);
+
+  LVerify := TJWK.Create(TJOSEBytes.RandomBytes(64));
+  LDecrypt := TJWK.Create(LDecryptKey);
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        TJOSE.DecryptAndVerify(LDecrypt, LVerify, LCompact).Free;
+      end,
+      EJOSEException);
+  finally
+    LDecrypt.Free;
+    LVerify.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_DecryptAndVerify_RefusesPlainJWE;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := ClaimsToken('alice');
+  try
+    LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+    LError := ErrorOf(procedure begin TJOSE.DecryptAndVerify(LKey, LKey, LCompact).Free; end);
+    Assert.Contains(LError, 'does not carry a nested JWT');
+  finally
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.Consumer_PlainJWE_ValidatesClaims;
+var
+  LKey, LCompact: TJOSEBytes;
+  LToken: TJWT;
+begin
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := ClaimsToken('alice');
+  try
+    LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+
+  NestedConsumer('', LKey)
+    .SetDisableRequireSignature
+    .SetExpectedSubject('alice')
+    .Build
+    .Process(LCompact);
+
+  Assert.AreEqual('EInvalidJWTException', ErrorOf(
+    procedure
+    begin
+      NestedConsumer('', LKey).SetDisableRequireSignature.SetExpectedSubject('bob').Build.Process(LCompact);
+    end).Split([':'])[0], 'The decrypted claims are validated');
+end;
+
+procedure TJWEConsumerTestBase.Consumer_PlainJWE_FailsRequireSignature;
+var
+  LKey, LCompact: TJOSEBytes;
+  LToken: TJWT;
+  LError: string;
+begin
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := ClaimsToken('alice');
+  try
+    LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+
+  // Encrypted, but not signed: the default signature requirement refuses it
+  LError := ErrorOf(procedure begin NestedConsumer('', LKey).Build.Process(LCompact); end);
+  Assert.Contains(LError, 'has no signature');
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_ValidatesInnerClaims;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  // Signature required (the default) and met by the inner JWS
+  NestedConsumer(LVerify, LDecrypt).SetExpectedSubject('alice').Build.Process(LCompact);
+  Assert.Pass;
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_InnerClaimsRejected;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  Assert.WillRaise(
+    procedure
+    begin
+      NestedConsumer(LVerify, LDecrypt).SetExpectedSubject('bob').Build.Process(LCompact);
+    end,
+    EInvalidJWTException);
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_InnerAlgorithmNotExpected;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  // The inner JWS goes through the same algorithm allowlist as a plain JWS
+  LError := ErrorOf(
+    procedure
+    begin
+      NestedConsumer(LVerify, LDecrypt).SetExpectedAlgorithms([TJOSEAlgorithmId.RS256]).Build.Process(LCompact);
+    end);
+  Assert.Contains(LError, 'JWS algorithm [HS256] is not listed');
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_InnerSignatureInvalid;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  LError := ErrorOf(
+    procedure
+    begin
+      NestedConsumer(TJOSEBytes.RandomBytes(64), LDecrypt).Build.Process(LCompact);
+    end);
+  Assert.Contains(LError, 'signature is invalid');
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_WrongDecryptionKey;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  LError := ErrorOf(
+    procedure
+    begin
+      NestedConsumer(LVerify, TJOSEBytes.RandomBytes(32)).Build.Process(LCompact);
+    end);
+  Assert.AreEqual('EJOSEException: ' + JWE_DECRYPTION_FAILED, LError);
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWE_IsRefused;
+var
+  LKey, LInner, LCompact: TJOSEBytes;
+  LKeyJWK: TJWK;
+  LToken, LOuter: TJWT;
+  LJWE: TJWE;
+  LError: string;
+begin
+  // A JWE whose "cty":"JWT" payload is another JWE: one level is the limit
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := ClaimsToken('alice');
+  try
+    LInner := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+  finally
+    LToken.Free;
+  end;
+
+  LKeyJWK := TJWK.Create(LKey);
+  LOuter := TJWT.Create;
+  LJWE := TJWE.Create(LOuter);
+  try
+    LOuter.Header.SetHeaderParam('cty', 'JWT');
+    LCompact := LJWE.EncryptPayload(LKeyJWK, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM, LInner);
+  finally
+    LJWE.Free;
+    LOuter.Free;
+    LKeyJWK.Free;
+  end;
+
+  LError := ErrorOf(procedure begin NestedConsumer(LKey, LKey).Build.Process(LCompact); end);
+  Assert.Contains(LError, 'nested encryption is not supported');
+end;
+
+procedure TJWEConsumerTestBase.Consumer_RequireEncryption_AcceptsJWE;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  NestedConsumer(LVerify, LDecrypt).SetEnableRequireEncryption.Build.Process(LCompact);
+  Assert.Pass;
 end;
 
 end.

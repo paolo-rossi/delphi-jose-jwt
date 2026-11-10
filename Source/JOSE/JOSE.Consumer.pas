@@ -49,27 +49,62 @@ type
   /// <summary>
   ///   Implementation of IJOSEConsumer interface
   /// </summary>
+  /// <remarks>
+  ///   <para>
+  ///     A JWE is accepted only when its "alg" and "enc" are in the expected
+  ///     key management and encryption algorithms, which are empty by default.
+  ///   </para>
+  ///   <para>
+  ///     A nested JWT ("cty":"JWT") is decrypted with the decryption key, and
+  ///     the inner JWS goes through the same checks as a plain JWS (algorithm
+  ///     allowlist, verification key). Only one level is accepted: an inner
+  ///     token that is itself a JWE is rejected.
+  ///   </para>
+  ///   <para>
+  ///     The signature requirement (on by default) is met by a JWS or by the
+  ///     inner JWS of a nested JWT. A JWE with the claims directly inside
+  ///     carries no signature: accept it with SetDisableRequireSignature.
+  ///   </para>
+  /// </remarks>
   TJOSEConsumer = class(TInterfacedObject, IJOSEConsumer)
   private
     class var FIncludeClaimsInExceptions: Boolean;
   private
-    FKey: TJOSEBytes;
+    FVerificationKey: TJOSEBytes;
+    FDecryptionKey: TJOSEBytes;
     FValidators: TJOSEValidatorArray;
     FClaimsClass: TJWTClaimsClass;
     FExpectedAlgorithms: TJOSEAlgorithms;
+    FExpectedKeyManagementAlgorithms: TJOSEAlgorithms;
+    FExpectedEncryptionAlgorithms: TJOSEEncryptionAlgorithms;
 
     FRequireSignature: Boolean;
     FRequireEncryption: Boolean;
     FSkipSignatureVerification: Boolean;
     FSkipVerificationKeyValidation: Boolean;
   private
-    function SetKey(const AKey: TJOSEBytes): TJOSEConsumer;
+    function SetVerificationKey(const AKey: TJOSEBytes): TJOSEConsumer;
+    function SetDecryptionKey(const AKey: TJOSEBytes): TJOSEConsumer;
     function SetValidators(const AValidators: TJOSEValidatorArray): TJOSEConsumer;
     function SetRequireSignature(ARequireSignature: Boolean): TJOSEConsumer;
     function SetRequireEncryption(ARequireEncryption: Boolean): TJOSEConsumer;
     function SetSkipSignatureVerification(ASkipSignatureVerification: Boolean): TJOSEConsumer;
     function SetSkipVerificationKeyValidation(ASkipVerificationKeyValidation: Boolean): TJOSEConsumer;
     function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
+    function SetExpectedKeyManagementAlgorithms(AAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
+    function SetExpectedEncryptionAlgorithms(AAlgorithms: TJOSEEncryptionAlgorithms): TJOSEConsumer;
+
+    /// <summary>
+    ///   Checks the algorithm and the signature of AJWS. Returns whether it
+    ///   carries a signature at all ("alg" other than "none")
+    /// </summary>
+    function ProcessJWS(AJWS: TJWS): Boolean;
+    /// <summary>
+    ///   Checks the algorithms of AJWE, decrypts it into AContext's claims and,
+    ///   for a nested JWT, processes the inner JWS. Returns whether a
+    ///   signature was found (only a nested JWT has one)
+    /// </summary>
+    function ProcessJWE(AContext: TJOSEContext; AJWE: TJWE): Boolean;
   public
     constructor Create(AClaimsClass: TJWTClaimsClass);
 
@@ -100,9 +135,29 @@ type
     function SetDisableRequireSignature: IJOSEConsumerBuilder;
     function SetSkipSignatureVerification: IJOSEConsumerBuilder;
     function SetSkipVerificationKeyValidation: IJOSEConsumerBuilder;
+    /// <summary>
+    ///   The key that verifies a JWS signature, including the inner JWS of a
+    ///   nested JWT
+    /// </summary>
     function SetVerificationKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
+    /// <summary>
+    ///   The key that decrypts a JWE: the shared secret for "dir", the RSA
+    ///   private key PEM for RSA-OAEP. Separate from the verification key: a
+    ///   nested JWT needs both
+    /// </summary>
     function SetDecryptionKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
+    /// <summary>The JWS "alg" values accepted. Defaults to every signing algorithm but "none"</summary>
     function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+    /// <summary>
+    ///   The JWE "alg" values accepted. Empty by default, so a consumer
+    ///   rejects every JWE until it is told which algorithms to accept
+    /// </summary>
+    function SetExpectedKeyManagementAlgorithms(AAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+    /// <summary>
+    ///   The JWE "enc" values accepted. Empty by default, like the key
+    ///   management algorithms
+    /// </summary>
+    function SetExpectedEncryptionAlgorithms(AAlgorithms: TJOSEEncryptionAlgorithms): IJOSEConsumerBuilder;
     // String-based claims
     function SetSkipDefaultAudienceValidation(): IJOSEConsumerBuilder;
     function SetExpectedAudience(ARequireAudience: Boolean; const AExpectedAudience: TArray<string>): IJOSEConsumerBuilder;
@@ -149,9 +204,12 @@ type
     FAudValidator: TJOSEValidator;
     FIssValidator: TJOSEValidator;
 
-    FKey: TJOSEBytes;
+    FVerificationKey: TJOSEBytes;
+    FDecryptionKey: TJOSEBytes;
     FClaimsClass: TJWTClaimsClass;
     FExpectedAlgorithms: TJOSEAlgorithms;
+    FExpectedKeyManagementAlgorithms: TJOSEAlgorithms;
+    FExpectedEncryptionAlgorithms: TJOSEEncryptionAlgorithms;
     FDisableRequireSignature: Boolean;
     FEnableRequireEncryption: Boolean;
     FSkipVerificationKeyValidation: Boolean;
@@ -179,6 +237,8 @@ type
     function SetVerificationKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
     function SetDecryptionKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
     function SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+    function SetExpectedKeyManagementAlgorithms(AAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+    function SetExpectedEncryptionAlgorithms(AAlgorithms: TJOSEEncryptionAlgorithms): IJOSEConsumerBuilder;
     // String-based claims
     function SetSkipDefaultAudienceValidation(): IJOSEConsumerBuilder;
     function SetExpectedAudience(ARequireAudience: Boolean; const AExpectedAudience: TArray<string>): IJOSEConsumerBuilder;
@@ -221,6 +281,9 @@ resourcestring
   SJOSEClaimsRejectedWithClaims = 'JWT (claims: %s) rejected due to invalid claims.';
   SJOSEUnparsedToken = 'The JWT has not been parsed into a JOSE object';
   SJOSEUnsupportedJOSEObject = 'Unsupported JOSE object [%s]';
+  SJOSEUnexpectedKeyManagementAlgorithm = 'JWE key management algorithm [%s] is not listed among those expected';
+  SJOSEUnexpectedEncryptionAlgorithm = 'JWE content encryption algorithm [%s] is not listed among those expected';
+  SJOSENestedNotJWS = 'The payload of a nested JWT ("cty":"JWT") must be a JWS: nested encryption is not supported';
 
 function TJOSEConsumerBuilder.Build: IJOSEConsumer;
 begin
@@ -230,12 +293,15 @@ begin
   BuildValidators(FDateValidatorParams);
 
   Result := TJOSEConsumer.Create(FClaimsClass)
-    .SetKey(FKey)
+    .SetVerificationKey(FVerificationKey)
+    .SetDecryptionKey(FDecryptionKey)
     .SetRequireSignature(not FDisableRequireSignature)
     .SetRequireEncryption(FEnableRequireEncryption)
     .SetSkipSignatureVerification(FSkipSignatureVerification)
     .SetSkipVerificationKeyValidation(FSkipVerificationKeyValidation)
     .SetExpectedAlgorithms(FExpectedAlgorithms)
+    .SetExpectedKeyManagementAlgorithms(FExpectedKeyManagementAlgorithms)
+    .SetExpectedEncryptionAlgorithms(FExpectedEncryptionAlgorithms)
     .SetValidators(FValidators)
   ;
 end;
@@ -323,7 +389,8 @@ end;
 
 function TJOSEConsumerBuilder.SetDecryptionKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
 begin
-  FKey := AKey;
+  // Its own field: it used to overwrite the verification key
+  FDecryptionKey := AKey;
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -355,6 +422,20 @@ function TJOSEConsumerBuilder.SetExpectedAlgorithms(
   AExpectedAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
 begin
   FExpectedAlgorithms := AExpectedAlgorithms;
+  Result := Self as IJOSEConsumerBuilder;
+end;
+
+function TJOSEConsumerBuilder.SetExpectedKeyManagementAlgorithms(
+  AAlgorithms: TJOSEAlgorithms): IJOSEConsumerBuilder;
+begin
+  FExpectedKeyManagementAlgorithms := AAlgorithms;
+  Result := Self as IJOSEConsumerBuilder;
+end;
+
+function TJOSEConsumerBuilder.SetExpectedEncryptionAlgorithms(
+  AAlgorithms: TJOSEEncryptionAlgorithms): IJOSEConsumerBuilder;
+begin
+  FExpectedEncryptionAlgorithms := AAlgorithms;
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -462,7 +543,7 @@ end;
 
 function TJOSEConsumerBuilder.SetVerificationKey(const AKey: TJOSEBytes): IJOSEConsumerBuilder;
 begin
-  FKey := AKey;
+  FVerificationKey := AKey;
   Result := Self as IJOSEConsumerBuilder;
 end;
 
@@ -489,60 +570,104 @@ end;
 procedure TJOSEConsumer.ProcessContext(AContext: TJOSEContext);
 var
   LJOSEObject: TJOSEParts;
-  LJWS: TJWS;
   LHasSignature: Boolean;
-  //LJWE: TJWE;
 begin
-  LHasSignature := False;
-
   // Never fall through to the claims validation with an unusable JOSE object:
   // that would silently skip the algorithm check and the signature verification
   LJOSEObject := AContext.GetJOSEObject;
   if not Assigned(LJOSEObject) then
     raise EJOSEException.Create(SJOSEUnparsedToken);
 
-  // Encryption was demanded, so anything that is not a JWE has to be refused.
-  // JWE is not implemented yet, which means this rejects every token today -
-  // that is the honest answer: the alternative was ignoring the flag and
-  // letting the caller believe their tokens were encrypted
+  // Encryption was demanded, so anything that is not a JWE has to be refused
   if FRequireEncryption and not (LJOSEObject is TJWE) then
     raise EJOSEException.Create(SJOSEEncryptionRequired);
 
   if LJOSEObject is TJWS then
-  begin
-    LJWS := AContext.GetJOSEObject<TJWS>;
-
-    // JWS Signature Verification
-    if not FSkipSignatureVerification then
-    begin
-      if not (LJWS.HeaderAlgorithmId in FExpectedAlgorithms) then
-        raise EJOSEException.CreateFmt(SJOSEUnexpectedAlgorithm, [LJWS.HeaderAlgorithm]);
-
-      if FSkipVerificationKeyValidation then
-        LJWS.SkipKeyValidation := True;
-
-      LJWS.SetKey(Self.FKey);
-      // The signature itself is not echoed: it is token material and exception
-      // messages end up in logs. The caller already holds the token
-      if not LJWS.VerifySignature then
-        raise EJOSEException.Create(SJOSEInvalidSignature);
-    end;
-
-    if LJWS.HeaderAlgorithm <> TJOSEAlgorithmId.None.AsString then
-      LHasSignature := True;
-
-    if FRequireSignature and not LHasSignature then
-      raise EJOSEException.Create(SJOSESignatureRequired);
-
-  end
+    LHasSignature := ProcessJWS(TJWS(LJOSEObject))
   else if LJOSEObject is TJWE then
-  begin
-
-  end
+    LHasSignature := ProcessJWE(AContext, TJWE(LJOSEObject))
   else
     raise EJOSEException.CreateFmt(SJOSEUnsupportedJOSEObject, [LJOSEObject.ClassName]);
 
+  if FRequireSignature and not LHasSignature then
+    raise EJOSEException.Create(SJOSESignatureRequired);
+
   Validate(AContext);
+end;
+
+function TJOSEConsumer.ProcessJWS(AJWS: TJWS): Boolean;
+begin
+  // JWS Signature Verification
+  if not FSkipSignatureVerification then
+  begin
+    if not (AJWS.HeaderAlgorithmId in FExpectedAlgorithms) then
+      raise EJOSEException.CreateFmt(SJOSEUnexpectedAlgorithm, [AJWS.HeaderAlgorithm]);
+
+    if FSkipVerificationKeyValidation then
+      AJWS.SkipKeyValidation := True;
+
+    AJWS.SetKey(FVerificationKey);
+    // The signature itself is not echoed: it is token material and exception
+    // messages end up in logs. The caller already holds the token
+    if not AJWS.VerifySignature then
+      raise EJOSEException.Create(SJOSEInvalidSignature);
+  end;
+
+  Result := AJWS.HeaderAlgorithm <> TJOSEAlgorithmId.None.AsString;
+end;
+
+function TJOSEConsumer.ProcessJWE(AContext: TJOSEContext; AJWE: TJWE): Boolean;
+var
+  LAlgId: TJOSEAlgorithmId;
+  LEncId: TJOSEEncryptionAlgorithmId;
+  LKey: TJWK;
+  LInnerToken: TJWT;
+  LInner: TJWS;
+begin
+  Result := False;
+
+  // Both allowlists before any cryptography. A signing "alg" can never be in
+  // here: the set is checked for key management membership too
+  LAlgId.AsString := AJWE.Header.Algorithm;
+  if not (LAlgId.IsKeyManagement and (LAlgId in FExpectedKeyManagementAlgorithms)) then
+    raise EJOSEException.CreateFmt(SJOSEUnexpectedKeyManagementAlgorithm, [AJWE.Header.Algorithm]);
+
+  LEncId.AsString := AJWE.Header.Encryption;
+  if (LEncId = TJOSEEncryptionAlgorithmId.Unknown) or not (LEncId in FExpectedEncryptionAlgorithms) then
+    raise EJOSEException.CreateFmt(SJOSEUnexpectedEncryptionAlgorithm, [AJWE.Header.Encryption]);
+
+  // Fills the context's claims, unless the payload is a nested JWT
+  LKey := TJWK.Create(FDecryptionKey);
+  try
+    AJWE.Decrypt(LKey);
+  finally
+    LKey.Free;
+  end;
+
+  if not AJWE.Header.IsNestedJWT then
+    Exit;
+
+  // One level only: the inner token must be a JWS, so an attacker cannot
+  // drive the consumer through an unbounded chain of decryptions
+  if TJOSECompactSerialization.Split(AJWE.Payload).Kind <> TJOSECompactKind.JWS then
+    raise EJOSEException.Create(SJOSENestedNotJWS);
+
+  LInnerToken := TJWT.Create(FClaimsClass);
+  try
+    LInner := TJWS.Create(LInnerToken);
+    try
+      LInner.CompactToken := AJWE.Payload;
+      // The same checks as a plain JWS: algorithm allowlist, verification key
+      Result := ProcessJWS(LInner);
+    finally
+      LInner.Free;
+    end;
+
+    // The claims to validate are the inner JWS's
+    AContext.GetClaims.Assign(LInnerToken.Claims);
+  finally
+    LInnerToken.Free;
+  end;
 end;
 
 function TJOSEConsumer.SetExpectedAlgorithms(AExpectedAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
@@ -551,9 +676,27 @@ begin
   Result := Self;
 end;
 
-function TJOSEConsumer.SetKey(const AKey: TJOSEBytes): TJOSEConsumer;
+function TJOSEConsumer.SetExpectedKeyManagementAlgorithms(AAlgorithms: TJOSEAlgorithms): TJOSEConsumer;
 begin
-  FKey := AKey;
+  FExpectedKeyManagementAlgorithms := AAlgorithms;
+  Result := Self;
+end;
+
+function TJOSEConsumer.SetExpectedEncryptionAlgorithms(AAlgorithms: TJOSEEncryptionAlgorithms): TJOSEConsumer;
+begin
+  FExpectedEncryptionAlgorithms := AAlgorithms;
+  Result := Self;
+end;
+
+function TJOSEConsumer.SetVerificationKey(const AKey: TJOSEBytes): TJOSEConsumer;
+begin
+  FVerificationKey := AKey;
+  Result := Self;
+end;
+
+function TJOSEConsumer.SetDecryptionKey(const AKey: TJOSEBytes): TJOSEConsumer;
+begin
+  FDecryptionKey := AKey;
   Result := Self;
 end;
 

@@ -101,6 +101,58 @@ type
 
     class function DeserializeOnly(const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
 
+    /// <summary>
+    ///   Encrypts AToken's claims into a JWE compact serialization (RFC 7516).
+    ///   AKey is the shared secret for "dir" (exactly as long as the content
+    ///   encryption key AEnc needs), the RSA public key PEM (or an X.509
+    ///   certificate) for RSA-OAEP/RSA-OAEP-256. AToken's header (typ, kid,
+    ///   ...) becomes the JWE header, plus "alg" and "enc"
+    /// </summary>
+    /// <remarks>
+    ///   The claims are encrypted, not signed. To have them signed as well,
+    ///   which is the usual way to encrypt a JWT, use SignAndEncrypt
+    /// </remarks>
+    class function Encrypt(AKey: TJWK; AToken: TJWT; AAlg: TJOSEAlgorithmId;
+      AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes; overload;
+    class function Encrypt(const AKey: TJOSEBytes; AToken: TJWT; AAlg: TJOSEAlgorithmId;
+      AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes; overload;
+
+    /// <summary>
+    ///   Decrypts a JWE compact serialization whose payload is a claims set,
+    ///   and returns the token. Raises EJOSEException when the token cannot be
+    ///   read or decrypted, and for a nested JWT (use DecryptAndVerify, which
+    ///   also checks the inner signature)
+    /// </summary>
+    /// <remarks>
+    ///   Like Verify, there is no algorithm allowlist: any registered "alg"
+    ///   and "enc" is accepted. For tokens that come from outside, use
+    ///   TJOSEConsumer with SetExpectedKeyManagementAlgorithms and
+    ///   SetExpectedEncryptionAlgorithms
+    /// </remarks>
+    class function Decrypt(AKey: TJWK; const ACompactToken: TJOSEBytes;
+      AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+    class function Decrypt(const AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;
+      AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
+
+    /// <summary>
+    ///   Signs AToken (a JWS, as SerializeCompact does), then encrypts the JWS
+    ///   into a JWE with "cty":"JWT": a nested JWT (RFC 7519 par. 5.2)
+    /// </summary>
+    class function SignAndEncrypt(ASignKey: TJWK; ASignAlg: TJOSEAlgorithmId;
+      AEncryptKey: TJWK; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
+      AToken: TJWT): TJOSEBytes;
+
+    /// <summary>
+    ///   Decrypts a nested JWT with ADecryptKey and verifies the inner JWS
+    ///   with AVerifyKey. Returns the inner token; raises EJOSEException when
+    ///   either step fails, or when the JWE payload is not a JWS
+    /// </summary>
+    /// <remarks>
+    ///   No allowlists here either: see Decrypt
+    /// </remarks>
+    class function DecryptAndVerify(ADecryptKey, AVerifyKey: TJWK; const ACompactToken: TJOSEBytes;
+      AClaimsClass: TJWTClaimsClass = nil): TJWT;
+
     class function SHA256CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
     class function SHA384CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes;
     class function SHA284CompactToken(AKey: TJOSEBytes; AToken: TJWT): TJOSEBytes; deprecated 'Misspelled, use SHA384CompactToken';
@@ -111,7 +163,8 @@ implementation
 
 uses
   System.Types,
-  System.StrUtils;
+  System.StrUtils,
+  JOSE.Encoding.Base64;
 
 resourcestring
   // The compact-serialization messages now live in JOSE.Core.Base, next to the
@@ -120,8 +173,162 @@ resourcestring
   SJOSEVerificationKeyRequired = 'A verification key is required to verify the token';
   SJOSEJWKSNoMatchingKey = 'No key in the key set matches the token header [kid=%s]';
   SJOSEJWKSCannotChooseKey = 'The token header carries no [kid] and the key set holds %d keys: cannot choose one';
+  SJOSENotAJWE = 'The token is not a JWE: a JWE Compact Serialization has 5 parts';
+  SJOSEDecryptionKeyRequired = 'A decryption key is required to decrypt the token';
+  SJOSEEncryptionKeyRequired = 'An encryption key is required to encrypt the token';
+  SJOSENestedUseDecryptAndVerify = 'The JWE carries a nested JWT ("cty":"JWT"): use DecryptAndVerify, ' +
+    'which also verifies the inner signature';
+  SJOSENotNested = 'The JWE does not carry a nested JWT ("cty":"JWT")';
+  SJOSENestedNotJWS = 'The payload of a nested JWT ("cty":"JWT") must be a JWS: nested encryption is not supported';
+
+const
+  NESTED_JWT_CONTENT_TYPE = 'JWT';
+
+// Parses ACompactToken into a TJWE bound to AToken and decrypts it with AKey.
+// The caller owns both; the TJWE is returned so that the caller can read the
+// header and the payload
+function DecryptJWE(AKey: TJWK; const ACompactToken: TJOSEBytes; AToken: TJWT): TJWE;
+begin
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEDecryptionKeyRequired);
+
+  if TJOSECompactSerialization.Split(ACompactToken).Kind <> TJOSECompactKind.JWE then
+    raise EJOSEException.Create(SJOSENotAJWE);
+
+  Result := TJWE.Create(AToken);
+  try
+    Result.CompactToken := ACompactToken;
+    Result.DecryptPayload(AKey);
+  except
+    Result.Free;
+    raise;
+  end;
+end;
 
 { TJOSE }
+
+class function TJOSE.Encrypt(AKey: TJWK; AToken: TJWT; AAlg: TJOSEAlgorithmId;
+  AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes;
+var
+  LJWE: TJWE;
+begin
+  if not Assigned(AKey) then
+    raise EJOSEException.Create(SJOSEEncryptionKeyRequired);
+
+  LJWE := TJWE.Create(AToken);
+  try
+    Result := LJWE.Encrypt(AKey, AAlg, AEnc);
+  finally
+    LJWE.Free;
+  end;
+end;
+
+class function TJOSE.Encrypt(const AKey: TJOSEBytes; AToken: TJWT; AAlg: TJOSEAlgorithmId;
+  AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := Encrypt(LKey, AToken, AAlg, AEnc);
+  finally
+    LKey.Free;
+  end;
+end;
+
+class function TJOSE.Decrypt(AKey: TJWK; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LJWE: TJWE;
+begin
+  Result := TJWT.Create(AClaimsClass);
+  try
+    LJWE := DecryptJWE(AKey, ACompactToken, Result);
+    try
+      // A nested JWT is a signed token: handing back its claims unverified
+      // would make the signature optional by accident
+      if LJWE.Header.IsNestedJWT then
+        raise EJOSEException.Create(SJOSENestedUseDecryptAndVerify);
+
+      Result.Claims.URLEncoded := TBase64.URLEncode(LJWE.Payload);
+    finally
+      LJWE.Free;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+class function TJOSE.Decrypt(const AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(AKey);
+  try
+    Result := Decrypt(LKey, ACompactToken, AClaimsClass);
+  finally
+    LKey.Free;
+  end;
+end;
+
+class function TJOSE.SignAndEncrypt(ASignKey: TJWK; ASignAlg: TJOSEAlgorithmId;
+  AEncryptKey: TJWK; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
+  AToken: TJWT): TJOSEBytes;
+var
+  LInner: TJOSEBytes;
+  LOuter: TJWT;
+  LJWE: TJWE;
+begin
+  if not Assigned(AEncryptKey) then
+    raise EJOSEException.Create(SJOSEEncryptionKeyRequired);
+
+  LInner := SerializeCompact(ASignKey, ASignAlg, AToken);
+
+  // The outer token only contributes its header: typ "JWT" plus the "cty"
+  // that marks the payload as a nested JWT (RFC 7519 par. 5.2)
+  LOuter := TJWT.Create;
+  try
+    LOuter.Header.SetHeaderParam(THeaderNames.CONTENT_TYPE, NESTED_JWT_CONTENT_TYPE);
+    LJWE := TJWE.Create(LOuter);
+    try
+      Result := LJWE.EncryptPayload(AEncryptKey, AAlg, AEnc, LInner);
+    finally
+      LJWE.Free;
+    end;
+  finally
+    LOuter.Free;
+  end;
+end;
+
+class function TJOSE.DecryptAndVerify(ADecryptKey, AVerifyKey: TJWK; const ACompactToken: TJOSEBytes;
+  AClaimsClass: TJWTClaimsClass): TJWT;
+var
+  LOuter: TJWT;
+  LJWE: TJWE;
+  LInner: TJOSEBytes;
+begin
+  LOuter := TJWT.Create;
+  try
+    LJWE := DecryptJWE(ADecryptKey, ACompactToken, LOuter);
+    try
+      if not LJWE.Header.IsNestedJWT then
+        raise EJOSEException.Create(SJOSENotNested);
+      LInner := LJWE.Payload;
+    finally
+      LJWE.Free;
+    end;
+  finally
+    LOuter.Free;
+  end;
+
+  // One level only: an inner JWE is refused rather than decrypted in turn
+  if TJOSECompactSerialization.Split(LInner).Kind <> TJOSECompactKind.JWS then
+    raise EJOSEException.Create(SJOSENestedNotJWS);
+
+  Result := VerifyOrRaise(AVerifyKey, LInner, AClaimsClass);
+end;
 
 class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 begin

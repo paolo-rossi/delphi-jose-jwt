@@ -32,6 +32,11 @@ type
   /// <summary>
   ///   JOSE Context (for the Consumer)
   /// </summary>
+  /// <remarks>
+  ///   For a JWE the claims are empty until the consumer has decrypted the
+  ///   token (TJOSEConsumer.ProcessContext): the context parses, it does not
+  ///   decrypt
+  /// </remarks>
   TJOSEContext = class
   private
     FCompactToken: TJOSEBytes;
@@ -81,11 +86,16 @@ end;
 
 procedure TJOSEContext.FromCompactToken;
 begin
-  // Raises for a JWE, for a wrong part count and for a part that is not
-  // base64url, all with the same messages every other parse path uses
-  TJOSECompactSerialization.Split(FCompactToken).CheckIsJWS;
+  // The part count decides: 3 is a JWS, 5 a JWE, anything else is malformed.
+  // A JWE is only parsed here (header and parts): the context holds no key,
+  // so decryption, and with it the claims, comes later from the consumer
+  case TJOSECompactSerialization.Split(FCompactToken).Kind of
+    TJOSECompactKind.JWS: FJOSEObject := TJWS.Create(FJWT);
+    TJOSECompactKind.JWE: FJOSEObject := TJWE.Create(FJWT);
+  else
+    raise EJOSEException.Create(SJOSEMalformedCompactSerialization);
+  end;
 
-  FJOSEObject := TJWS.Create(FJWT);
   try
     FJOSEObject.CompactToken := FCompactToken;
   except

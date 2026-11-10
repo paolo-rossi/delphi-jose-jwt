@@ -32,6 +32,9 @@ uses
   JOSE.Core.JWE,
   JOSE.Core.JWE.Header,
   JOSE.Core.Base,
+  JOSE.Core.Builder,
+  JOSE.Context,
+  JOSE.Consumer,
   JOSE.Encoding.Base64,
   JOSE.Providers;
 
@@ -202,6 +205,50 @@ type
 
     [Test]
     procedure MissingRSAEncryptionProviderIsReportedAsSuch;
+  end;
+
+  /// <summary>
+  ///   JWE in TJOSEContext, TJOSEConsumer and TJOSE: everything decided before
+  ///   any cryptography. The end-to-end cases run per provider stack
+  /// </summary>
+  [TestFixture]
+  TTestJWEWiring = class
+  public
+    [Test]
+    procedure ContextParsesAJWEWithoutDecrypting;
+
+    [Test]
+    procedure ContextRejectsFourParts;
+
+    [Test]
+    procedure DefaultConsumerRejectsEveryJWE;
+
+    [Test]
+    procedure ConsumerRejectsUnexpectedEnc;
+
+    [Test]
+    procedure ConsumerRejectsSigningAlgEvenIfListed;
+
+    [Test]
+    procedure ConsumerWithAllowlistsGoesOnToDecrypt;
+
+    [Test]
+    procedure RequireEncryptionAcceptsAJWEShape;
+
+    [Test]
+    procedure VerificationAndDecryptionKeysAreSeparate;
+
+    [Test]
+    procedure TJOSEDecryptRejectsAJWS;
+
+    [Test]
+    procedure TJOSEDecryptRequiresAKey;
+
+    [Test]
+    procedure TJOSEDecryptAndVerifyRejectsAJWS;
+
+    [Test]
+    procedure TJOSEVerifyStillRejectsAJWE;
   end;
 
 implementation
@@ -689,7 +736,205 @@ begin
   end;
 end;
 
+{ TTestJWEWiring }
+
+const
+  HS256_SECRET = 'a-shared-secret-of-at-least-32-bytes!';
+  DIR_A128GCM_HEADER = '{"alg":"dir","enc":"A128GCM"}';
+
+function DirConsumer: IJOSEConsumerBuilder;
+begin
+  Result := TJOSEConsumerBuilder.NewConsumer
+    .SetDecryptionKey(TJOSEBytes.RandomBytes(16))
+    .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.Dir])
+    .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A128GCM])
+    .SetDisableRequireSignature;
+end;
+
+function HS256Token(const ASubject: string): TJOSEBytes;
+var
+  LToken: TJWT;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := ASubject;
+    Result := TJOSE.SHA256CompactToken(HS256_SECRET, LToken);
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWEWiring.ContextParsesAJWEWithoutDecrypting;
+var
+  LContext: TJOSEContext;
+begin
+  LContext := TJOSEContext.Create(TokenWithHeader(DIR_A128GCM_HEADER), TJWTClaims);
+  try
+    Assert.IsTrue(LContext.GetJOSEObject is TJWE);
+    Assert.AreEqual('dir', LContext.GetHeader.Algorithm);
+    Assert.IsFalse(LContext.GetClaims.HasSubject, 'Claims stay empty until the consumer decrypts');
+  finally
+    LContext.Free;
+  end;
+end;
+
+procedure TTestJWEWiring.ContextRejectsFourParts;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSEContext.Create('e30.AA.AA.AA', TJWTClaims).Free;
+    end,
+    EJOSEException);
+end;
+
+procedure TTestJWEWiring.DefaultConsumerRejectsEveryJWE;
+var
+  LError: string;
+begin
+  // A consumer that was never told about JWE keeps rejecting it, as it did
+  // before JWE existed
+  LError := ErrorOf(
+    procedure
+    begin
+      TJOSEConsumerBuilder.NewConsumer
+        .SetVerificationKey(HS256_SECRET)
+        .Build
+        .Process(TokenWithHeader(DIR_A128GCM_HEADER));
+    end);
+
+  Assert.Contains(LError, 'key management algorithm [dir] is not listed');
+end;
+
+procedure TTestJWEWiring.ConsumerRejectsUnexpectedEnc;
+var
+  LError: string;
+begin
+  LError := ErrorOf(
+    procedure
+    begin
+      DirConsumer
+        .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A256GCM])
+        .Build
+        .Process(TokenWithHeader(DIR_A128GCM_HEADER));
+    end);
+
+  Assert.Contains(LError, 'content encryption algorithm [A128GCM] is not listed');
+end;
+
+procedure TTestJWEWiring.ConsumerRejectsSigningAlgEvenIfListed;
+var
+  LError: string;
+begin
+  // A signing "alg" put in the key management set by mistake still cannot
+  // select a key management algorithm
+  LError := ErrorOf(
+    procedure
+    begin
+      DirConsumer
+        .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir])
+        .Build
+        .Process(TokenWithHeader('{"alg":"HS256","enc":"A128GCM"}'));
+    end);
+
+  Assert.Contains(LError, 'key management algorithm [HS256] is not listed');
+end;
+
+procedure TTestJWEWiring.ConsumerWithAllowlistsGoesOnToDecrypt;
+begin
+  // The default stack has no AES-GCM: reaching that error proves the
+  // allowlists let the token through to the decryption
+  if TJOSEProviders.HasAESGCM then
+    Exit;
+
+  Assert.WillRaise(
+    procedure
+    begin
+      DirConsumer.Build.Process(TokenWithHeader(DIR_A128GCM_HEADER));
+    end,
+    EJOSEProvidersNotRegistered);
+end;
+
+procedure TTestJWEWiring.RequireEncryptionAcceptsAJWEShape;
+begin
+  if TJOSEProviders.HasAESGCM then
+    Exit;
+
+  // Not refused as "not encrypted": it gets as far as the decryption
+  Assert.WillRaise(
+    procedure
+    begin
+      DirConsumer.SetEnableRequireEncryption.Build.Process(TokenWithHeader(DIR_A128GCM_HEADER));
+    end,
+    EJOSEProvidersNotRegistered);
+end;
+
+procedure TTestJWEWiring.VerificationAndDecryptionKeysAreSeparate;
+begin
+  // SetDecryptionKey used to overwrite the verification key, so this JWS
+  // failed its signature check
+  TJOSEConsumerBuilder.NewConsumer
+    .SetVerificationKey(HS256_SECRET)
+    .SetDecryptionKey(TJOSEBytes.RandomBytes(32))
+    .Build
+    .Process(HS256Token('alice'));
+
+  Assert.Pass;
+end;
+
+procedure TTestJWEWiring.TJOSEDecryptRejectsAJWS;
+var
+  LError: string;
+begin
+  LError := ErrorOf(
+    procedure
+    begin
+      TJOSE.Decrypt(TJOSEBytes.RandomBytes(16), HS256Token('alice')).Free;
+    end);
+
+  Assert.Contains(LError, 'not a JWE');
+end;
+
+procedure TTestJWEWiring.TJOSEDecryptRequiresAKey;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSE.Decrypt(TJWK(nil), TokenWithHeader(DIR_A128GCM_HEADER)).Free;
+    end,
+    EJOSEException);
+end;
+
+procedure TTestJWEWiring.TJOSEDecryptAndVerifyRejectsAJWS;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        TJOSE.DecryptAndVerify(LKey, LKey, HS256Token('alice')).Free;
+      end,
+      EJOSEException);
+  finally
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWEWiring.TJOSEVerifyStillRejectsAJWE;
+begin
+  // Verify is JWS-only: a JWE is not mistaken for a token to verify
+  Assert.WillRaise(
+    procedure
+    begin
+      TJOSE.Verify(HS256_SECRET, TokenWithHeader(DIR_A128GCM_HEADER)).Free;
+    end,
+    EJOSEException);
+end;
+
 initialization
+  TDUnitX.RegisterTestFixture(TTestJWEWiring);
   TDUnitX.RegisterTestFixture(TTestJWEParsing);
   TDUnitX.RegisterTestFixture(TTestJWEIdentifiers);
   TDUnitX.RegisterTestFixture(TTestJWARegistries);
