@@ -446,7 +446,7 @@ begin
   DecryptPayload(AKey);
 
   if not FHeader.IsNestedJWT then
-    FToken.Claims.URLEncoded := TBase64.URLEncode(FPayload);
+    FToken.Claims.SetJSONFromBytes(FPayload);
 end;
 
 end.

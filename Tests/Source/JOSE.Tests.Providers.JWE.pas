@@ -340,6 +340,10 @@ type
     [Test]
     procedure TJOSE_EncryptDecrypt_RSAOAEP256;
 
+    // The authenticated plaintext must be a JSON object to become a claims set
+    [Test]
+    procedure TJOSE_DecryptRejectsANonJSONPayload;
+
     [Test]
     procedure TJOSE_DecryptRefusesNestedJWT;
 
@@ -1755,6 +1759,44 @@ begin
     Assert.AreEqual('alice', LRead.Claims.Subject);
   finally
     LRead.Free;
+  end;
+end;
+
+procedure TJWEConsumerTestBase.TJOSE_DecryptRejectsANonJSONPayload;
+var
+  LKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LCompact: TJOSEBytes;
+  LError: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    // The plaintext is authentic but not a JSON object: it cannot be claims
+    LCompact := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir,
+      TJOSEEncryptionAlgorithmId.A256GCM, 'not a JSON object');
+  finally
+    LJWE.Free;
+    LToken.Free;
+  end;
+
+  // The builder parses the payload in place
+  LError := ErrorOf(procedure begin TJOSE.Decrypt(LKey, LCompact).Free; end);
+  Assert.Contains(LError, 'not a valid JSON object');
+
+  // So does the instance API
+  LReadToken := TJWT.Create;
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LReadJWE.CompactToken := LCompact;
+    LError := ErrorOf(procedure begin LReadJWE.Decrypt(LKey) end);
+    Assert.Contains(LError, 'not a valid JSON object');
+  finally
+    LReadJWE.Free;
+    LReadToken.Free;
+    LKey.Free;
   end;
 end;
 

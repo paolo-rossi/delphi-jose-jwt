@@ -211,8 +211,7 @@ implementation
 
 uses
   System.Types,
-  System.StrUtils,
-  JOSE.Encoding.Base64;
+  System.StrUtils;
 
 resourcestring
   // The compact-serialization messages now live in JOSE.Core.Base, next to the
@@ -316,7 +315,9 @@ begin
       if LJWE.Header.IsNestedJWT then
         raise EJOSEException.Create(SJOSENestedUseDecryptAndVerify);
 
-      Result.Claims.URLEncoded := TBase64.URLEncode(LJWE.Payload);
+      // The payload is the claims object: parse it in place, no base64 round
+      // trip through the URLEncoded property
+      Result.Claims.SetJSONFromBytes(LJWE.Payload);
     finally
       LJWE.Free;
     end;

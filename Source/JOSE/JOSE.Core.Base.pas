@@ -138,12 +138,6 @@ type
     function GetURLEncoded: TJOSEBytes;
     procedure SetEncoded(const Value: TJOSEBytes);
     procedure SetURLEncoded(const Value: TJOSEBytes);
-    /// <summary>
-    ///   Replaces FJSON with the object parsed from AJSON. The current FJSON is
-    ///   released only after the new object has been built and validated, so a
-    ///   malformed segment can never leave FJSON dangling
-    /// </summary>
-    procedure SetJSONFromBytes(const AJSON: TJOSEBytes);
   protected
     FJSON: TJSONObject;
 
@@ -154,6 +148,12 @@ type
 
     procedure Clear;
     procedure Assign(AValue: TJOSEBase);
+    /// <summary>
+    ///   Replaces the JSON object with the one parsed from AJSON (UTF-8 bytes).
+    ///   The current object is released only after the new one has been built
+    ///   and validated, so a malformed segment can never leave it dangling
+    /// </summary>
+    procedure SetJSONFromBytes(const AJSON: TJOSEBytes);
     procedure SetNewJSON(AJSON: TJSONObject); overload;
     procedure SetNewJSON(const AJSONStr: string); overload;
     function Clone: TJSONObject;
