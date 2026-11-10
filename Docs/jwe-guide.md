@@ -345,6 +345,11 @@ What the consumer does with a JWE:
    of nesting is accepted: an inner token that is itself a JWE is rejected.
 4. Validates the claims, as for any token.
 
+After `ProcessContext` (or `Process`), the context's `GetHeader` and `GetClaims` describe the same
+layer: for a nested JWT that is the inner JWS, so `GetHeader.Algorithm` is the signing algorithm
+that was verified. The outer JWE header stays available through `GetJWEHeader` (`alg`, `enc`,
+`zip`, ...).
+
 The signature requirement (on by default) is met by a JWS, or by the inner JWS of a nested JWT. A
 JWE that carries the claims directly has no signature, so accepting one is an explicit choice:
 
@@ -538,6 +543,9 @@ for choosing a key, never as a reason to trust the token.
 `EncryptPayload`/`DecryptPayload` on any plaintext (`Payload` holds the result), and
 `ProtectedHeader`, `EncryptedKey`, `IV`, `Ciphertext`, `AuthenticationTag` give the five parts as
 they appear in the token.
+
+To tell the shapes apart before parsing, `TJOSE.CheckJWECompactToken` answers for a JWE what
+`TJOSE.CheckCompactToken` answers for a JWS.
 
 ---
 

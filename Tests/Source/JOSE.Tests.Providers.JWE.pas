@@ -383,6 +383,9 @@ type
     procedure Consumer_NestedJWT_ValidatesInnerClaims;
 
     [Test]
+    procedure Consumer_NestedJWT_ContextHeaders;
+
+    [Test]
     procedure Consumer_NestedJWT_InnerClaimsRejected;
 
     [Test]
@@ -415,7 +418,8 @@ uses
   JOSE.Core.JWE,
   JOSE.Core.JWA.Encryption,
   JOSE.Core.JWA.Factory,
-  JOSE.Core.Builder;
+  JOSE.Core.Builder,
+  JOSE.Context;
 
 const
   // See the comment over OAEP_RoundTrip
@@ -2079,6 +2083,31 @@ begin
   // Signature required (the default) and met by the inner JWS
   NestedConsumer(LVerify, LDecrypt).SetExpectedSubject('alice').Build.Process(LCompact);
   Assert.Pass;
+end;
+
+procedure TJWEConsumerTestBase.Consumer_NestedJWT_ContextHeaders;
+var
+  LVerify, LDecrypt, LCompact: TJOSEBytes;
+  LContext: TJOSEContext;
+begin
+  LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
+    TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
+
+  LContext := TJOSEContext.Create(LCompact, TJWTClaims);
+  try
+    NestedConsumer(LVerify, LDecrypt).Build.ProcessContext(LContext);
+
+    // GetHeader and GetClaims describe the same (inner) layer after processing
+    Assert.AreEqual('HS256', LContext.GetHeader.Algorithm);
+    Assert.AreEqual('alice', LContext.GetClaims.Subject);
+
+    // The outer JWE header is still available, under its own accessor
+    Assert.IsNotNull(LContext.GetJWEHeader, 'The outer JWE header must remain available');
+    Assert.AreEqual('dir', LContext.GetJWEHeader.Algorithm);
+    Assert.AreEqual('A256GCM', LContext.GetJWEHeader.Encryption);
+  finally
+    LContext.Free;
+  end;
 end;
 
 procedure TJWEConsumerTestBase.Consumer_NestedJWT_InnerClaimsRejected;

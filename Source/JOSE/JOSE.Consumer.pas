@@ -61,6 +61,10 @@ type
   ///     token that is itself a JWE is rejected.
   ///   </para>
   ///   <para>
+  ///     After a nested JWT, the context's GetHeader and GetClaims describe the
+  ///     inner JWS; the outer JWE header is available through GetJWEHeader
+  ///   </para>
+  ///   <para>
   ///     The signature requirement (on by default) is met by a JWS or by the
   ///     inner JWS of a nested JWT. A JWE with the claims directly inside
   ///     carries no signature: accept it with SetDisableRequireSignature.
@@ -670,7 +674,10 @@ begin
       LInner.Free;
     end;
 
-    // The claims to validate are the inner JWS's
+    // The claims to validate are the inner JWS's, and so is the header a
+    // validator sees: the outer JWE header stays available through
+    // TJOSEContext.GetJWEHeader
+    AContext.GetHeader.Assign(LInnerToken.Header);
     AContext.GetClaims.Assign(LInnerToken.Claims);
   finally
     LInnerToken.Free;

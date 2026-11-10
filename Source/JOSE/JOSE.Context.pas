@@ -26,16 +26,25 @@ uses
   JOSE.Core.JWK,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
-  JOSE.Core.JWE;
+  JOSE.Core.JWE,
+  JOSE.Core.JWE.Header;
 
 type
   /// <summary>
   ///   JOSE Context (for the Consumer)
   /// </summary>
   /// <remarks>
-  ///   For a JWE the claims are empty until the consumer has decrypted the
-  ///   token (TJOSEConsumer.ProcessContext): the context parses, it does not
-  ///   decrypt
+  ///   <para>
+  ///     For a JWE the claims are empty until the consumer has decrypted the
+  ///     token (TJOSEConsumer.ProcessContext): the context parses, it does not
+  ///     decrypt
+  ///   </para>
+  ///   <para>
+  ///     GetHeader and GetClaims describe the same layer. For a JWE that has not
+  ///     been processed yet, that is the outer header (the only one there is);
+  ///     once the consumer has processed a nested JWT, both are the inner JWS's.
+  ///     The outer JWE header stays available through GetJWEHeader
+  ///   </para>
   /// </remarks>
   TJOSEContext = class
   private
@@ -51,8 +60,19 @@ type
     function GetJOSEObject: TJOSEParts; overload;
     function GetJOSEObject<T: TJOSEParts>: T; overload;
 
+    /// <summary>
+    ///   The header of the layer GetClaims describes. For a JWE it is the outer
+    ///   header until the consumer has processed it; after a nested JWT it is
+    ///   the inner JWS header, and GetJWEHeader gives the outer one
+    /// </summary>
     function GetHeader: TJWTHeader;
+    /// <summary>
+    ///   The outer JWE header when the token is a JWE, nil for a JWS. It is the
+    ///   same object as GetHeader until a nested JWT is processed
+    /// </summary>
+    function GetJWEHeader: TJWEHeader;
 
+    /// <summary>The claims the consumer validated: the inner JWS's for a nested JWT</summary>
     function GetClaims: TJWTClaims; overload;
     function GetClaims<T: TJWTClaims>: T; overload;
   end;
@@ -124,6 +144,14 @@ end;
 function TJOSEContext.GetHeader: TJWTHeader;
 begin
   Result := FJWT.Header;
+end;
+
+function TJOSEContext.GetJWEHeader: TJWEHeader;
+begin
+  if FJOSEObject is TJWE then
+    Result := TJWE(FJOSEObject).Header
+  else
+    Result := nil;
 end;
 
 function TJOSEContext.GetJOSEObject: TJOSEParts;

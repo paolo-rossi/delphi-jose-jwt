@@ -33,7 +33,13 @@ type
     class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes;
       AVerify, ARaiseOnInvalidSignature: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
   public
+    /// <summary>True when AValue has the shape of a JWS compact serialization:
+    ///   three parts, strict base64url, a JSON header and a JSON payload</summary>
     class function CheckCompactToken(const AValue: TJOSEBytes): Boolean;
+    /// <summary>True when AValue has the shape of a JWE compact serialization:
+    ///   five parts, strict base64url, a JSON header. Says nothing about
+    ///   whether it decrypts</summary>
+    class function CheckJWECompactToken(const AValue: TJOSEBytes): Boolean;
 
     /// <summary>
     ///   Signs AToken and returns the *signature*. To get the compact token use
@@ -508,6 +514,11 @@ end;
 class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
 begin
   Result := TJWS.CheckCompactToken(AValue);
+end;
+
+class function TJOSE.CheckJWECompactToken(const AValue: TJOSEBytes): Boolean;
+begin
+  Result := TJWE.CheckCompactToken(AValue);
 end;
 
 class function TJOSE.DeserializeCompact(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes;

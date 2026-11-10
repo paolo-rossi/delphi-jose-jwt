@@ -290,6 +290,9 @@ type
     procedure ContextRejectsFourParts;
 
     [Test]
+    procedure JWSContextHasNoJWEHeader;
+
+    [Test]
     procedure DefaultConsumerRejectsEveryJWE;
 
     [Test]
@@ -752,6 +755,8 @@ begin
     LToken := AToken;
 
   Assert.AreEqual(AExpected, TJWE.CheckCompactToken(LToken));
+  // The public entry point answers the same question
+  Assert.AreEqual(AExpected, TJOSE.CheckJWECompactToken(LToken));
 end;
 
 procedure TTestJWEParsing.SetCompactTokenRejectsMalformed(const AToken: string);
@@ -993,6 +998,19 @@ begin
       TJOSEContext.Create('e30.AA.AA.AA', TJWTClaims).Free;
     end,
     EJOSEException);
+end;
+
+procedure TTestJWEWiring.JWSContextHasNoJWEHeader;
+var
+  LContext: TJOSEContext;
+begin
+  LContext := TJOSEContext.Create(HS256Token('alice'), TJWTClaims);
+  try
+    Assert.IsTrue(LContext.GetJOSEObject is TJWS);
+    Assert.IsNull(LContext.GetJWEHeader, 'A JWS has no JWE header');
+  finally
+    LContext.Free;
+  end;
 end;
 
 procedure TTestJWEWiring.DefaultConsumerRejectsEveryJWE;
