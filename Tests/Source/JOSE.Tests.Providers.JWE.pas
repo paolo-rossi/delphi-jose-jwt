@@ -61,12 +61,12 @@ type
     // builds on. Checked against .NET's AesGcm (Windows CNG) before they were
     // committed. Fields: key, IV, plaintext, AAD, ciphertext, tag
     [Test]
-    [TestCase('TC1 AES-128 empty',  '00000000000000000000000000000000,000000000000000000000000,,,,58e2fccefa7e3061367f1d57a4e7455a')]
-    [TestCase('TC2 AES-128 zeros',  '00000000000000000000000000000000,000000000000000000000000,00000000000000000000000000000000,,0388dace60b6a392f328c2b971b2fe78,ab6e47d42cec13bdf53a67b21257bddf')]
-    [TestCase('TC4 AES-128 AAD',    'feffe9928665731c6d6a8f9467308308,cafebabefacedbaddecaf888,d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39,feedfacedeadbeeffeedfacedeadbeefabaddad2,42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091,5bc94fbc3221a5db94fae95ae7121a47')]
-    [TestCase('TC10 AES-192 AAD',   'feffe9928665731c6d6a8f9467308308feffe9928665731c,cafebabefacedbaddecaf888,d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39,feedfacedeadbeeffeedfacedeadbeefabaddad2,3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda2710,2519498e80f1478f37ba55bd6d27618c')]
-    [TestCase('TC16 AES-256 AAD',   'feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308,cafebabefacedbaddecaf888,d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39,feedfacedeadbeeffeedfacedeadbeefabaddad2,522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662,76fc6ece0f4e1768cddf8853bb2d551b')]
-    procedure GCM_KnownAnswer(const AKey, AIV, APlaintext, AAAD, ACiphertext, ATag: string);
+    [TestCase('TC1 AES-128 empty', 'TC1')]
+    [TestCase('TC2 AES-128 zeros', 'TC2')]
+    [TestCase('TC4 AES-128 AAD', 'TC4')]
+    [TestCase('TC10 AES-192 AAD', 'TC10')]
+    [TestCase('TC16 AES-256 AAD', 'TC16')]
+    procedure GCM_KnownAnswer(const ACase: string);
 
     [Test]
     [TestCase('16', '16')]
@@ -544,16 +544,76 @@ begin
   Assert.IsTrue(TJOSEProviders.HasRSAEncryption, 'RSA-OAEP provider missing');
 end;
 
-procedure TJWEPrimitivesTestBase.GCM_KnownAnswer(const AKey, AIV, APlaintext, AAAD, ACiphertext, ATag: string);
+// The fields of a GCM test case: key, IV, plaintext, AAD, ciphertext, tag. Kept
+// out of the [TestCase] attributes: Delphi 11 caps a string literal at 255
+// characters, and the longer cases exceed that
+function GCMCase(const ACase: string): TArray<string>;
+begin
+  if ACase = 'TC1' then
+    Result := TArray<string>.Create(
+      '00000000000000000000000000000000',
+      '000000000000000000000000',
+      '',
+      '',
+      '',
+      '58e2fccefa7e3061367f1d57a4e7455a')
+  else if ACase = 'TC2' then
+    Result := TArray<string>.Create(
+      '00000000000000000000000000000000',
+      '000000000000000000000000',
+      '00000000000000000000000000000000',
+      '',
+      '0388dace60b6a392f328c2b971b2fe78',
+      'ab6e47d42cec13bdf53a67b21257bddf')
+  else if ACase = 'TC4' then
+    Result := TArray<string>.Create(
+      'feffe9928665731c6d6a8f9467308308',
+      'cafebabefacedbaddecaf888',
+      'd9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72' +
+        '1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39',
+      'feedfacedeadbeeffeedfacedeadbeefabaddad2',
+      '42831ec2217774244b7221b784d0d49ce3aa212f2c02a4e035c17e2329aca12e' +
+        '21d514b25466931c7d8f6a5aac84aa051ba30b396a0aac973d58e091',
+      '5bc94fbc3221a5db94fae95ae7121a47')
+  else if ACase = 'TC10' then
+    Result := TArray<string>.Create(
+      'feffe9928665731c6d6a8f9467308308feffe9928665731c',
+      'cafebabefacedbaddecaf888',
+      'd9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72' +
+        '1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39',
+      'feedfacedeadbeeffeedfacedeadbeefabaddad2',
+      '3980ca0b3c00e841eb06fac4872a2757859e1ceaa6efd984628593b40ca1e19c' +
+        '7d773d00c144c525ac619d18c84a3f4718e2448b2fe324d9ccda2710',
+      '2519498e80f1478f37ba55bd6d27618c')
+  else if ACase = 'TC16' then
+    Result := TArray<string>.Create(
+      'feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308',
+      'cafebabefacedbaddecaf888',
+      'd9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a72' +
+        '1c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39',
+      'feedfacedeadbeeffeedfacedeadbeefabaddad2',
+      '522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa' +
+        '8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662',
+      '76fc6ece0f4e1768cddf8853bb2d551b')
+  else
+    raise Exception.CreateFmt('Unknown GCM test case %s', [ACase]);
+end;
+
+procedure TJWEPrimitivesTestBase.GCM_KnownAnswer(const ACase: string);
 var
+  LFields: TArray<string>;
   LCiphertext, LTag, LPlaintext: TBytes;
 begin
-  LCiphertext := GCM.Encrypt(HexToBytes(APlaintext), HexToBytes(AKey), HexToBytes(AIV), HexToBytes(AAAD), LTag);
-  Assert.AreEqual(ACiphertext, LowerCase(BytesToHex(LCiphertext)), 'Ciphertext');
-  Assert.AreEqual(ATag, LowerCase(BytesToHex(LTag)), 'Tag');
+  // 0 key, 1 IV, 2 plaintext, 3 AAD, 4 ciphertext, 5 tag
+  LFields := GCMCase(ACase);
+  LCiphertext := GCM.Encrypt(HexToBytes(LFields[2]), HexToBytes(LFields[0]), HexToBytes(LFields[1]),
+    HexToBytes(LFields[3]), LTag);
+  Assert.AreEqual(LFields[4], LowerCase(BytesToHex(LCiphertext)), 'Ciphertext');
+  Assert.AreEqual(LFields[5], LowerCase(BytesToHex(LTag)), 'Tag');
 
-  LPlaintext := GCM.Decrypt(HexToBytes(ACiphertext), HexToBytes(AKey), HexToBytes(AIV), HexToBytes(AAAD), HexToBytes(ATag));
-  Assert.AreEqual(APlaintext, LowerCase(BytesToHex(LPlaintext)), 'Plaintext');
+  LPlaintext := GCM.Decrypt(HexToBytes(LFields[4]), HexToBytes(LFields[0]), HexToBytes(LFields[1]),
+    HexToBytes(LFields[3]), HexToBytes(LFields[5]));
+  Assert.AreEqual(LFields[2], LowerCase(BytesToHex(LPlaintext)), 'Plaintext');
 end;
 
 procedure TJWEPrimitivesTestBase.GCM_RoundTrip(AKeyLength: Integer);
@@ -1607,12 +1667,13 @@ begin
   LVerify := TJWK.Create(TJOSEBytes.RandomBytes(64));
   LDecrypt := TJWK.Create(LDecryptKey);
   try
-    Assert.WillRaise(
+    // Through ErrorOf rather than Assert.WillRaise, which Delphi 11 cannot
+    // resolve for this anonymous method
+    Assert.StartsWith('EJOSEException: ', ErrorOf(
       procedure
       begin
         TJOSE.DecryptAndVerify(LDecrypt, LVerify, LCompact).Free;
-      end,
-      EJOSEException);
+      end));
   finally
     LDecrypt.Free;
     LVerify.Free;
@@ -1702,12 +1763,13 @@ begin
   LCompact := NestedJWT('alice', TJOSEAlgorithmId.HS256, TJOSEAlgorithmId.Dir,
     TJOSEEncryptionAlgorithmId.A256GCM, LVerify, LDecrypt);
 
-  Assert.WillRaise(
+  // Through ErrorOf rather than Assert.WillRaise, which Delphi 11 cannot
+  // resolve for this anonymous method
+  Assert.StartsWith('EInvalidJWTException: ', ErrorOf(
     procedure
     begin
       NestedConsumer(LVerify, LDecrypt).SetExpectedSubject('bob').Build.Process(LCompact);
-    end,
-    EInvalidJWTException);
+    end));
 end;
 
 procedure TJWEConsumerTestBase.Consumer_NestedJWT_InnerAlgorithmNotExpected;

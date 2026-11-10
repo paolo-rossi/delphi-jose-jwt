@@ -38,8 +38,11 @@ Prior to Delphi 10 Seattle the the HMAC-SHA algorithm uses OpenSSL through the I
 
 In Delphi 10 Seattle or newer Delphi versions the HMAC algorithm is also in the System.Hash unit so OpenSSL is not needed.
 
-#### HMAC using RSA or ECDSA algorithm
-The HMAC-RSA(ECDSA) algorithm uses necessarily OpenSSL so if you plan to use these algorithms to sign your token you have to download and deploy OpenSSL (on the server).
+#### RSA or ECDSA signatures
+With the default provider stack, RSA (`RS*`/`PS*`) and ECDSA (`ES*`) signing and verification necessarily use OpenSSL, so if you plan to use these algorithms you have to download and deploy OpenSSL (on the server).
+
+#### JWE (encryption)
+With the default provider stack, every JWE algorithm goes through OpenSSL, `dir` included: AES-GCM needs OpenSSL **1.0.1** or later, `RSA-OAEP-256` **1.0.2**. The JWE functions are loaded the first time JWE is used, so an OpenSSL library without them does not affect JWS. The CryptoLib stack needs no OpenSSL at all.
 
 #### Client-side considerations
 Please keep in mind that the client doesn't have to generate or verify the token (using SHA or RSA) so on the client-side there's no need for the OpenSSL DLLs.
@@ -417,6 +420,7 @@ serializations, and JWE in `TJOSEProducer`.
 ## Projects using Delphi JOSE and JWT
 
 - The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
+- [**MCPConnect**](https://github.com/delphi-blocks/MCPConnect), a framework to build MCP (Model Context Protocol) servers in Delphi
 - [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp). Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
 
 ## :wrench: Todo
@@ -430,20 +434,27 @@ serializations, and JWE in `TJOSEProducer`.
 - More examples
 
 ## :cookie: Prerequisite
-This library has been tested with **Delphi 13 Florence**, **Delphi 12 Athens**, **Delphi 11 Alexandria**, but with some work it should compile with **DXE6 and higher** but I have not tried or tested this, if you succeed in this task I will be happy to create a branch of your work!
+This library has been tested with **Delphi 13 Florence**, **Delphi 12 Athens** and **Delphi 11 Alexandria** (the whole test suite runs on all three). Runtime packages are provided for **Delphi 10.1 Berlin and later** (`Packages\`). With some work it should compile with **DXE6 and higher**, but I have not tried or tested this; if you succeed in this task I will be happy to create a branch of your work! Note that on XE6 and older `Source\JOSE.inc` switches off `RSA_SIGNING`, which compiles out RSA/ECDSA signing and the RSA-OAEP JWE key management: only HMAC, `dir` and the symmetric JWE algorithms remain.
 
 #### Libraries/Units dependencies
-This library has no required external dependencies when using the default (OpenSSL-backed) provider stack.
+This library has no required external dependencies when using the default (OpenSSL-backed) provider stack: everything it uses ships with Delphi. At runtime, RSA/ECDSA signing and JWE on that stack need the [OpenSSL DLLs](#important-openssl-requirements).
 
-Delphi units used:
-- System.JSON (DXE6+) (available on earlier Delphi versions as Data.DBXJSON)
-- System.Rtti (D2010+)
-- System.Generics.Collections (D2009+)
-- System.NetEncoding (DXE7+)
-- Indy units: IdHMAC, IdHMACSHA1, IdSSLOpenSSL, IdHash
+Delphi RTL units used:
+- System.JSON (DXE6+): required, there is no fallback to the older Data.DBXJSON
+- System.Rtti, System.TypInfo
+- System.Generics.Collections, System.Generics.Defaults
+- System.NetEncoding (DXE7+, used when available for Base64)
+- System.Hash (Delphi 10 Seattle+: HMAC and the JWK thumbprint; older versions use Indy instead)
+- System.ZLib (JWE compression, `"zip":"DEF"`)
+- System.Classes, System.SysUtils, System.StrUtils, System.DateUtils, System.IOUtils, System.Types
 
-Optional, only if you [switch to the CryptoLib4Pascal provider stack](#custom-crypto-providers-bring-your-own-crypto):
-- [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) — not included in the `.dpk` package, add it (and `JOSE.Providers.CryptoLib.pas`) to your project yourself if you want it
+Indy units (the Indy that ships with Delphi is enough for the default stack):
+- IdGlobal, IdCTypes, IdSSLOpenSSLHeaders: the OpenSSL bindings used for RSA/ECDSA signing, JWK PEM import/export and JWE
+- IdHMAC, IdHMACSHA1, IdHashSHA, IdHash, IdSSLOpenSSL: only before Delphi 10 Seattle, for HMAC and the JWK thumbprint
+
+Optional, only if you switch to another [provider stack](#custom-crypto-providers-bring-your-own-crypto) (neither is included in the `.dpk` package: add the libraries and the provider unit to your project yourself):
+- TaurusTLS stack (`JOSE.Providers.TaurusTLS.pas`): [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) and the OpenSSL 1.1.x/3.x/4.x DLLs
+- CryptoLib stack (`JOSE.Providers.CryptoLib.pas`): [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal), with its dependencies HashLib4Pascal and SimpleBaseLib4Pascal; no OpenSSL DLL needed
 
 #### Indy notes
 - Please use always the latest version [from GitHub](https://github.com/IndySockets/Indy)
