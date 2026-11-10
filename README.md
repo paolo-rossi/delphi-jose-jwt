@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="http://jwt.io/">
-    <img src="https://user-images.githubusercontent.com/4686497/59972946-554a2180-9598-11e9-9842-8ab83cf3a97d.png" alt="Delphi JWT Library" width="250" />
+    <img src="logo-full.png" alt="Delphi JWT Library" width="250" />
   </a>
 </p>
 
