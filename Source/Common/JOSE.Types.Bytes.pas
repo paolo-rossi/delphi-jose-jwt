@@ -49,6 +49,11 @@ type
     function IsEmpty: Boolean;
     function Size: Integer;
     procedure Clear;
+    /// <summary>
+    ///   A copy of ALength bytes from AStart (0-based). Raises
+    ///   ERangeError when the range is not inside the payload
+    /// </summary>
+    function Slice(AStart, ALength: Integer): TJOSEBytes;
 
     function Contains(const AByte: Byte): Boolean; overload;
     function Contains(const ABytes: TBytes): Boolean; overload;
@@ -119,38 +124,40 @@ begin
   Result := LDiff = 0;
 end;
 
+{ Concatenation }
+
+// Every concatenation goes through here. Indexing element 0 of an empty array
+// is a range error under $R+ even when nothing is moved, and JWE concatenates
+// empty parts routinely ("dir" has an empty Encrypted Key)
+function ConcatBytes(const A, B: TBytes): TBytes;
+begin
+  SetLength(Result, Length(A) + Length(B));
+  if Length(A) > 0 then
+    Move(A[0], Result[0], Length(A));
+  if Length(B) > 0 then
+    Move(B[0], Result[Length(A)], Length(B));
+end;
+
 { TJOSEBytes }
 
 class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: Byte): TJOSEBytes;
 begin
-  SetLength(Result.FPayload, A.Size + 1);
-  Move(A.FPayload[0], Result.FPayload[0], A.Size);
-  Result.FPayload[Result.Size-1] := B;
+  Result.FPayload := ConcatBytes(A.FPayload, TBytes.Create(B));
 end;
 
 class operator TJOSEBytes.Add(const A, B: TJOSEBytes): TJOSEBytes;
 begin
-  SetLength(Result.FPayload, A.Size + B.Size);
-  Move(A.FPayload[0], Result.FPayload[0], A.Size);
-  Move(B.FPayload[0], Result.FPayload[A.Size], B.Size);
+  Result.FPayload := ConcatBytes(A.FPayload, B.FPayload);
 end;
 
 class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: TBytes): TJOSEBytes;
 begin
-  SetLength(Result.FPayload, A.Size + Length(B));
-  Move(A.FPayload[0], Result.FPayload[0], A.Size);
-  Move(B[0], Result.FPayload[A.Size], Length(B));
+  Result.FPayload := ConcatBytes(A.FPayload, B);
 end;
 
 class operator TJOSEBytes.Add(const A: TJOSEBytes; const B: string): TJOSEBytes;
-var
-  LB: TBytes;
 begin
-  LB := TEncoding.UTF8.GetBytes(B);
-
-  SetLength(Result.FPayload, A.Size + Length(LB));
-  Move(A.FPayload[0], Result.FPayload[0], A.Size);
-  Move(LB[0], Result.FPayload[A.Size], Length(LB));
+  Result.FPayload := ConcatBytes(A.FPayload, TEncoding.UTF8.GetBytes(B));
 end;
 
 procedure TJOSEBytes.Clear;
@@ -255,6 +262,16 @@ begin
   Result := Length(FPayload);
 end;
 
+function TJOSEBytes.Slice(AStart, ALength: Integer): TJOSEBytes;
+begin
+  // Checked explicitly: System.Copy clamps an out-of-range request silently,
+  // and a short tag or key must fail loudly, not come back truncated
+  if (AStart < 0) or (ALength < 0) or (AStart > Size - ALength) then
+    raise ERangeError.CreateFmt('Slice(%d, %d) is outside a payload of %d bytes', [AStart, ALength, Size]);
+
+  Result.FPayload := Copy(FPayload, AStart, ALength);
+end;
+
 class operator TJOSEBytes.Implicit(const AValue: string): TJOSEBytes;
 begin
   Result.FPayload := TEncoding.UTF8.GetBytes(AValue);
@@ -269,16 +286,12 @@ end;
 
 class function TBytesUtils.MergeBytes(const ABytes1: TBytes; const ABytes2: TBytes): TBytes;
 begin
-  SetLength(Result, Length(ABytes1) + Length(ABytes2));
-  Move(ABytes1[0], Result[0], Length(ABytes1));
-  Move(ABytes2[0], Result[Length(ABytes1)], Length(ABytes2));
+  Result := ConcatBytes(ABytes1, ABytes2);
 end;
 
 class function TBytesUtils.MergeBytes(const ABytes1: TBytes; const ABytes2: Byte): TBytes;
 begin
-  SetLength(Result, Length(ABytes1) + 1);
-  Move(ABytes1[0], Result[0], Length(ABytes1));
-  Result[Length(Result)-1] := ABytes2;
+  Result := ConcatBytes(ABytes1, TBytes.Create(ABytes2));
 end;
 
 end.

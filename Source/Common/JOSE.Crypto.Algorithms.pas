@@ -54,6 +54,16 @@ type
     function MinPSSKeyBytes: Integer;
   end;
 
+  /// <summary>
+  ///   Digest of RSAES-OAEP encryption (RFC 8017 par. 7.1). MGF1 always uses
+  ///   the same digest, as RFC 7518 par. 4.3 requires: SHA1 for "RSA-OAEP",
+  ///   SHA256 for "RSA-OAEP-256". Scoped (TJOSEOAEPDigest.SHA256), since the
+  ///   unscoped THMACAlgorithm already declares SHA256
+  /// </summary>
+{$SCOPEDENUMS ON}
+  TJOSEOAEPDigest = (SHA1, SHA256);
+{$SCOPEDENUMS OFF}
+
   TECDSAAlgorithm = (ES256, ES256K, ES384, ES512);
   TECDSAAlgorithmHelper = record helper for TECDSAAlgorithm
     procedure FromString(const AValue: string);

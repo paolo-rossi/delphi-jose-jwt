@@ -35,6 +35,26 @@ type
     function Sign(const AInput, AKey: TBytes; AAlg: THMACAlgorithm): TBytes;
   end;
 
+  /// <summary>
+  ///   AES in Galois/Counter Mode, for the JWE "A128GCM", "A192GCM" and
+  ///   "A256GCM" content encryption (RFC 7518 par. 5.3)
+  /// </summary>
+  /// <remarks>
+  ///   The key length (16, 24 or 32 bytes) selects AES-128/192/256. JOSE always
+  ///   uses a 96-bit IV and a 128-bit tag, so implementations raise
+  ///   EJOSEException for an IV that is not 12 bytes or a tag that is not 16
+  /// </remarks>
+  IJOSEAESGCMProvider = interface
+    ['{363D9C4E-A4A7-4FBF-B12C-30651B83B12D}']
+    /// <summary>Encrypts APlaintext; the 16-byte authentication tag is returned in ATag</summary>
+    function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+    /// <summary>
+    ///   Checks ATag and decrypts. Raises EJOSEException when the tag does not
+    ///   match: unauthenticated plaintext is never returned
+    /// </summary>
+    function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
+  end;
+
 {$IFDEF RSA_SIGNING}
 
   /// <summary>
@@ -74,6 +94,20 @@ type
     function VerifyWithCertificate(const AInput, ASignature, ACertificate: TBytes; AAlg: TECDSAAlgorithm): Boolean;
     function VerifyPublicKey(const AKey: TBytes): Boolean;
     function VerifyPrivateKey(const AKey: TBytes): Boolean;
+  end;
+
+  /// <summary>
+  ///   RSAES-OAEP encryption, for the JWE "RSA-OAEP" and "RSA-OAEP-256" key
+  ///   management (RFC 7518 par. 4.3). Keys are PEM, like the RSA signer's
+  /// </summary>
+  IJOSERSAEncryptionProvider = interface
+    ['{BBDF3F88-D2C5-4069-984E-C3381CD7285F}']
+    function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+    /// <summary>
+    ///   Raises EJOSEException when the ciphertext does not decrypt, with no
+    ///   detail about why (the error must not become a padding oracle)
+    /// </summary>
+    function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
   end;
 
   /// <summary>Imports/exports raw RSA key material (RFC 7517/7518) to/from PEM, for JWK support.</summary>

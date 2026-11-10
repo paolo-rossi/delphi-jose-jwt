@@ -59,7 +59,10 @@ implementation
 
 procedure TJOSEParts.Clear;
 begin
-  FParts.Clear;
+  // Empties the parts but keeps their slots: a JWS always has 3 and a JWE 5,
+  // and the part accessors index them directly. FParts.Clear removed the
+  // slots, so the next access raised a list index error
+  Empty;
 end;
 
 constructor TJOSEParts.Create(AToken: TJWT);

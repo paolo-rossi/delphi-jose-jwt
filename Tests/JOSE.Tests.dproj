@@ -106,6 +106,7 @@
         <DCCReference Include="Source\JOSE.Tests.JWK.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWS.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWT.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWE.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Utils.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Common.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWA.HMAC.pas"/>

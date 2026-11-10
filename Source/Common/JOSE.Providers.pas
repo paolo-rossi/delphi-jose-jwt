@@ -41,24 +41,30 @@ type
     class var FLock: TObject;
     class var FBase64: IJOSEBase64Provider;
     class var FHMAC: IJOSEHmacProvider;
+    class var FAESGCM: IJOSEAESGCMProvider;
 {$IFDEF RSA_SIGNING}
     class var FCertificate: IJOSECertificateProvider;
     class var FRSA: IJOSESignerRSA;
     class var FECDSA: IJOSESignerECDSA;
     class var FRSAKeyMaterial: IJOSERSAKeyMaterialProvider;
     class var FECKeyMaterial: IJOSEECKeyMaterialProvider;
+    class var FRSAEncryption: IJOSERSAEncryptionProvider;
 {$ENDIF}
     class procedure RequireBase64; static;
     class procedure RequireHMAC; static;
+    class procedure RequireAESGCM; static;
 {$IFDEF RSA_SIGNING}
     class procedure RequireSigningStack; static;
     class procedure RequireRSAKeyMaterial; static;
     class procedure RequireECKeyMaterial; static;
+    class procedure RequireRSAEncryption; static;
 {$ENDIF}
     class function GetBase64: IJOSEBase64Provider; static;
     class function GetHMAC: IJOSEHmacProvider; static;
     class procedure SetBase64(const AValue: IJOSEBase64Provider); static;
     class procedure SetHMAC(const AValue: IJOSEHmacProvider); static;
+    class function GetAESGCM: IJOSEAESGCMProvider; static;
+    class procedure SetAESGCM(const AValue: IJOSEAESGCMProvider); static;
 {$IFDEF RSA_SIGNING}
     class function GetCertificate: IJOSECertificateProvider; static;
     class function GetRSA: IJOSESignerRSA; static;
@@ -70,6 +76,8 @@ type
     class function GetECKeyMaterial: IJOSEECKeyMaterialProvider; static;
     class procedure SetRSAKeyMaterial(const AValue: IJOSERSAKeyMaterialProvider); static;
     class procedure SetECKeyMaterial(const AValue: IJOSEECKeyMaterialProvider); static;
+    class function GetRSAEncryption: IJOSERSAEncryptionProvider; static;
+    class procedure SetRSAEncryption(const AValue: IJOSERSAEncryptionProvider); static;
 {$ENDIF}
   public
     /// <summary>Delegates to <c>TJOSEDefaultProviders.Register</c>.</summary>
@@ -78,6 +86,11 @@ type
     class procedure UnregisterProvider; static;
     class property Base64: IJOSEBase64Provider read GetBase64 write SetBase64;
     class property HMAC: IJOSEHmacProvider read GetHMAC write SetHMAC;
+    /// <summary>Optional capability: AES-GCM, for JWE content encryption. A stack without it
+    ///   still signs and verifies; only JWE needs it.</summary>
+    class property AESGCM: IJOSEAESGCMProvider read GetAESGCM write SetAESGCM;
+    /// <summary>True when the registered stack provides AES-GCM. Never raises</summary>
+    class function HasAESGCM: Boolean; static;
 {$IFDEF RSA_SIGNING}
     class property Certificate: IJOSECertificateProvider read GetCertificate write SetCertificate;
     class property RSA: IJOSESignerRSA read GetRSA write SetRSA;
@@ -88,6 +101,10 @@ type
     class property RSAKeyMaterial: IJOSERSAKeyMaterialProvider read GetRSAKeyMaterial write SetRSAKeyMaterial;
     /// <summary>Optional capability: raw EC key import/export (JWK PEM support). See <c>RSAKeyMaterial</c>.</summary>
     class property ECKeyMaterial: IJOSEECKeyMaterialProvider read GetECKeyMaterial write SetECKeyMaterial;
+    /// <summary>Optional capability: RSAES-OAEP, for JWE key management. See <c>AESGCM</c>.</summary>
+    class property RSAEncryption: IJOSERSAEncryptionProvider read GetRSAEncryption write SetRSAEncryption;
+    /// <summary>True when the registered stack provides RSAES-OAEP. Never raises</summary>
+    class function HasRSAEncryption: Boolean; static;
 {$ENDIF}
   end;
 
@@ -99,6 +116,8 @@ uses
 resourcestring
   SJOSEProvidersNotRegistered = 'JOSE global providers are not registered. ' +
     'Call TJOSEProviders.RegisterProvider, TJOSECryptoLibProviders.Register or TJOSETaurusTLSProviders.Register.';
+  SJOSEProviderCapabilityMissing = 'The registered JOSE provider stack does not support this operation ' +
+    '(JWE encryption). Register a stack that implements it.';
 
 { TJOSEProviders }
 
@@ -112,6 +131,28 @@ class procedure TJOSEProviders.RequireHMAC;
 begin
   if FHMAC = nil then
     raise EJOSEProvidersNotRegistered.Create(SJOSEProvidersNotRegistered);
+end;
+
+class procedure TJOSEProviders.RequireAESGCM;
+begin
+  if FAESGCM = nil then
+    raise EJOSEProvidersNotRegistered.Create(SJOSEProviderCapabilityMissing);
+end;
+
+class function TJOSEProviders.GetAESGCM: IJOSEAESGCMProvider;
+begin
+  RequireAESGCM;
+  Result := FAESGCM;
+end;
+
+class procedure TJOSEProviders.SetAESGCM(const AValue: IJOSEAESGCMProvider);
+begin
+  FAESGCM := AValue;
+end;
+
+class function TJOSEProviders.HasAESGCM: Boolean;
+begin
+  Result := FAESGCM <> nil;
 end;
 
 class function TJOSEProviders.GetBase64: IJOSEBase64Provider;
@@ -243,6 +284,28 @@ end;
 class procedure TJOSEProviders.SetECKeyMaterial(const AValue: IJOSEECKeyMaterialProvider);
 begin
   FECKeyMaterial := AValue;
+end;
+
+class procedure TJOSEProviders.RequireRSAEncryption;
+begin
+  if FRSAEncryption = nil then
+    raise EJOSEProvidersNotRegistered.Create(SJOSEProviderCapabilityMissing);
+end;
+
+class function TJOSEProviders.GetRSAEncryption: IJOSERSAEncryptionProvider;
+begin
+  RequireRSAEncryption;
+  Result := FRSAEncryption;
+end;
+
+class procedure TJOSEProviders.SetRSAEncryption(const AValue: IJOSERSAEncryptionProvider);
+begin
+  FRSAEncryption := AValue;
+end;
+
+class function TJOSEProviders.HasRSAEncryption: Boolean;
+begin
+  Result := FRSAEncryption <> nil;
 end;
 
 {$ENDIF}

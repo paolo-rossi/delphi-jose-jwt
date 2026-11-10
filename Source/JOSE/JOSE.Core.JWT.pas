@@ -43,6 +43,11 @@ type
     HEADER_TYPE = 'typ';
     ALGORITHM = 'alg';
     KEY_ID = 'kid';
+    CONTENT_TYPE = 'cty';
+    CRITICAL = 'crit';
+    // JWE only (RFC 7516 par. 4.1)
+    ENCRYPTION = 'enc';
+    COMPRESSION = 'zip';
   end;
 
   /// <summary>

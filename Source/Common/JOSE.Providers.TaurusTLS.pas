@@ -1338,6 +1338,12 @@ begin
   TJOSEProviders.RSAKeyMaterial := TTaurusTLSRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TTaurusTLSECKeyMaterialProvider.Create;
 {$ENDIF}
+  // JWE: not implemented by this stack yet. Cleared rather than left alone, so
+  // that registering over another stack cannot keep that stack's providers
+  TJOSEProviders.AESGCM := nil;
+{$IFDEF RSA_SIGNING}
+  TJOSEProviders.RSAEncryption := nil;
+{$ENDIF}
 end;
 
 class procedure TJOSETaurusTLSProviders.Unregister;
@@ -1350,6 +1356,10 @@ begin
   TJOSEProviders.ECDSA := nil;
   TJOSEProviders.RSAKeyMaterial := nil;
   TJOSEProviders.ECKeyMaterial := nil;
+{$ENDIF}
+  TJOSEProviders.AESGCM := nil;
+{$IFDEF RSA_SIGNING}
+  TJOSEProviders.RSAEncryption := nil;
 {$ENDIF}
 end;
 

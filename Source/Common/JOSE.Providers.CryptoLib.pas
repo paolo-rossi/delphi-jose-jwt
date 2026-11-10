@@ -1032,6 +1032,10 @@ begin
   TJOSEProviders.ECDSA := TCryptoLibECDSAProvider.Create(LCert);
   TJOSEProviders.RSAKeyMaterial := TCryptoLibRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TCryptoLibECKeyMaterialProvider.Create;
+  // JWE: not implemented by this stack yet. Cleared rather than left alone, so
+  // that registering over another stack cannot keep that stack's providers
+  TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.RSAEncryption := nil;
 end;
 
 class procedure TJOSECryptoLibProviders.Unregister;
@@ -1043,6 +1047,8 @@ begin
   TJOSEProviders.ECDSA := nil;
   TJOSEProviders.RSAKeyMaterial := nil;
   TJOSEProviders.ECKeyMaterial := nil;
+  TJOSEProviders.AESGCM := nil;
+  TJOSEProviders.RSAEncryption := nil;
 end;
 
 end.

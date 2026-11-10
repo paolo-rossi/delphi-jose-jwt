@@ -28,7 +28,8 @@ uses
   JOSE.Core.JWA,
   JOSE.Core.JWA.Signing,
   JOSE.Core.JWA.Compression,
-  JOSE.Core.JWA.Encryption;
+  JOSE.Core.JWA.Encryption,
+  JOSE.Core.JWA.KeyManagement;
 
 type
   TJOSEAlgorithmRegistry<T: IJOSEAlgorithm> = class
@@ -39,11 +40,21 @@ type
     constructor Create(const AName: string);
     destructor Destroy; override;
 
+    /// <summary>The algorithm registered under the identifier, nil when none is</summary>
     function GetAlgorithm(AAlgorithmIdentifier: string): T;
 
-    function RegisterAlgorithm(AAlgorithm: T): TJOSEAlgorithmRegistry<T>;
+    /// <summary>Registers under GetAlgorithmIdentifier.AsString (an "alg" value)</summary>
+    function RegisterAlgorithm(AAlgorithm: T): TJOSEAlgorithmRegistry<T>; overload;
+    /// <summary>
+    ///   Registers under an explicit identifier: for the namespaces that are
+    ///   not "alg", like "enc" and "zip"
+    /// </summary>
+    function RegisterAlgorithm(const AIdentifier: string; AAlgorithm: T): TJOSEAlgorithmRegistry<T>; overload;
     procedure UnregisterAlgorithm(AAlgId: string); overload;
     procedure UnregisterAlgorithm(AAlgId: TJOSEAlgorithmId); overload;
+
+    /// <summary>The header member the registry resolves: "alg", "enc" or "zip"</summary>
+    property Name: string read FName;
   end;
 
   /// <summary>
@@ -62,6 +73,7 @@ type
     FInstanceLock: TObject;
   private
     FSigningAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSESigningAlgorithm>;
+    FKeyManagementAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEKeyManagementAlgorithm>;
     FEncryptionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>;
     FCompressionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>;
 
@@ -71,8 +83,13 @@ type
   public
     destructor Destroy; override;
 
+    /// <summary>JWS "alg". A JWS must resolve its algorithm here and nowhere else</summary>
     property SigningAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSESigningAlgorithm>
       read FSigningAlgorithmRegistry;
+    /// <summary>JWE "alg". A JWE must resolve its algorithm here and nowhere else</summary>
+    property KeyManagementAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEKeyManagementAlgorithm>
+      read FKeyManagementAlgorithmRegistry;
+    /// <summary>JWE "enc"</summary>
     property EncryptionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>
       read FEncryptionAlgorithmRegistry;
     property CompressionAlgorithmRegistry: TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>
@@ -106,7 +123,13 @@ end;
 
 function TJOSEAlgorithmRegistry<T>.RegisterAlgorithm(AAlgorithm: T): TJOSEAlgorithmRegistry<T>;
 begin
-  FAlgorithms.Add(AAlgorithm.GetAlgorithmIdentifier.AsString, AAlgorithm);
+  Result := RegisterAlgorithm(AAlgorithm.GetAlgorithmIdentifier.AsString, AAlgorithm);
+end;
+
+function TJOSEAlgorithmRegistry<T>.RegisterAlgorithm(const AIdentifier: string;
+  AAlgorithm: T): TJOSEAlgorithmRegistry<T>;
+begin
+  FAlgorithms.Add(AIdentifier, AAlgorithm);
   Result := Self;
 end;
 
@@ -147,14 +170,18 @@ begin
 {$ENDIF}
   ;
 
-  FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('alg');
+  // Filled when the JWE algorithms are implemented (JWE step 1, phases 2-3)
+  FKeyManagementAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEKeyManagementAlgorithm>.Create('alg');
 
-  FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('alg');
+  FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('enc');
+
+  FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('zip');
 end;
 
 destructor TJOSEAlgorithmRegistryFactory.Destroy;
 begin
   FSigningAlgorithmRegistry.Free;
+  FKeyManagementAlgorithmRegistry.Free;
   FEncryptionAlgorithmRegistry.Free;
   FCompressionAlgorithmRegistry.Free;
 
