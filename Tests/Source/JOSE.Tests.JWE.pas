@@ -28,6 +28,7 @@ uses
   JOSE.Types.Bytes,
   JOSE.Core.JWA,
   JOSE.Core.JWA.Factory,
+  JOSE.Core.JWA.Encryption,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWK,
@@ -82,6 +83,19 @@ type
 
     [Test]
     procedure UnknownIdsHaveNoString;
+
+    // The constructors must refuse a foreign id rather than fall back: a CBC
+    // id used to run AES-GCM under a longer key, and any unknown id used to
+    // run CBC-HMAC with SHA-512
+    [Test]
+    [TestCase('Unknown',     '0')]
+    [TestCase('CBC-HMAC id', '4')]
+    procedure GCMAlgorithmRejectsForeignId(AId: Integer);
+
+    [Test]
+    [TestCase('Unknown', '0')]
+    [TestCase('GCM id',  '1')]
+    procedure CBCHMACAlgorithmRejectsForeignId(AId: Integer);
   end;
 
   [TestFixture]
@@ -214,6 +228,14 @@ type
 
     [Test]
     procedure MissingRSAEncryptionProviderIsReportedAsSuch;
+
+    // The generic message is for token properties, not for faults inside a
+    // provider (out of memory, an access violation, a programming error)
+    [Test]
+    procedure DecryptionFaultsAreNotMasked;
+
+    [Test]
+    procedure DecryptionCryptoErrorsAreGeneric;
   end;
 
   /// <summary>
@@ -303,6 +325,48 @@ type
 
 implementation
 
+uses
+  JOSE.Providers.Interfaces;
+
+type
+  /// <summary>
+  ///   AES-GCM provider that fails on decrypt: a fault (any non-JOSE exception)
+  ///   is used to pin that the JWE layer does not mask it as a decryption
+  ///   failure, and a crypto error to pin that it does turn that one generic
+  /// </summary>
+  TFailingAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
+  private
+    FCryptoError: Boolean;
+  public
+    constructor Create(ACryptoError: Boolean);
+    function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
+  end;
+
+  /// <summary>A fault, not a crypto error: it must reach the caller unchanged</summary>
+  EInjectedProviderFault = class(Exception);
+
+constructor TFailingAESGCMProvider.Create(ACryptoError: Boolean);
+begin
+  inherited Create;
+  FCryptoError := ACryptoError;
+end;
+
+function TFailingAESGCMProvider.Encrypt(const APlaintext, AKey, AIV,
+  AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+begin
+  raise EInjectedProviderFault.Create('encrypt is not expected in this test');
+end;
+
+function TFailingAESGCMProvider.Decrypt(const ACiphertext, AKey, AIV,
+  AAdditionalData, ATag: TBytes): TBytes;
+begin
+  if FCryptoError then
+    raise EJOSECryptoException.Create('injected crypto failure');
+
+  raise EInjectedProviderFault.Create('injected provider fault');
+end;
+
 { TTestJWEIdentifiers }
 
 procedure TTestJWEIdentifiers.KeyManagementAlgRoundTrips(const AValue: string);
@@ -377,6 +441,40 @@ procedure TTestJWEIdentifiers.UnknownIdsHaveNoString;
 begin
   Assert.AreEqual('', TJOSEAlgorithmId.Unknown.AsString);
   Assert.AreEqual('', TJOSEEncryptionAlgorithmId.Unknown.AsString);
+end;
+
+procedure TTestJWEIdentifiers.GCMAlgorithmRejectsForeignId(AId: Integer);
+var
+  LId: TJOSEEncryptionAlgorithmId;
+begin
+  LId := TJOSEEncryptionAlgorithmId(AId);
+
+  // A CBC-HMAC id used to be accepted and run AES-GCM under that id's key
+  Assert.WillRaise(
+    procedure
+    var
+      LAlg: IJOSEEncryptionAlgorithm;
+    begin
+      LAlg := TAESGCMAlgorithm.Create(LId);
+    end,
+    EJOSEException);
+end;
+
+procedure TTestJWEIdentifiers.CBCHMACAlgorithmRejectsForeignId(AId: Integer);
+var
+  LId: TJOSEEncryptionAlgorithmId;
+begin
+  LId := TJOSEEncryptionAlgorithmId(AId);
+
+  // Any id the constructor did not know used to fall back to SHA-512
+  Assert.WillRaise(
+    procedure
+    var
+      LAlg: IJOSEEncryptionAlgorithm;
+    begin
+      LAlg := TAESCBCHMACAlgorithm.Create(LId);
+    end,
+    EJOSEException);
 end;
 
 { TTestJWARegistries }
@@ -786,6 +884,62 @@ begin
     LToken.Free;
     LKey.Free;
     TJOSEProviders.RegisterProvider;
+  end;
+end;
+
+procedure TTestJWEParsing.DecryptionFaultsAreNotMasked;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := TokenWithHeader('{"alg":"dir","enc":"A128GCM"}');
+    TJOSEProviders.AESGCM := TFailingAESGCMProvider.Create(False);
+
+    // The provider fails with something that is not a JOSE or crypto error:
+    // the caller must see it, not a misleading "wrong key or tampered token"
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.DecryptPayload(LKey);
+      end,
+      EInjectedProviderFault);
+  finally
+    TJOSEProviders.RegisterProvider;
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.DecryptionCryptoErrorsAreGeneric;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := TokenWithHeader('{"alg":"dir","enc":"A128GCM"}');
+    TJOSEProviders.AESGCM := TFailingAESGCMProvider.Create(True);
+
+    // A provider crypto failure is still one generic message, with no detail
+    Assert.AreEqual('EJOSEException: JWE decryption failed', ErrorOf(
+      procedure
+      begin
+        LJWE.DecryptPayload(LKey);
+      end));
+  finally
+    TJOSEProviders.RegisterProvider;
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
   end;
 end;
 

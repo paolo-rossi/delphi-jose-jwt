@@ -144,7 +144,10 @@ begin
     except
       on E: EJOSEException do
         raise;
-      on E: Exception do
+      // Only ZLib's own errors mean "the payload is not raw DEFLATE": a fault
+      // (out of memory, an access violation) must not be disguised as a
+      // malformed payload
+      on E: EZLibError do
         raise EJOSEException.Create(SJOSEDecompressionFailed);
     end;
 

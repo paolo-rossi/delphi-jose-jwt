@@ -73,6 +73,10 @@ type
   ///   "A128GCM", "A192GCM", "A256GCM" (RFC 7518 par. 5.3), on top of the
   ///   registered IJOSEAESGCMProvider
   /// </summary>
+  /// <remarks>
+  ///   The constructor refuses an id that is not one of the three GCM values: a
+  ///   CBC-HMAC id would otherwise silently run AES-GCM under a longer key
+  /// </remarks>
   TAESGCMAlgorithm = class(TJOSEAlgorithm, IJOSEEncryptionAlgorithm)
   private
     FEncryptionAlgorithmId: TJOSEEncryptionAlgorithmId;
@@ -99,7 +103,9 @@ type
   ///   The CEK is split in two: the first half is the MAC key, the second the
   ///   AES key. The tag is the first half of the HMAC. On decryption the tag
   ///   is checked, in constant time, before anything is decrypted, so a
-  ///   padding error is never reachable with an unauthenticated ciphertext
+  ///   padding error is never reachable with an unauthenticated ciphertext.
+  ///   The constructor refuses an id that is not one of the three CBC-HMAC
+  ///   values, rather than falling back to SHA-512
   /// </remarks>
   TAESCBCHMACAlgorithm = class(TJOSEAlgorithm, IJOSEEncryptionAlgorithm)
   private
@@ -131,10 +137,21 @@ resourcestring
   SJOSECBCIVLength = 'The IV for %s must be 16 bytes, not %d';
   SJOSECBCTagLength = 'The authentication tag for %s must be %d bytes, not %d';
   SJOSECBCTagMismatch = 'The authentication tag does not match';
+  SJOSEGCMWrongEncryptionId = '%s is not an AES-GCM content encryption algorithm';
+  SJOSECBCWrongEncryptionId = '%s is not an AES-CBC-HMAC content encryption algorithm';
 
 const
   // RFC 7518 par. 5.3: a 96-bit IV
   GCM_IV_BYTES = 12;
+
+// A readable name for an id in the constructor errors, Unknown included: the
+// ordinal alone would be cryptic
+function EncryptionIdText(AId: TJOSEEncryptionAlgorithmId): string;
+begin
+  Result := AId.AsString;
+  if Result = '' then
+    Result := 'Unknown';
+end;
 
 { TAESGCMAlgorithm }
 
@@ -145,7 +162,18 @@ begin
   FAlgorithmIdentifier := TJOSEAlgorithmId.Unknown;
   FKeyCategory := TJOSEKeyCategory.Symmetric;
   FKeyType := 'oct';
-  FEncryptionAlgorithmId := AEncryptionAlgorithmId;
+
+  // A foreign id must not be accepted: a CBC-HMAC id would silently run
+  // AES-GCM under that id's (longer) key, and Unknown would run it with no key
+  case AEncryptionAlgorithmId of
+    TJOSEEncryptionAlgorithmId.A128GCM,
+    TJOSEEncryptionAlgorithmId.A192GCM,
+    TJOSEEncryptionAlgorithmId.A256GCM:
+      FEncryptionAlgorithmId := AEncryptionAlgorithmId;
+  else
+    raise EJOSEException.CreateFmt(SJOSEGCMWrongEncryptionId,
+      [EncryptionIdText(AEncryptionAlgorithmId)]);
+  end;
 end;
 
 class function TAESGCMAlgorithm.A128GCM: IJOSEEncryptionAlgorithm;
@@ -233,14 +261,19 @@ begin
   FAlgorithmIdentifier := TJOSEAlgorithmId.Unknown;
   FKeyCategory := TJOSEKeyCategory.Symmetric;
   FKeyType := 'oct';
-  FEncryptionAlgorithmId := AEncryptionAlgorithmId;
 
+  // A foreign id must not fall through to SHA-512: a GCM id would silently run
+  // CBC-HMAC + SHA-512 under that id's (shorter) key, and Unknown with no key
   case AEncryptionAlgorithmId of
     TJOSEEncryptionAlgorithmId.A128CBC_HS256: FHMACAlgorithm := THMACAlgorithm.SHA256;
     TJOSEEncryptionAlgorithmId.A192CBC_HS384: FHMACAlgorithm := THMACAlgorithm.SHA384;
+    TJOSEEncryptionAlgorithmId.A256CBC_HS512: FHMACAlgorithm := THMACAlgorithm.SHA512;
   else
-    FHMACAlgorithm := THMACAlgorithm.SHA512;
+    raise EJOSEException.CreateFmt(SJOSECBCWrongEncryptionId,
+      [EncryptionIdText(AEncryptionAlgorithmId)]);
   end;
+
+  FEncryptionAlgorithmId := AEncryptionAlgorithmId;
 end;
 
 class function TAESCBCHMACAlgorithm.A128CBC_HS256: IJOSEEncryptionAlgorithm;

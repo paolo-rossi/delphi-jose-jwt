@@ -52,7 +52,9 @@ type
   ///   <para>
   ///     Every failure of the decryption itself (wrong key, tampered part,
   ///     bad tag) raises EJOSEException with one generic message, so that the
-  ///     error says nothing about which check failed.
+  ///     error says nothing about which check failed. A fault inside a provider
+  ///     (out of memory, an access violation, a programming error) is not a
+  ///     property of the token and keeps its own exception.
   ///   </para>
   ///   <para>
   ///     Compression ("zip":"DEF"): a received token is decompressed after
@@ -146,6 +148,7 @@ uses
   JOSE.Types.JSON,
   JOSE.Encoding.Base64,
   JOSE.Providers,
+  JOSE.Providers.Interfaces,
   JOSE.Core.JWA.Factory;
 
 resourcestring
@@ -414,7 +417,13 @@ begin
     // token: it keeps its own message
     on E: EJOSEProvidersNotRegistered do
       raise;
-    on E: Exception do
+    // The generic message is for the JOSE and provider-crypto errors that are
+    // properties of the token (bad key, tampered part, bad tag). A fault (out
+    // of memory, an access violation, a programming error) is not: masking it
+    // as "wrong key or tampered token" would hide a real defect
+    on E: EJOSECryptoException do
+      raise EJOSEException.Create(SJOSEJWEDecryptionFailed);
+    on E: EJOSEException do
       raise EJOSEException.Create(SJOSEJWEDecryptionFailed);
   end;
 

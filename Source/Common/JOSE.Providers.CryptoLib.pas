@@ -390,7 +390,9 @@ begin
     Result := TMacUtilities.CalculateMac(HmacMechanism(AAlg), LKeyParam, AInput);
   except
     on E: Exception do
-      raise Exception.CreateFmt(SJOSECryptoLibHMACError, [E.Message]);
+      // A crypto failure, not a fault of the caller: EJOSECryptoException is
+      // what the JWE layer recognises and turns into its generic message
+      raise EJOSECryptoException.CreateFmt(SJOSECryptoLibHMACError, [E.Message]);
   end;
 end;
 

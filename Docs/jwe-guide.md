@@ -538,15 +538,17 @@ they appear in the token.
 | Malformed token (part count, base64url, header not JSON) | `EJOSEException` | names the problem |
 | `alg`/`enc` unsupported, `zip` other than `DEF`, `crit` present | `EJOSEException` | names the value or the member |
 | `alg`/`enc` not in the consumer's allowlists | `EJOSEException` | names the value |
-| **Anything that goes wrong while decrypting** (wrong key, tampered part, bad tag, wrong `dir` key length) | `EJOSEException` | always `JWE decryption failed` |
+| **Anything that goes wrong with the token while decrypting** (wrong key, tampered part, bad tag, wrong `dir` key length) | `EJOSEException` | always `JWE decryption failed` |
 | Compressed payload that does not inflate, or inflates past `TJWE.MaxDecompressedSize` | `EJOSEException` | names the problem (the token is authentic by then) |
 | Inner JWS of a nested JWT: unexpected `alg`, invalid signature | `EJOSEException` | as for a JWS |
 | Claim validation failures | `EInvalidJWTException` | lists every failed validator |
+| A fault inside a provider while decrypting (out of memory, an access violation, a programming error) | the original exception | not masked as `JWE decryption failed` |
 | No provider for AES-GCM/AES-CBC/RSA-OAEP registered | `EJOSEProvidersNotRegistered` | |
 | The OpenSSL library has no JWE functions (default stack, before 1.0.2) | `EJOSEProvidersNotRegistered` | says which version is needed |
 
-The last two are configuration problems, not properties of the token, so they keep their own
-exception and message even while decrypting.
+The last three are configuration or fault problems, not properties of the token, so they keep their
+own exception and message even while decrypting. A fault is not disguised as a bad token: that would
+leave a broken deployment looking like an attack.
 
 The single `JWE decryption failed` message is deliberate. The header is public, so errors about
 it name the problem. Past that point, saying *which* step failed (the key unwrapping, the tag, ...)

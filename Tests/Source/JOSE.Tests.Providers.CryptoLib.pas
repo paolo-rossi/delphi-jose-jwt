@@ -49,6 +49,8 @@ type
     [Test]
     procedure TestHMAC_SHA256_Vector;
     [Test]
+    procedure TestHmacFailureIsACryptoError;
+    [Test]
     procedure TestRSA_RS256_SignVerifyRoundTrip;
 
     [Test]
@@ -223,6 +225,20 @@ begin
   LSig := THMAC.Sign(TEncoding.ANSI.GetBytes('plaintext'), TEncoding.ANSI.GetBytes('secret'), THMACAlgorithm.SHA256);
   LExpected := TBase64.Decode('XXv4q83DfQItSR7PCiZwWFlG10ah668c1cRsrKh6Ylg=').AsBytes;
   Assert.AreEqualMemory(@LExpected[0], @LSig[0], Length(LExpected));
+end;
+
+procedure TTestCryptoLibProviders.TestHmacFailureIsACryptoError;
+begin
+  // A failing HMAC is a crypto error, the type the JWE layer turns into its
+  // generic message: a bare Exception here would escape that mapping. The
+  // out-of-range digest is the cheapest way to reach the provider's error path.
+  Assert.WillRaise(
+    procedure
+    begin
+      THMAC.Sign(TEncoding.ASCII.GetBytes('input'), TEncoding.ASCII.GetBytes('key'),
+        THMACAlgorithm(3));
+    end,
+    EJOSECryptoException);
 end;
 
 procedure TTestCryptoLibProviders.TestRSA_PSS_SignVerifyRoundTrip(AAlg: TRSAAlgorithm);
