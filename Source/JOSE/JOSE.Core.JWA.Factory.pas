@@ -211,12 +211,19 @@ class function TJOSEAlgorithmRegistryFactory.GetInstance: TJOSEAlgorithmRegistry
 begin
   // The singleton is built during unit initialization, which the RTL runs
   // before any user code, so the common path is a plain read. The guarded
-  // branch below only covers a call that arrives after finalization freed it:
-  // unguarded lazy construction let two threads verifying their first token
-  // each build a registry, one of which was then leaked along with anything
-  // registered on it
+  // branch below covers a call that arrives after finalization freed the
+  // singleton *and* its lock (from another unit's finalization, say): both are
+  // rebuilt, so the late call gets a registry instead of calling
+  // TMonitor.Enter(nil). That rebuilt instance is never freed - the process is
+  // shutting down - while the normal path still frees everything. The
+  // double-checked creation is what stops two threads verifying their first
+  // token from each building an instance, one of which would be leaked along
+  // with anything registered on it
   if not Assigned(FInstance) then
   begin
+    if not Assigned(FInstanceLock) then
+      FInstanceLock := TObject.Create;
+
     TMonitor.Enter(FInstanceLock);
     try
       if not Assigned(FInstance) then
