@@ -114,6 +114,69 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 - [JWA (JSON Web Algorithms)](https://tools.ietf.org/html/rfc7518) - describes cryptographic algorithms used in JOSE
 - [JWK (JSON Web Key)](https://tools.ietf.org/html/rfc7517) - describes format and handling of cryptographic keys in JOSE
 
+#### Anatomy of a compact token
+
+A JWT travels as a JWS (signed: anyone can read the claims, only the key holder can produce them)
+or as a JWE (encrypted: only the key holder can read the claims). Each part is Base64URL-encoded
+and the parts are joined by dots:
+
+```
+JWS (3 parts)   header . payload . signature
+                  |        |          |
+                  |        |          +-- HMAC / RSA / ECDSA signature of "header.payload"
+                  |        +------------- the claims (iss, sub, aud, exp, ...), readable by anyone
+                  +---------------------- alg, typ, kid
+
+JWE (5 parts)   header . encrypted key . IV . ciphertext . tag
+                  |           |           |        |         |
+                  |           |           |        |         +-- authentication tag
+                  |           |           |        +------------ the encrypted claims (or a whole signed JWS)
+                  |           |           +--------------------- random per token
+                  |           +--------------------------------- the content key encrypted with RSA-OAEP, empty for "dir"
+                  +--------------------------------------------- alg, enc, zip, cty, kid (authenticated, not encrypted)
+```
+
+#### How the library fits together
+
+```mermaid
+flowchart LR
+  C["TJWT<br/>header + claims"] -->|"TJOSE.SerializeCompact<br/>TJOSEProcess"| JWS["JWS<br/>signed"]
+  C -->|"TJOSE.Encrypt"| JWE["JWE<br/>encrypted"]
+  C -->|"TJOSE.SignAndEncrypt"| NJ["Nested JWT<br/>signed, then encrypted"]
+  JWS & JWE & NJ -->|"compact string"| R{{"Receiver"}}
+  R -->|"TJOSEConsumer.Process<br/>recommended for incoming tokens"| V["Verified TJWT<br/>validated claims"]
+  R -->|"TJOSE.Verify / Decrypt /<br/>DecryptAndVerify"| V
+```
+
+Under the hood every algorithm goes through a registry and, from there, through a swappable
+[crypto provider](#satellite-custom-crypto-providers-bring-your-own-crypto):
+
+```mermaid
+flowchart TB
+  App["Your application"]
+  subgraph API["High-level API"]
+    Builder["TJOSE<br/>JOSE.Core.Builder"]
+    Producer["TJOSEProducerBuilder<br/>JOSE.Producer"]
+    Consumer["TJOSEConsumerBuilder<br/>JOSE.Consumer"]
+  end
+  subgraph Model["Object model"]
+    JWTm["TJWT / TJWTClaims"]
+    JWSm["TJWS"]
+    JWEm["TJWE"]
+    JWKm["TJWK / TJSONWebKey / TJSONWebKeySet"]
+  end
+  Registry["Algorithm registry - JWA<br/>HS, RS, PS, ES - dir, RSA-OAEP - AES-GCM, AES-CBC-HMAC - DEF"]
+  Providers["TJOSEProviders<br/>JOSE.Providers"]
+  subgraph Stacks["Provider stacks"]
+    Def["Default<br/>OpenSSL 1.0.x via Indy"]
+    Taurus["TaurusTLS<br/>OpenSSL 1.1 / 3.x / 4.x"]
+    CL["CryptoLib4Pascal<br/>pure Pascal, no DLLs"]
+    Own["Your own<br/>HSM, other library"]
+  end
+  App --> API --> Model --> Registry --> Providers --> Stacks
+  JWKm -.->|"PEM import/export"| Providers
+```
+
 ## :zap: General Features
 
 #### Token serialization
@@ -658,6 +721,29 @@ that come from outside, verify through `TJOSEConsumer` and set an algorithm allo
 ### Unpacking and token validation
 
 Using the new class `TJOSEConsumer` it's very easy to validate the token's claims. The `TJOSEConsumer` object is built with the `TJOSEConsumerBuilder` utility class using the fluent interface.
+
+What `Process` does with a token, in order (every check runs before the claims are trusted):
+
+```mermaid
+flowchart TD
+  T["Compact token"] --> P["Parse - TJOSEContext"]
+  P --> K{"JWS or JWE?"}
+  K -->|JWS| A1{"alg in<br/>SetExpectedAlgorithms?"}
+  A1 -->|yes| S1["Verify the signature<br/>SetVerificationKey"]
+  K -->|JWE| A2{"alg and enc in the JWE allowlists?<br/>empty by default"}
+  A2 -->|yes| D["Decrypt<br/>SetDecryptionKey"]
+  D -->|"nested JWT, cty: JWT"| A1
+  D -->|"plain JWE"| RS
+  S1 --> RS{"Signature present,<br/>or SetDisableRequireSignature?"}
+  RS -->|yes| VAL["Claim validators<br/>exp, nbf, iat, iss, aud, sub, jti, custom"]
+  VAL -->|all pass| OK(["Token accepted"])
+  A1 -->|no| X(["Rejected: exception"])
+  S1 -->|invalid| X
+  A2 -->|no| X
+  D -->|fails| X
+  RS -->|no| X
+  VAL -->|any fails| X
+```
 
 ```delphi
 var

@@ -37,6 +37,25 @@ JWE compact serialization ([RFC 7516](https://tools.ietf.org/html/rfc7516)), sin
 | | `A128CBC-HS256`, `A192CBC-HS384`, `A256CBC-HS512` | AES-CBC plus an HMAC-SHA2 tag, fresh random 128-bit IV per token. `A128CBC-HS256` is Keycloak's default |
 | `zip` (compression) | `DEF` | Raw DEFLATE. Always accepted on decryption, used on encryption only [when asked](#compression) |
 
+How the header values combine into the five parts of a compact JWE:
+
+```mermaid
+flowchart LR
+  subgraph KM["Key management - alg"]
+    DIR["dir<br/>the shared key is the CEK"]
+    OAEP["RSA-OAEP / RSA-OAEP-256<br/>random CEK, encrypted to<br/>the recipient's public key"]
+  end
+  PT["Plaintext<br/>claims JSON or an inner JWS"] -->|"DEFLATE, only if zip: DEF"| ENC
+  KM -->|"CEK"| ENC["Content encryption - enc<br/>AES-GCM or AES-CBC-HMAC<br/>fresh random IV"]
+  H["Header<br/>alg, enc, zip, cty, kid"] -->|"used as AAD"| ENC
+  ENC --> OUT["header . encrypted CEK . IV . ciphertext . tag"]
+  OAEP -.->|"encrypted CEK, empty for dir"| OUT
+```
+
+The header is authenticated (tampering with it makes decryption fail) but not encrypted: anyone
+can read it, which is what [reading the header without decrypting](#reading-the-header-without-decrypting)
+relies on.
+
 Not supported (yet): AES key wrap (`A*KW`), ECDH-ES, AES-GCM key wrap, password-based encryption,
 and the JSON serializations. A token that uses any of them is rejected with an error that names
 it. `RSA1_5` is left out on purpose: it is vulnerable to padding-oracle attacks and
@@ -227,6 +246,19 @@ For `dir`, the secret of an `oct` key is `TJSONWebKey.K`.
 then encrypts that JWS into a JWE whose header says `"cty":"JWT"`
 ([RFC 7519 §5.2](https://tools.ietf.org/html/rfc7519#section-5.2)):
 
+```mermaid
+flowchart LR
+  subgraph Issuer["Issuer - TJOSE.SignAndEncrypt"]
+    C["TJWT<br/>claims"] -->|"1 sign<br/>signing key"| S["JWS"]
+    S -->|"2 encrypt<br/>recipient's public key"| E["JWE<br/>cty: JWT"]
+  end
+  subgraph Recipient["Recipient - TJOSE.DecryptAndVerify"]
+    E2["JWE"] -->|"3 decrypt<br/>private key"| S2["JWS"]
+    S2 -->|"4 verify<br/>verification key"| C2["TJWT<br/>inner claims"]
+  end
+  E -->|"compact string"| E2
+```
+
 ```delphi
 function Snippet_SignAndEncrypt: TJOSEBytes;
 var
@@ -344,6 +376,25 @@ What the consumer does with a JWE:
    (`SetExpectedAlgorithms`, the verification key), and validates **its** claims. Only one level
    of nesting is accepted: an inner token that is itself a JWE is rejected.
 4. Validates the claims, as for any token.
+
+```mermaid
+flowchart TD
+  T["JWE compact token"] --> A{"alg in SetExpectedKeyManagementAlgorithms<br/>and enc in SetExpectedEncryptionAlgorithms?"}
+  A -->|yes| R{"Plain JWE while a<br/>signature is required?"}
+  R -->|no| D["Decrypt with SetDecryptionKey"]
+  D --> N{"cty: JWT?"}
+  N -->|"yes, nested"| J{"Inner token<br/>is a JWS?"}
+  J -->|yes| S["Inner JWS: SetExpectedAlgorithms,<br/>verify with SetVerificationKey"]
+  N -->|"no, plain"| V["Validate the claims"]
+  S --> V
+  V -->|pass| OK(["Accepted"])
+  A -->|no| X(["Rejected: exception"])
+  R -->|yes| X
+  D -->|"fails: JWE decryption failed"| X
+  J -->|no| X
+  S -->|fails| X
+  V -->|fails| X
+```
 
 `SetDecryptionKey` does not also set the verification key, so a JWS (or the inner JWS of a nested
 JWT) needs `SetVerificationKey` explicitly, even if a previous version accepted only the decryption

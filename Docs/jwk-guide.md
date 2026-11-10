@@ -34,8 +34,14 @@ Every snippet in this document is compiled and executed by the companion sample
 
 They are bridged by **`TJSONWebKey.ToKeyPair`** (and `TJSONWebKey.FromKeyPair`). The typical pipeline is:
 
-```
-JWKS JSON / PEM  ->  TJSONWebKey  ->  ToKeyPair  ->  TJOSE.Sign / TJOSE.Verify / TJOSEConsumer
+```mermaid
+flowchart LR
+  SRC["JWKS / JWK JSON<br/>PEM file<br/>raw components"] -->|"FromJSON, FromPEM,<br/>Create..."| K["TJSONWebKey<br/>TJSONWebKeySet"]
+  K -->|"ToKeyPair"| KP["TKeyPair / TJWK<br/>raw PEM or secret bytes"]
+  KP -->|"FromKeyPair"| K
+  KP --> USE["TJOSE.Sign / TJOSE.Verify<br/>TJOSEConsumer<br/>TJOSEProducer"]
+  K -->|"direct overloads"| DIRECT["TJOSE.Verify / VerifyOrRaise<br/>TJOSE.SelectKey<br/>TJOSE.Encrypt / Decrypt"]
+  K -->|"ToJSON, ToPEM,<br/>ToPublicJWK"| OUT["Publish a JWKS<br/>export PEM"]
 ```
 
 Units you will normally need:
@@ -376,6 +382,24 @@ signature — always test both, and always free the returned token.
 This is the real-world flow: an incoming token, a JWKS you fetched from the issuer, and a full
 claim validation. The `kid` from the token header selects the key, then the consumer verifies the
 signature *and* the claims.
+
+```mermaid
+sequenceDiagram
+  participant App as Your code
+  participant Ctx as TJOSEContext
+  participant Set as TJSONWebKeySet
+  participant Cons as TJOSEConsumer
+  App->>Ctx: Create(token) - parse only, no verification
+  Ctx-->>App: header kid and alg, still untrusted
+  App->>Set: FindByKid(kid)
+  Set-->>App: TJSONWebKey, owned by the set
+  App->>App: key alg matches the header alg?
+  Note over App,Set: steps 1-3 in one call: TJOSE.SelectKey
+  App->>App: ToKeyPair
+  App->>Cons: Build - verification key, algorithm allowlist, claim rules
+  App->>Cons: ProcessContext(context)
+  Cons-->>App: signature verified and claims validated, or an exception
+```
 
 ```delphi
 function ValidateWithKeySet(const ACompactToken: TJOSEBytes; AKeySet: TJSONWebKeySet): string;
