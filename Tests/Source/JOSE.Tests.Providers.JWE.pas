@@ -23,26 +23,33 @@ uses
 
   JOSE.Tests.Classes,
   JOSE.Crypto.Algorithms,
-  JOSE.Providers.Interfaces;
+  JOSE.Providers.Interfaces,
+  JOSE.Core.JWA;
 
 type
   /// <summary>
-  ///   Not registered itself: register the subclasses
+  ///   Registers a provider stack around every test. Subclasses say which
   /// </summary>
-  TJWEPrimitivesTestBase = class(TTestBase)
+  TJWEStackTestBase = class(TTestBase)
   protected
     procedure RegisterStack; virtual; abstract;
     procedure UnregisterStack; virtual; abstract;
-
-    function GCM: IJOSEAESGCMProvider;
-    function OAEP: IJOSERSAEncryptionProvider;
     function ReadKey(const AFileName: string): TBytes;
   public
     [Setup]
     procedure Setup;
     [TearDown]
     procedure TearDown;
+  end;
 
+  /// <summary>
+  ///   The JWE crypto providers. Not registered itself: register the subclasses
+  /// </summary>
+  TJWEPrimitivesTestBase = class(TJWEStackTestBase)
+  protected
+    function GCM: IJOSEAESGCMProvider;
+    function OAEP: IJOSERSAEncryptionProvider;
+  public
     [Test]
     procedure JWEProvidersAreRegistered;
 
@@ -118,6 +125,62 @@ type
     procedure OAEP_DecryptFailuresLookTheSame;
   end;
 
+  /// <summary>
+  ///   TJWE end to end ("dir" + AES-GCM) on a provider stack. Not registered
+  ///   itself: register the subclasses
+  /// </summary>
+  TJWETokenTestBase = class(TJWEStackTestBase)
+  public
+    // RFC 7520 par. 5.6, "Direct Encryption Using AES-GCM" (dir + A128GCM).
+    // Checked against .NET's AesGcm before it was committed
+    [Test]
+    procedure RFC7520_DirA128GCM_Decrypts;
+
+    [Test]
+    procedure RFC7520_DirA128GCM_ReserializesUnchanged;
+
+    [Test]
+    [TestCase('A128GCM', 'A128GCM')]
+    [TestCase('A192GCM', 'A192GCM')]
+    [TestCase('A256GCM', 'A256GCM')]
+    procedure Dir_ClaimsRoundTrip(AEnc: TJOSEEncryptionAlgorithmId);
+
+    [Test]
+    procedure Dir_EmptyPayloadRoundTrips;
+
+    [Test]
+    procedure Encrypt_KeepsTheTokenHeader;
+
+    [Test]
+    procedure Encrypt_IsRandomized;
+
+    [Test]
+    [TestCase('Too short', '16')]
+    [TestCase('Too long',  '64')]
+    procedure Dir_EncryptRejectsWrongKeyLength(AKeyLength: Integer);
+
+    // The protected header is the AAD exactly as received: the same JSON
+    // serialized in another member order is a different AAD
+    [Test]
+    procedure ReorderedProtectedHeader_IsRejected;
+
+    [Test]
+    [TestCase('Encrypted Key', '1')]
+    [TestCase('IV',            '2')]
+    [TestCase('Ciphertext',    '3')]
+    [TestCase('Tag',           '4')]
+    procedure TamperedPart_IsRejected(APart: Integer);
+
+    [Test]
+    procedure WrongKey_IsRejected;
+
+    [Test]
+    procedure DecryptionFailuresLookTheSame;
+
+    [Test]
+    procedure NestedJWT_LeavesClaimsAlone;
+  end;
+
 implementation
 
 uses
@@ -125,7 +188,11 @@ uses
   System.IOUtils,
   JOSE.Types.Bytes,
   JOSE.Encoding.Base64,
-  JOSE.Providers;
+  JOSE.Providers,
+  JOSE.Core.Base,
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Core.JWE;
 
 const
   // See the comment over OAEP_RoundTrip
@@ -203,17 +270,19 @@ begin
   Result := TJOSEProviders.RSAEncryption;
 end;
 
-function TJWEPrimitivesTestBase.ReadKey(const AFileName: string): TBytes;
+{ TJWEStackTestBase }
+
+function TJWEStackTestBase.ReadKey(const AFileName: string): TBytes;
 begin
   Result := TFile.ReadAllBytes(TPath.Combine(FKeysPath, AFileName));
 end;
 
-procedure TJWEPrimitivesTestBase.Setup;
+procedure TJWEStackTestBase.Setup;
 begin
   RegisterStack;
 end;
 
-procedure TJWEPrimitivesTestBase.TearDown;
+procedure TJWEStackTestBase.TearDown;
 begin
   UnregisterStack;
   TJOSEProviders.RegisterProvider;
@@ -399,6 +468,346 @@ begin
 
   Assert.AreEqual(LTampered, LWrongDigest);
   Assert.AreEqual(LTampered, LTruncated);
+end;
+
+{ RFC 7520 par. 5.6 }
+
+const
+  RFC7520_56_KEY = 'XctOhJAkA-pD9Lh7ZgW_2A';
+  RFC7520_56_HEADER =
+    'eyJhbGciOiJkaXIiLCJraWQiOiI3N2M3ZTJiOC02ZTEzLTQ1Y2YtODY3Mi02MTdiNWI0NTI0M2EiLCJlbmMiOiJBMTI4R0NNIn0';
+  RFC7520_56_IV = 'refa467QzzKx6QAB';
+  RFC7520_56_CIPHERTEXT =
+    'JW_i_f52hww_ELQPGaYyeAB6HYGcR559l9TYnSovc23XJoBcW29rHP8yZOZG7YhLpT1bjFuvZPjQS-m0IFtVcXkZXdH_lr_FrdYt9H' +
+    'RUYkshtrMmIUAyGmUnd9zMDB2n0cRDIHAzFVeJUDxkUwVAE7_YGRPdcqMyiBoCO-FBdE-Nceb4h3-FtBP-c_BIwCPTjb9o0Sbdcd' +
+    'REEMJMyZBH8ySWMVi1gPD9yxi-aQpGbSv_F9N4IZAxscj5g-NJsUPbjk29-s7LJAGb15wEBtXphVCgyy53CoIKLHHeJHXex45Uz9a' +
+    'KZSRSInZI-wjsY0yu3cT4_aQ3i1o-tiE-F8Ios61EKgyIQ4CWao8PFMj8TTnp';
+  RFC7520_56_TAG = 'vbb32Xvllea2OtmHAdccRQ';
+
+  // The header of RFC7520_56_HEADER with the members in another order
+  RFC7520_56_HEADER_REORDERED = '{"enc":"A128GCM","alg":"dir","kid":"77c7e2b8-6e13-45cf-8672-617b5b45243a"}';
+
+  JWE_DECRYPTION_FAILED = 'JWE decryption failed';
+
+function RFC7520_56_Token: string;
+begin
+  Result := RFC7520_56_HEADER + '..' + RFC7520_56_IV + '.' + RFC7520_56_CIPHERTEXT + '.' + RFC7520_56_TAG;
+end;
+
+// RFC 7520 Figure 72. The two U+2013 EN DASHes are written as character codes
+// (CLAUDE.md: no non-ASCII in string literals)
+function RFC7520_Plaintext: string;
+begin
+  Result :=
+    'You can trust us to stick with you through thick and ' +
+    'thin' + #$2013 + 'to the bitter end. And you can trust us to ' +
+    'keep any secret of yours' + #$2013 + 'closer than you keep it ' +
+    'yourself. But you cannot trust us to let you face trouble ' +
+    'alone, and go off without a word. We are your friends, Frodo.';
+end;
+
+function RFC7520Key: TJOSEBytes;
+begin
+  Result := TBase64.URLDecode(RFC7520_56_KEY);
+end;
+
+function ReplacePart(const AToken: string; AIndex: Integer; const AValue: string): string;
+var
+  LParts: TArray<string>;
+begin
+  LParts := AToken.Split(['.']);
+  LParts[AIndex] := AValue;
+  Result := string.Join('.', LParts);
+end;
+
+function FlipPartBit(const AToken: string; AIndex: Integer): string;
+var
+  LBytes: TBytes;
+begin
+  LBytes := TBase64.URLDecode(AToken.Split(['.'])[AIndex]).AsBytes;
+  LBytes[0] := LBytes[0] xor $01;
+  Result := ReplacePart(AToken, AIndex, TBase64.URLEncode(LBytes).AsString);
+end;
+
+// Parses AToken into a fresh TJWE and decrypts its payload with AKey. Returns
+// the message of the EJOSEException raised, or '' when it decrypted
+function DecryptError(const AToken: string; const AKey: TJOSEBytes): string;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  Result := '';
+  LKey := TJWK.Create(AKey);
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    try
+      LJWE.CompactToken := AToken;
+      LJWE.DecryptPayload(LKey);
+    except
+      on E: EJOSEException do
+        Result := E.Message;
+    end;
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+{ TJWETokenTestBase }
+
+procedure TJWETokenTestBase.RFC7520_DirA128GCM_Decrypts;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(RFC7520Key);
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7520_56_Token;
+
+    Assert.AreEqual('dir', LJWE.Header.Algorithm);
+    Assert.AreEqual('A128GCM', LJWE.Header.Encryption);
+    Assert.AreEqual('77c7e2b8-6e13-45cf-8672-617b5b45243a', LJWE.Header.KeyID);
+    Assert.IsTrue(LJWE.EncryptedKey.IsEmpty);
+
+    Assert.AreEqual(RFC7520_Plaintext, LJWE.DecryptPayload(LKey).AsString);
+    Assert.AreEqual(RFC7520_Plaintext, LJWE.Payload.AsString);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RFC7520_DirA128GCM_ReserializesUnchanged;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+begin
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7520_56_Token;
+    Assert.AreEqual(RFC7520_56_Token, LJWE.CompactToken.AsString);
+    Assert.AreEqual(RFC7520_56_HEADER, LJWE.ProtectedHeader.AsString, 'Part 0 must be kept verbatim');
+  finally
+    LJWE.Free;
+    LToken.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Dir_ClaimsRoundTrip(AEnc: TJOSEEncryptionAlgorithmId);
+var
+  LKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LCompact: TJOSEBytes;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(AEnc.CEKLength));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LToken.Claims.Subject := 'alice';
+    LToken.Claims.Issuer := 'delphi-jose-jwt';
+    LCompact := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, AEnc);
+
+    Assert.AreEqual('dir', LToken.Header.Algorithm, 'The token header gets the final header');
+    Assert.IsTrue(LJWE.EncryptedKey.IsEmpty, '"dir" has an empty Encrypted Key');
+
+    LReadJWE.CompactToken := LCompact;
+    LReadJWE.Decrypt(LKey);
+
+    Assert.AreEqual(AEnc.AsString, LReadJWE.Header.Encryption);
+    Assert.AreEqual('alice', LReadToken.Claims.Subject);
+    Assert.AreEqual('delphi-jose-jwt', LReadToken.Claims.Issuer);
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Dir_EmptyPayloadRoundTrips;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LCompact: TJOSEBytes;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LCompact := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM, TJOSEBytes.Empty);
+    Assert.IsTrue(LJWE.Ciphertext.IsEmpty);
+    Assert.AreEqual('', DecryptError(LCompact.AsString, LKey.Key));
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Encrypt_KeepsTheTokenHeader;
+var
+  LKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LToken.Header.KeyID := 'key-1';
+    LReadJWE.CompactToken := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A128GCM);
+
+    Assert.AreEqual('key-1', LReadJWE.Header.KeyID);
+    Assert.AreEqual('JWT', LReadJWE.Header.HeaderType);
+    Assert.AreEqual('key-1', LReadToken.Header.KeyID, 'The parsed token header is filled too');
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Encrypt_IsRandomized;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LFirst, LSecond: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LToken.Claims.Subject := 'alice';
+    LFirst := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM).AsString;
+    LSecond := LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM).AsString;
+
+    Assert.AreNotEqual(LFirst.Split(['.'])[2], LSecond.Split(['.'])[2], 'A fresh IV every time');
+    Assert.AreNotEqual(LFirst.Split(['.'])[3], LSecond.Split(['.'])[3]);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Dir_EncryptRejectsWrongKeyLength(AKeyLength: Integer);
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LMessage: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(AKeyLength));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    // A256GCM needs exactly 32 bytes: never truncated, never padded, and the
+    // error names the problem (encryption is not an oracle)
+    LMessage := '';
+    try
+      LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+    except
+      on E: EJOSEException do
+        LMessage := E.Message;
+    end;
+    Assert.Contains(LMessage, '"dir" key');
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.ReorderedProtectedHeader_IsRejected;
+var
+  LToken: string;
+begin
+  LToken := ReplacePart(RFC7520_56_Token, 0, TBase64.URLEncode(RFC7520_56_HEADER_REORDERED).AsString);
+
+  // The same header members, so the token parses and picks the same
+  // algorithms, but the AAD differs and the tag check fails
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(LToken, RFC7520Key));
+  Assert.AreEqual('', DecryptError(RFC7520_56_Token, RFC7520Key), 'The original still decrypts');
+end;
+
+procedure TJWETokenTestBase.TamperedPart_IsRejected(APart: Integer);
+var
+  LToken: string;
+begin
+  if APart = 1 then
+    // "dir" requires it empty
+    LToken := ReplacePart(RFC7520_56_Token, 1, 'AAAA')
+  else
+    LToken := FlipPartBit(RFC7520_56_Token, APart);
+
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(LToken, RFC7520Key));
+end;
+
+procedure TJWETokenTestBase.WrongKey_IsRejected;
+var
+  LKey: TBytes;
+begin
+  LKey := RFC7520Key.AsBytes;
+  LKey[0] := LKey[0] xor $01;
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(RFC7520_56_Token, LKey));
+end;
+
+procedure TJWETokenTestBase.DecryptionFailuresLookTheSame;
+begin
+  // Wrong key length, wrong key, bad tag: one message, nothing to tell apart
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(RFC7520_56_Token, TJOSEBytes.RandomBytes(32)));
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(RFC7520_56_Token, TJOSEBytes.RandomBytes(16)));
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(FlipPartBit(RFC7520_56_Token, 4), RFC7520Key));
+end;
+
+procedure TJWETokenTestBase.NestedJWT_LeavesClaimsAlone;
+const
+  INNER = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhbGljZSJ9.c2ln';
+var
+  LKey: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LToken.Header.SetHeaderParam('cty', 'JWT');
+    LReadJWE.CompactToken := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir,
+      TJOSEEncryptionAlgorithmId.A256GCM, INNER);
+
+    LReadJWE.Decrypt(LKey);
+
+    Assert.IsTrue(LReadJWE.Header.IsNestedJWT);
+    Assert.AreEqual(INNER, LReadJWE.Payload.AsString, 'The inner JWS is the payload');
+    Assert.IsFalse(LReadToken.Claims.HasSubject, 'The claims belong to the inner JWS, not to the JWE');
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
 end;
 
 end.

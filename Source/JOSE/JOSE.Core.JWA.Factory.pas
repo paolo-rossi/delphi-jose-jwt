@@ -170,10 +170,18 @@ begin
 {$ENDIF}
   ;
 
-  // Filled when the JWE algorithms are implemented (JWE step 1, phases 2-3)
+  // JWE "alg". RSA-OAEP joins in JWE step 1, phase 3
   FKeyManagementAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEKeyManagementAlgorithm>.Create('alg');
+  FKeyManagementAlgorithmRegistry
+    .RegisterAlgorithm(TDirAlgorithm.Dir);
 
+  // JWE "enc". Registered unconditionally: AES-GCM does not depend on
+  // RSA_SIGNING, only on a provider stack that implements IJOSEAESGCMProvider
   FEncryptionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEEncryptionAlgorithm>.Create('enc');
+  FEncryptionAlgorithmRegistry
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A128GCM.AsString, TAESGCMAlgorithm.A128GCM)
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A192GCM.AsString, TAESGCMAlgorithm.A192GCM)
+    .RegisterAlgorithm(TJOSEEncryptionAlgorithmId.A256GCM.AsString, TAESGCMAlgorithm.A256GCM);
 
   FCompressionAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSECompressionAlgorithm>.Create('zip');
 end;

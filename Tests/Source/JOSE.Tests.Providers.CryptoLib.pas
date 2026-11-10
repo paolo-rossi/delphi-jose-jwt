@@ -171,6 +171,17 @@ type
     procedure UnregisterStack; override;
   end;
 
+  /// <summary>
+  ///   TJWE end to end on the CryptoLib stack
+  /// </summary>
+  [TestFixture]
+  [Category('CryptoLib')]
+  TTestCryptoLibJWETokens = class(TJWETokenTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
+  end;
+
 implementation
 
 uses
@@ -729,8 +740,21 @@ begin
   TJOSECryptoLibProviders.Unregister;
 end;
 
+{ TTestCryptoLibJWETokens }
+
+procedure TTestCryptoLibJWETokens.RegisterStack;
+begin
+  TJOSECryptoLibProviders.Register;
+end;
+
+procedure TTestCryptoLibJWETokens.UnregisterStack;
+begin
+  TJOSECryptoLibProviders.Unregister;
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestCryptoLibProviders);
   TDUnitX.RegisterTestFixture(TTestCryptoLibJWEPrimitives);
+  TDUnitX.RegisterTestFixture(TTestCryptoLibJWETokens);
 
 end.

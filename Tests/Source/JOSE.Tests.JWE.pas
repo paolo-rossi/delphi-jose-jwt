@@ -26,7 +26,12 @@ uses
   JOSE.Core.JWA.Factory,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
-  JOSE.Core.JWE.Header;
+  JOSE.Core.JWK,
+  JOSE.Core.JWE,
+  JOSE.Core.JWE.Header,
+  JOSE.Core.Base,
+  JOSE.Encoding.Base64,
+  JOSE.Providers;
 
 type
   [TestFixture]
@@ -138,6 +143,60 @@ type
 
     [Test]
     procedure PartsClearKeepsTheSlots;
+  end;
+
+  /// <summary>
+  ///   TJWE parsing, and every check that comes before any cryptography. The
+  ///   default stack has no AES-GCM provider yet, so the cryptography itself
+  ///   is tested per stack in JOSE.Tests.Providers.JWE
+  /// </summary>
+  [TestFixture]
+  TTestJWEParsing = class
+  public
+    [Test]
+    procedure RegistriesResolveTheStep1Algorithms;
+
+    [Test]
+    procedure ParsesTheHeaderAndKeepsThePartsVerbatim;
+
+    [Test]
+    [TestCase('JWE',              'RFC,True')]
+    [TestCase('JWS',              'a.b.c,False')]
+    [TestCase('Four parts',       'a.b.c.d,False')]
+    [TestCase('Six parts',        'a.b.c.d.e.f,False')]
+    [TestCase('Empty',            ',False')]
+    [TestCase('Minimal JWE',      'e30..AA.AA.AA,True')]
+    [TestCase('Header not JSON',  'YWJj..AA.AA.AA,False')]
+    [TestCase('Not base64url',    'e30..AA.AA.AA!,False')]
+    procedure CheckCompactToken(const AToken: string; AExpected: Boolean);
+
+    // Every other part is valid base64url, so each case fails for the
+    // reason in its name
+    [Test]
+    [TestCase('Three parts',      'e30.AA.AA')]
+    [TestCase('Six parts',        'e30..AA.AA.AA.AA')]
+    [TestCase('Not base64url',    'e30..AA.AA.AA!')]
+    [TestCase('No header',        '..AA.AA.AA')]
+    [TestCase('Header not JSON',  'YWJj..AA.AA.AA')]
+    [TestCase('Header array',     'W10..AA.AA.AA')]
+    procedure SetCompactTokenRejectsMalformed(const AToken: string);
+
+    [Test]
+    [TestCase('Signing alg',      '{"alg":"HS256","enc":"A128GCM"}|not a JWE key management', '|')]
+    [TestCase('none',             '{"alg":"none","enc":"A128GCM"}|not a JWE key management', '|')]
+    [TestCase('Unknown alg',      '{"alg":"XYZ","enc":"A128GCM"}|not supported', '|')]
+    [TestCase('No alg',           '{"enc":"A128GCM"}|not supported', '|')]
+    [TestCase('Unknown enc',      '{"alg":"dir","enc":"A256CBC-HS512"}|not supported', '|')]
+    [TestCase('No enc',           '{"alg":"dir"}|not supported', '|')]
+    [TestCase('zip',              '{"alg":"dir","enc":"A128GCM","zip":"DEF"}|"zip"', '|')]
+    [TestCase('crit',             '{"alg":"dir","enc":"A128GCM","crit":["exp"],"exp":1}|"crit"', '|')]
+    procedure DecryptRejectsHeaderBeforeCrypto(const AHeader, AExpectedMessage: string);
+
+    [Test]
+    procedure EncryptRejectsSigningAlgorithm;
+
+    [Test]
+    procedure MissingProviderIsReportedAsSuch;
   end;
 
 implementation
@@ -406,7 +465,198 @@ begin
   end;
 end;
 
+{ TTestJWEParsing }
+
+const
+  // RFC 7520 par. 5.6 ("dir" + A128GCM). Parsing only here: decryption is
+  // tested per provider stack
+  RFC7520_56_TOKEN =
+    'eyJhbGciOiJkaXIiLCJraWQiOiI3N2M3ZTJiOC02ZTEzLTQ1Y2YtODY3Mi02MTdiNWI0NTI0M2EiLCJlbmMiOiJBMTI4R0NNIn0' +
+    '..refa467QzzKx6QAB.' +
+    'JW_i_f52hww_ELQPGaYyeAB6HYGcR559l9TYnSovc23XJoBcW29rHP8yZOZG7YhLpT1bjFuvZPjQS-m0IFtVcXkZXdH_lr_FrdYt9H' +
+    'RUYkshtrMmIUAyGmUnd9zMDB2n0cRDIHAzFVeJUDxkUwVAE7_YGRPdcqMyiBoCO-FBdE-Nceb4h3-FtBP-c_BIwCPTjb9o0Sbdcd' +
+    'REEMJMyZBH8ySWMVi1gPD9yxi-aQpGbSv_F9N4IZAxscj5g-NJsUPbjk29-s7LJAGb15wEBtXphVCgyy53CoIKLHHeJHXex45Uz9a' +
+    'KZSRSInZI-wjsY0yu3cT4_aQ3i1o-tiE-F8Ios61EKgyIQ4CWao8PFMj8TTnp' +
+    '.vbb32Xvllea2OtmHAdccRQ';
+
+// A well-formed 5-part token around AHeaderJSON. The other parts are dummies:
+// every test using it fails before they are looked at
+function TokenWithHeader(const AHeaderJSON: string): string;
+begin
+  Result := TBase64.URLEncode(AHeaderJSON).AsString + '..AAAAAAAAAAAAAAAA.AAAA.AAAAAAAAAAAAAAAAAAAAAA';
+end;
+
+// The message of the exception AProc raises, '' when it raises nothing
+function ErrorOf(const AProc: TProc): string;
+begin
+  Result := '';
+  try
+    AProc();
+  except
+    on E: Exception do
+      Result := E.ClassName + ': ' + E.Message;
+  end;
+end;
+
+procedure TTestJWEParsing.RegistriesResolveTheStep1Algorithms;
+var
+  LFactory: TJOSEAlgorithmRegistryFactory;
+begin
+  LFactory := TJOSEAlgorithmRegistryFactory.Instance;
+
+  Assert.IsNotNull(LFactory.KeyManagementAlgorithmRegistry.GetAlgorithm('dir'));
+  Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A128GCM'));
+  Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A192GCM'));
+  Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256GCM'));
+  Assert.AreEqual(16, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A128GCM').GetCEKLength);
+  Assert.AreEqual(32, LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256GCM').GetCEKLength);
+end;
+
+procedure TTestJWEParsing.ParsesTheHeaderAndKeepsThePartsVerbatim;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+begin
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7520_56_TOKEN;
+
+    Assert.AreEqual('dir', LJWE.Header.Algorithm);
+    Assert.AreEqual('A128GCM', LJWE.Header.Encryption);
+    Assert.AreEqual('dir', LToken.Header.Algorithm, 'The token header is filled too');
+    Assert.IsTrue(LJWE.EncryptedKey.IsEmpty);
+    Assert.AreEqual('refa467QzzKx6QAB', LJWE.IV.AsString);
+    Assert.AreEqual('vbb32Xvllea2OtmHAdccRQ', LJWE.AuthenticationTag.AsString);
+    Assert.AreEqual(RFC7520_56_TOKEN, LJWE.CompactToken.AsString);
+  finally
+    LJWE.Free;
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.CheckCompactToken(const AToken: string; AExpected: Boolean);
+var
+  LToken: string;
+begin
+  if AToken = 'RFC' then
+    LToken := RFC7520_56_TOKEN
+  else
+    LToken := AToken;
+
+  Assert.AreEqual(AExpected, TJWE.CheckCompactToken(LToken));
+end;
+
+procedure TTestJWEParsing.SetCompactTokenRejectsMalformed(const AToken: string);
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+begin
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.CompactToken := AToken;
+      end,
+      EJOSEException);
+  finally
+    LJWE.Free;
+    LToken.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.DecryptRejectsHeaderBeforeCrypto(const AHeader, AExpectedMessage: string);
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+  LError: string;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := TokenWithHeader(AHeader);
+    LError := ErrorOf(
+      procedure
+      begin
+        LJWE.DecryptPayload(LKey);
+      end);
+
+    // A precise EJOSEException, raised before the (missing) AES-GCM provider
+    // is ever asked for
+    Assert.StartsWith('EJOSEException: ', LError);
+    Assert.Contains(LError, AExpectedMessage);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.EncryptRejectsSigningAlgorithm;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.Encrypt(LKey, TJOSEAlgorithmId.HS256, TJOSEEncryptionAlgorithmId.A256GCM);
+      end,
+      EJOSEException);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.MissingProviderIsReportedAsSuch;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  // The default stack has no AES-GCM yet. That is a configuration problem and
+  // must say so, not hide behind the generic "decryption failed"
+  if TJOSEProviders.HasAESGCM then
+    Exit;
+
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7520_56_TOKEN;
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.DecryptPayload(LKey);
+      end,
+      EJOSEProvidersNotRegistered);
+
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A128GCM);
+      end,
+      EJOSEProvidersNotRegistered);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
 initialization
+  TDUnitX.RegisterTestFixture(TTestJWEParsing);
   TDUnitX.RegisterTestFixture(TTestJWEIdentifiers);
   TDUnitX.RegisterTestFixture(TTestJWARegistries);
   TDUnitX.RegisterTestFixture(TTestJWEHeader);
