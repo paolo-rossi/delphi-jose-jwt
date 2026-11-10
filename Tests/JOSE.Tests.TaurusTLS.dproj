@@ -99,6 +99,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="Source\JOSE.Tests.Classes.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWE.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Providers.JWE.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Providers.TaurusTLS.pas"/>
         <BuildConfiguration Include="Release">

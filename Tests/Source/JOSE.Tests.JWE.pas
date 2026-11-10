@@ -788,10 +788,12 @@ var
   LToken: TJWT;
   LJWE: TJWE;
   LKey: TJWK;
+  LSavedAESGCM: IJOSEAESGCMProvider;
 begin
   // A stack without AES-GCM is a configuration problem and must say so, not
   // hide behind the generic "decryption failed". The slot is emptied for the
-  // test, and the default stack registered again afterwards
+  // test and put back afterwards, so this runs on every provider runner
+  LSavedAESGCM := TJOSEProviders.AESGCM;
   TJOSEProviders.AESGCM := nil;
   LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
   LToken := TJWT.Create;
@@ -815,7 +817,7 @@ begin
     LJWE.Free;
     LToken.Free;
     LKey.Free;
-    TJOSEProviders.RegisterProvider;
+    TJOSEProviders.AESGCM := LSavedAESGCM;
   end;
 end;
 
@@ -824,7 +826,9 @@ var
   LToken: TJWT;
   LJWE: TJWE;
   LKey: TJWK;
+  LSavedRSAEncryption: IJOSERSAEncryptionProvider;
 begin
+  LSavedRSAEncryption := TJOSEProviders.RSAEncryption;
   TJOSEProviders.RSAEncryption := nil;
   LKey := TJWK.Create(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem')));
   LToken := TJWT.Create;
@@ -840,7 +844,7 @@ begin
     LJWE.Free;
     LToken.Free;
     LKey.Free;
-    TJOSEProviders.RegisterProvider;
+    TJOSEProviders.RSAEncryption := LSavedRSAEncryption;
   end;
 end;
 
@@ -849,7 +853,9 @@ var
   LToken: TJWT;
   LJWE: TJWE;
   LKey: TJWK;
+  LSavedAESGCM: IJOSEAESGCMProvider;
 begin
+  LSavedAESGCM := TJOSEProviders.AESGCM;
   LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
   LToken := TJWT.Create;
   LJWE := TJWE.Create(LToken);
@@ -866,7 +872,7 @@ begin
       end,
       EInjectedProviderFault);
   finally
-    TJOSEProviders.RegisterProvider;
+    TJOSEProviders.AESGCM := LSavedAESGCM;
     LJWE.Free;
     LToken.Free;
     LKey.Free;
@@ -878,7 +884,9 @@ var
   LToken: TJWT;
   LJWE: TJWE;
   LKey: TJWK;
+  LSavedAESGCM: IJOSEAESGCMProvider;
 begin
+  LSavedAESGCM := TJOSEProviders.AESGCM;
   LKey := TJWK.Create(TJOSEBytes.RandomBytes(16));
   LToken := TJWT.Create;
   LJWE := TJWE.Create(LToken);
@@ -893,7 +901,7 @@ begin
         LJWE.DecryptPayload(LKey);
       end));
   finally
-    TJOSEProviders.RegisterProvider;
+    TJOSEProviders.AESGCM := LSavedAESGCM;
     LJWE.Free;
     LToken.Free;
     LKey.Free;
