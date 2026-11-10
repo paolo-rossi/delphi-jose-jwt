@@ -23,6 +23,7 @@ uses
   DUnitX.Loggers.Xml.NUnit,
   DUnitX.TestFramework,
   JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas',
+  JOSE.Tests.Providers.JWE in 'Source\JOSE.Tests.Providers.JWE.pas',
   JOSE.Tests.Providers.CryptoLib in 'Source\JOSE.Tests.Providers.CryptoLib.pas';
 
 var

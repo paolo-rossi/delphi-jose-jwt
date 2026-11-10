@@ -102,9 +102,26 @@ type
     function ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
   end;
 
+  /// <summary>CryptoLib-backed AES-GCM, for JWE content encryption (A128GCM/A192GCM/A256GCM).</summary>
+  TCryptoLibAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
+  end;
+
+  /// <summary>CryptoLib-backed RSAES-OAEP, for JWE key management (RSA-OAEP/RSA-OAEP-256).</summary>
+  TCryptoLibRSAEncryptionProvider = class(TInterfacedObject, IJOSERSAEncryptionProvider)
+  strict private
+    FCertificate: IJOSECertificateProvider;
+  public
+    constructor Create(const ACertificate: IJOSECertificateProvider);
+    function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+    function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+  end;
+
   TJOSECryptoLibProviders = class
   public
-    /// <summary>Wires CryptoLib implementations into <see cref="JOSE.Providers|TJOSEProviders"/> (Base64, HMAC, cert, RSA, ECDSA, key material).</summary>
+    /// <summary>Wires CryptoLib implementations into <see cref="JOSE.Providers|TJOSEProviders"/> (Base64, HMAC, cert, RSA, ECDSA, key material, AES-GCM, RSA-OAEP).</summary>
     class procedure Register; static;
     /// <summary>Clears <see cref="JOSE.Providers|TJOSEProviders"/> slots previously set by <see cref="Register"/>.</summary>
     class procedure Unregister; static;
@@ -143,6 +160,17 @@ uses
   ClpBigInteger,
   ClpBigIntegerUtilities,
   SbpBase64,
+  ClpIBlockCipher,
+  ClpIAsymmetricBlockCipher,
+  ClpIGcmBlockCipher,
+  ClpGcmBlockCipher,
+  ClpIAeadParameters,
+  ClpAeadParameters,
+  ClpIKeyParameter,
+  ClpAesUtilities,
+  ClpRsaBlindedEngine,
+  ClpOaepEncoding,
+  ClpDigestUtilities,
   JOSE.Signing.Base;
 
 resourcestring
@@ -161,6 +189,15 @@ resourcestring
   SJOSECryptoLibKeyNotRSA = '[CryptoLib] Key is not an RSA key';
   SJOSECryptoLibKeyNotRSAPrivate = '[CryptoLib] Key is not an RSA private key';
   SJOSECryptoLibRSAPEMNoPrivateKey = '[CryptoLib] RSA PEM did not contain a private key';
+  SJOSECryptoLibGCMKeyLength = '[CryptoLib] AES-GCM key must be 16, 24 or 32 bytes, not %d';
+  SJOSECryptoLibGCMIVLength = '[CryptoLib] AES-GCM IV must be 12 bytes, not %d';
+  SJOSECryptoLibGCMTagLength = '[CryptoLib] AES-GCM authentication tag must be 16 bytes, not %d';
+  SJOSECryptoLibGCMEncryptError = '[CryptoLib] AES-GCM encryption error: %s';
+  // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
+  SJOSECryptoLibGCMDecryptFailed = '[CryptoLib] AES-GCM decryption failed';
+  SJOSECryptoLibOAEPEncryptError = '[CryptoLib] RSA-OAEP encryption error: %s';
+  // Deliberately without detail: see IJOSERSAEncryptionProvider.Decrypt
+  SJOSECryptoLibOAEPDecryptFailed = '[CryptoLib] RSA-OAEP decryption failed';
   SJOSECryptoLibUnsupportedRSAAlg = '[CryptoLib] Unsupported RSA JWS algorithm';
   SJOSECryptoLibRSASignError = '[CryptoLib] RSA sign error: %s';
   SJOSECryptoLibUnsupportedECDSAAlg = '[CryptoLib] Unsupported ECDSA JWS algorithm';
@@ -1018,6 +1055,163 @@ begin
   end;
 end;
 
+{ AES-GCM }
+
+const
+  // JOSE fixes both (RFC 7518 par. 5.3): a 96-bit IV and a 128-bit tag
+  GCM_IV_BYTES = 12;
+  GCM_TAG_BYTES = 16;
+
+procedure CheckGCMKeyAndIV(const AKey, AIV: TBytes);
+begin
+  if (Length(AKey) <> 16) and (Length(AKey) <> 24) and (Length(AKey) <> 32) then
+    raise EJOSECryptoException.CreateFmt(SJOSECryptoLibGCMKeyLength, [Length(AKey)]);
+  if Length(AIV) <> GCM_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSECryptoLibGCMIVLength, [Length(AIV)]);
+end;
+
+// One pass of AES-GCM. On encryption the output is ciphertext || tag, on
+// decryption the input is. The work buffer is a local and is wiped when the
+// tag check fails: CryptoLib writes the plaintext out as it goes and checks
+// the tag only in DoFinal, and a failed decryption must not leave plaintext
+// behind anywhere
+function GCMProcess(AForEncryption: Boolean; const AInput, AKey, AIV, AAdditionalData: TBytes): TBytes;
+var
+  LCipher: IGcmBlockCipher;
+  LParams: IAeadParameters;
+  LOutput: TBytes;
+  LLength: Integer;
+begin
+  LCipher := TGcmBlockCipher.Create(TAesUtilities.CreateEngine());
+  LParams := TAeadParameters.Create(TKeyParameter.Create(AKey) as IKeyParameter,
+    GCM_TAG_BYTES * 8, AIV, AAdditionalData);
+  LCipher.Init(AForEncryption, LParams);
+
+  SetLength(LOutput, LCipher.GetOutputSize(Length(AInput)));
+  try
+    LLength := 0;
+    if Length(AInput) > 0 then
+      LLength := LCipher.ProcessBytes(AInput, 0, Length(AInput), LOutput, 0);
+    LLength := LLength + LCipher.DoFinal(LOutput, LLength);
+  except
+    if Length(LOutput) > 0 then
+      FillChar(LOutput[0], Length(LOutput), 0);
+    raise;
+  end;
+
+  SetLength(LOutput, LLength);
+  Result := LOutput;
+end;
+
+{ TCryptoLibAESGCMProvider }
+
+function TCryptoLibAESGCMProvider.Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes;
+  out ATag: TBytes): TBytes;
+var
+  LOutput: TBytes;
+begin
+  CheckGCMKeyAndIV(AKey, AIV);
+  try
+    LOutput := GCMProcess(True, APlaintext, AKey, AIV, AAdditionalData);
+  except
+    on E: Exception do
+      raise EJOSECryptoException.CreateFmt(SJOSECryptoLibGCMEncryptError, [E.Message]);
+  end;
+
+  // CryptoLib appends the tag to the ciphertext
+  Result := Copy(LOutput, 0, Length(LOutput) - GCM_TAG_BYTES);
+  ATag := Copy(LOutput, Length(LOutput) - GCM_TAG_BYTES, GCM_TAG_BYTES);
+end;
+
+function TCryptoLibAESGCMProvider.Decrypt(const ACiphertext, AKey, AIV, AAdditionalData,
+  ATag: TBytes): TBytes;
+begin
+  CheckGCMKeyAndIV(AKey, AIV);
+  if Length(ATag) <> GCM_TAG_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSECryptoLibGCMTagLength, [Length(ATag)]);
+
+  try
+    Result := GCMProcess(False, TBytesUtils.MergeBytes(ACiphertext, ATag), AKey, AIV, AAdditionalData);
+  except
+    // A wrong tag, a wrong key and a tampered ciphertext or header all look
+    // the same from here, and must look the same to the caller
+    on E: Exception do
+      raise EJOSECryptoException.Create(SJOSECryptoLibGCMDecryptFailed);
+  end;
+end;
+
+{ RSAES-OAEP }
+
+// MGF1 gets its own instance of the same digest (RFC 7518 par. 4.3): passing
+// only the hash would leave CryptoLib free to choose the MGF1 digest
+function CreateOAEPCipher(ADigest: TJOSEOAEPDigest): IAsymmetricBlockCipher;
+var
+  LName: string;
+begin
+  case ADigest of
+    TJOSEOAEPDigest.SHA1: LName := 'SHA-1';
+    TJOSEOAEPDigest.SHA256: LName := 'SHA-256';
+  else
+    raise EJOSECryptoException.Create(SJOSECryptoLibOAEPDecryptFailed);
+  end;
+
+  Result := TOaepEncoding.Create(TRsaBlindedEngine.Create() as IAsymmetricBlockCipher,
+    TDigestUtilities.GetDigest(LName), TDigestUtilities.GetDigest(LName), nil);
+end;
+
+{ TCryptoLibRSAEncryptionProvider }
+
+constructor TCryptoLibRSAEncryptionProvider.Create(const ACertificate: IJOSECertificateProvider);
+begin
+  inherited Create;
+  FCertificate := ACertificate;
+end;
+
+function TCryptoLibRSAEncryptionProvider.Encrypt(const APlaintext, APublicKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LKey: IAsymmetricKeyParameter;
+  LCipher: IAsymmetricBlockCipher;
+begin
+  // Key errors keep their message: the key is the caller's configuration,
+  // not attacker input
+  LKey := TJOSECryptoLibPem.ReadPublicKey(APublicKey, FCertificate, TJOSECertificatePublicKey.RSA);
+  if not Supports(LKey, IRsaKeyParameters) then
+    raise EJOSECryptoException.Create(SJOSECryptoLibKeyNotRSA);
+
+  try
+    LCipher := CreateOAEPCipher(ADigest);
+    LCipher.Init(True, LKey);
+    Result := LCipher.ProcessBlock(APlaintext, 0, Length(APlaintext));
+  except
+    on E: Exception do
+      raise EJOSECryptoException.CreateFmt(SJOSECryptoLibOAEPEncryptError, [E.Message]);
+  end;
+end;
+
+function TCryptoLibRSAEncryptionProvider.Decrypt(const ACiphertext, APrivateKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LKey: IAsymmetricKeyParameter;
+  LCipher: IAsymmetricBlockCipher;
+begin
+  LKey := TJOSECryptoLibPem.ReadPrivateKey(APrivateKey);
+  if not Supports(LKey, IRsaKeyParameters) then
+    raise EJOSECryptoException.Create(SJOSECryptoLibKeyNotRSAPrivate);
+  if not LKey.IsPrivate then
+    raise EJOSECryptoException.Create(SJOSECryptoLibRSAPEMNoPrivateKey);
+
+  try
+    LCipher := CreateOAEPCipher(ADigest);
+    LCipher.Init(False, LKey);
+    Result := LCipher.ProcessBlock(ACiphertext, 0, Length(ACiphertext));
+  except
+    // One message for every failure (bad padding, wrong length, wrong key)
+    on E: Exception do
+      raise EJOSECryptoException.Create(SJOSECryptoLibOAEPDecryptFailed);
+  end;
+end;
+
 { TJOSECryptoLibProviders }
 
 class procedure TJOSECryptoLibProviders.Register;
@@ -1032,10 +1226,8 @@ begin
   TJOSEProviders.ECDSA := TCryptoLibECDSAProvider.Create(LCert);
   TJOSEProviders.RSAKeyMaterial := TCryptoLibRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TCryptoLibECKeyMaterialProvider.Create;
-  // JWE: not implemented by this stack yet. Cleared rather than left alone, so
-  // that registering over another stack cannot keep that stack's providers
-  TJOSEProviders.AESGCM := nil;
-  TJOSEProviders.RSAEncryption := nil;
+  TJOSEProviders.AESGCM := TCryptoLibAESGCMProvider.Create;
+  TJOSEProviders.RSAEncryption := TCryptoLibRSAEncryptionProvider.Create(LCert);
 end;
 
 class procedure TJOSECryptoLibProviders.Unregister;

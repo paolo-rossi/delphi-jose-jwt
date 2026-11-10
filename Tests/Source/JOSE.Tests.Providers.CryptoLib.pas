@@ -16,6 +16,7 @@ uses
   DUnitX.TestFramework,
 
   JOSE.Tests.Classes,
+  JOSE.Tests.Providers.JWE,
   JOSE.Core.JWT,
   JOSE.Core.JWS,
   JOSE.Core.JWA,
@@ -157,6 +158,17 @@ type
     [TestCase('P384', 'es384')]
     [TestCase('P521', 'es512')]
     procedure TestInterop_EC_DefaultExport_ReadByCryptoLib(const AKeyFilePrefix: string);
+  end;
+
+  /// <summary>
+  ///   The JWE primitives (AES-GCM, RSA-OAEP) on the CryptoLib stack
+  /// </summary>
+  [TestFixture]
+  [Category('CryptoLib')]
+  TTestCryptoLibJWEPrimitives = class(TJWEPrimitivesTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
   end;
 
 implementation
@@ -705,7 +717,20 @@ begin
   Assert.AreEqual<Byte>(LMaterial.Y, LReimported.Y, 'Y should survive the crossing');
 end;
 
+{ TTestCryptoLibJWEPrimitives }
+
+procedure TTestCryptoLibJWEPrimitives.RegisterStack;
+begin
+  TJOSECryptoLibProviders.Register;
+end;
+
+procedure TTestCryptoLibJWEPrimitives.UnregisterStack;
+begin
+  TJOSECryptoLibProviders.Unregister;
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestCryptoLibProviders);
+  TDUnitX.RegisterTestFixture(TTestCryptoLibJWEPrimitives);
 
 end.

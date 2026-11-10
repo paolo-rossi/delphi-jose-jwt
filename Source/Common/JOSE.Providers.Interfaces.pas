@@ -20,6 +20,13 @@ uses
   JOSE.Crypto.Algorithms;
 
 type
+  /// <summary>
+  ///   Raised by the JWE crypto providers (AES-GCM, RSAES-OAEP). The message
+  ///   may say what went wrong; the JWE layer replaces it with one generic
+  ///   decryption error before it reaches the caller
+  /// </summary>
+  EJOSECryptoException = class(Exception);
+
   IJOSEBase64Provider = interface
     ['{8F2E9C1D-4A3B-4E5F-9D8C-7B6A50413210}']
     function Encode(const ASource: TJOSEBytes): TJOSEBytes;
@@ -42,14 +49,15 @@ type
   /// <remarks>
   ///   The key length (16, 24 or 32 bytes) selects AES-128/192/256. JOSE always
   ///   uses a 96-bit IV and a 128-bit tag, so implementations raise
-  ///   EJOSEException for an IV that is not 12 bytes or a tag that is not 16
+  ///   EJOSECryptoException for an IV that is not 12 bytes, a tag that is not
+  ///   16 or a key that is not 16, 24 or 32
   /// </remarks>
   IJOSEAESGCMProvider = interface
     ['{363D9C4E-A4A7-4FBF-B12C-30651B83B12D}']
     /// <summary>Encrypts APlaintext; the 16-byte authentication tag is returned in ATag</summary>
     function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
     /// <summary>
-    ///   Checks ATag and decrypts. Raises EJOSEException when the tag does not
+    ///   Checks ATag and decrypts. Raises EJOSECryptoException when the tag does not
     ///   match: unauthenticated plaintext is never returned
     /// </summary>
     function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
@@ -104,7 +112,7 @@ type
     ['{BBDF3F88-D2C5-4069-984E-C3381CD7285F}']
     function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
     /// <summary>
-    ///   Raises EJOSEException when the ciphertext does not decrypt, with no
+    ///   Raises EJOSECryptoException when the ciphertext does not decrypt, with no
     ///   detail about why (the error must not become a padding oracle)
     /// </summary>
     function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
