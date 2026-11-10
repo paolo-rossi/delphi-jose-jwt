@@ -114,7 +114,7 @@ type
 
   /// <summary>
   ///   OpenSSL-backed AES-GCM (JWE A128GCM/A192GCM/A256GCM). Needs OpenSSL 1.0.1 or later:
-  ///   with an older library every call raises EJOSECryptoException (see
+  ///   with an older library every call raises EJOSEProvidersNotRegistered (see
   ///   <c>JoseSSL.EnsureJWESupport</c>), and JWS keeps working.
   /// </summary>
   TDefaultAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
@@ -1384,14 +1384,15 @@ const
   DEFAULT_GCM_TAG_BYTES = 16;
 
 /// <summary>
-///   Loads OpenSSL and the JWE symbols. A library without them is a configuration problem,
-///   reported as such, never as a failed decryption
+///   Loads OpenSSL and the JWE symbols. A library without them is a configuration problem:
+///   it raises EJOSEProvidersNotRegistered, which the JWE layer lets through, rather than
+///   EJOSECryptoException, which it would turn into the generic "JWE decryption failed"
 /// </summary>
 procedure RequireJWESupport;
 begin
   TJOSEDefaultOpenSslPem.LoadOpenSSL;
   if not JoseSSL.EnsureJWESupport then
-    raise EJOSECryptoException.Create(SJOSEJWEUnavailable);
+    raise EJOSEProvidersNotRegistered.Create(SJOSEJWEUnavailable);
 end;
 
 function DefaultGCMCipher(AKeyLength: Integer): PEVP_CIPHER;

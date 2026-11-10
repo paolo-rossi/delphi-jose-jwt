@@ -19,7 +19,7 @@
 ![GitHub last commit](https://img.shields.io/github/last-commit/paolo-rossi/delphi-jose-jwt)
 ![GitHub contributors](https://img.shields.io/github/contributors-anon/paolo-rossi/delphi-jose-jwt)
 
-[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS (JWE support is planned) compact serializations with several JOSE algorithms, plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.0.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
+[Delphi](https://www.embarcadero.com/products/delphi) implementation of JWT (JSON Web Token) and the JOSE (JSON Object Signing and Encryption) specification suite. This library supports the JWS and [JWE](#json-web-encryption-jwe-support) compact serializations with several JOSE algorithms (JWE: `dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM, nested JWTs included), plus full [JWK (JSON Web Key)](#json-web-key-jwk-support) support and a [swappable crypto provider](#custom-crypto-providers-bring-your-own-crypto) backend (OpenSSL 1.0.x via Indy, OpenSSL 1.1.x/3.x/4.x via TaurusTLS, or pure-Pascal CryptoLib4Pascal).
 
 ![Image of Delphi-JOSE Demo](https://user-images.githubusercontent.com/4686497/103456073-1485a980-4cf3-11eb-8bac-295198ba508b.png)
 
@@ -53,9 +53,9 @@ Since [PR #95](https://github.com/paolo-rossi/delphi-jose-jwt/pull/95), every cr
 
 | Provider stack | Unit | Backing library | Notes |
 | --------------- | ---- | ---------------- | ----- |
-| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x (1.0.2 recommended), via Indy | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). The Indy that ships with Delphi refuses to load OpenSSL 1.1.0 or later ("Unable to load OpenSSL libraries"), and this stack also accesses a few raw OpenSSL struct fields that are opaque in 3.x/4.x — for OpenSSL 1.1.x/3.x/4.x use `TJOSETaurusTLSProviders`. Implements [JWK](#json-web-key-jwk-support) PEM import/export |
-| `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them). Exercised by its own test project, `Tests\JOSE.Tests.TaurusTLS.dproj` |
-| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export. Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it. Exercised by its own test project, `Tests\JOSE.Tests.CryptoLib.dproj` (also needs `HashLib4Pascal` and `SimpleBaseLib4Pascal`, both vendored under `Libs\`) |
+| `TJOSEDefaultProviders` (default) | `JOSE.Providers.Default` | OpenSSL 1.0.x (1.0.2 recommended), via Indy | Registered automatically at startup. Needs the OpenSSL DLLs for RSA/ECDSA (see [OpenSSL requirements](#important-openssl-requirements) above). The Indy that ships with Delphi refuses to load OpenSSL 1.1.0 or later ("Unable to load OpenSSL libraries"), and this stack also accesses a few raw OpenSSL struct fields that are opaque in 3.x/4.x — for OpenSSL 1.1.x/3.x/4.x use `TJOSETaurusTLSProviders`. Implements [JWK](#json-web-key-jwk-support) PEM import/export and [JWE](#json-web-encryption-jwe-support) (AES-GCM needs OpenSSL 1.0.1, RSA-OAEP-256 1.0.2; loaded on first use, so an older library leaves JWS unaffected) |
+| `TJOSETaurusTLSProviders` | `JOSE.Providers.TaurusTLS` | OpenSSL 1.1.x/3.x/4.x, via the [TaurusTLS](https://github.com/JPeterMugaas/TaurusTLS) binding for Indy (vendored under `Libs\TaurusTLS`) | Only touches OpenSSL through accessor functions (`RSA_get0_key`/`RSA_set0_key`, `EC_KEY_get0_public_key`, `EC_POINT_get/set_affine_coordinates`, ...), so it's forward-compatible as OpenSSL's structs get more opaque. TaurusTLS itself already probes for `-4` (OpenSSL 4.x) DLLs before falling back to `-3`/`-1_1`/`-1`. Implements [JWK](#json-web-key-jwk-support) PEM import/export and [JWE](#json-web-encryption-jwe-support). Not part of the `.dpk` package `contains` list — add `Libs\TaurusTLS`'s runtime package and `JOSE.Providers.TaurusTLS.pas` to your project manually, plus OpenSSL 3.x/4.x binaries (see `Libs\TaurusTLS\OpenSSL\binaries\README.md` for where to get them). Exercised by its own test project, `Tests\JOSE.Tests.TaurusTLS.dproj` |
+| `TJOSECryptoLibProviders` | `JOSE.Providers.CryptoLib` | pure-Pascal [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) | No native OpenSSL DLLs needed at all. Implements [JWK](#json-web-key-jwk-support) PEM import/export and [JWE](#json-web-encryption-jwe-support). Not part of the `.dpk` package `contains` list — add `JOSE.Providers.CryptoLib.pas` and a CryptoLib4Pascal dependency to your project manually if you want it. Exercised by its own test project, `Tests\JOSE.Tests.CryptoLib.dproj` (also needs `HashLib4Pascal` and `SimpleBaseLib4Pascal`, both vendored under `Libs\`) |
 
 > :warning: **Unlike the default (OpenSSL/Indy) stack, `TJOSETaurusTLSProviders` and `TJOSECryptoLibProviders` are *not* built into the JOSE `.dpk` packages.** Using either one in your own project means adding its unit(s) and backing library to your project manually (see the table above). Same story for the test suite: `Tests\JOSE.Tests.TaurusTLS.dproj` and `Tests\JOSE.Tests.CryptoLib.dproj` are separate projects from `Tests\JOSE.Tests.dproj` precisely because each pulls in its own extra, non-`.dpk` dependencies — see [Running the tests](#test_tube-running-the-tests) below before trying to build them.
 
@@ -95,8 +95,10 @@ TJOSEProviders.ECDSA := TMyHSMBackedECDSAProvider.Create;
 | `IJOSECertificateProvider` | Public key extraction/verification from an X.509 certificate |
 | `IJOSERSAKeyMaterialProvider` | Raw RSA key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
 | `IJOSEECKeyMaterialProvider` | Raw EC key import/export to/from PEM ([JWK](#json-web-key-jwk-support) support) |
+| `IJOSEAESGCMProvider` | AES-GCM ([JWE](#json-web-encryption-jwe-support) content encryption: `A128GCM`/`A192GCM`/`A256GCM`) |
+| `IJOSERSAEncryptionProvider` | RSAES-OAEP ([JWE](#json-web-encryption-jwe-support) key management: `RSA-OAEP`/`RSA-OAEP-256`) |
 
-`RSAKeyMaterial`/`ECKeyMaterial` are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM`. Every stack that ships with the library implements both, but if you assign providers individually and leave these two unset, ordinary RSA/ECDSA signing is unaffected; it just means `FromPEM`/`ToPEM` will raise until you supply an implementation.
+`RSAKeyMaterial`/`ECKeyMaterial` and the two JWE capabilities, `AESGCM`/`RSAEncryption`, are optional — a provider stack doesn't need to implement them unless you call `TJSONWebKey.FromPEM`/`ToPEM` or use JWE. Every stack that ships with the library implements all four, but if you assign providers individually and leave them unset, ordinary signing and verification are unaffected; it just means those features will raise `EJOSEProvidersNotRegistered` until you supply an implementation.
 
 ## :question: What is JOSE
 
@@ -161,6 +163,28 @@ PSS signatures are randomised, so signing the same input twice gives different (
 signatures. All three provider stacks implement it; on the OpenSSL-backed stacks a build without
 the PSS entry points reports that plainly instead of failing at load time.
 
+#### Encryption algorithms (JWE)
+
+| _Key management (`alg`)_ | _Supported_ |
+| -------------------------| ----------- |
+|  `dir`                   | ✔️ new! 🌟 |
+|  `RSA-OAEP`              | ✔️ new! 🌟 |
+|  `RSA-OAEP-256`          | ✔️ new! 🌟 |
+|  `A128KW`/`A192KW`/`A256KW` | planned |
+|  `ECDH-ES` (+`A*KW`)     | planned |
+|  `RSA1_5`                | ❌ by design: vulnerable to padding-oracle attacks ([RFC 8725](https://tools.ietf.org/html/rfc8725)) |
+
+| _Content encryption (`enc`)_ | _Supported_ |
+| -----------------------------| ----------- |
+|  `A128GCM`                   | ✔️ new! 🌟 |
+|  `A192GCM`                   | ✔️ new! 🌟 |
+|  `A256GCM`                   | ✔️ new! 🌟 |
+|  `A128CBC-HS256`/`A256CBC-HS512` | next |
+
+Compact serialization only, single recipient. Compression (`"zip":"DEF"`) is not supported yet: a
+token that uses it is rejected rather than decrypted to the wrong bytes. See
+[JWE support](#json-web-encryption-jwe-support) below.
+
 #### Security notes
 
 **`alg: none` is rejected.** `TUnsecureNoneAlgorithm` is not registered in the algorithm factory,
@@ -218,6 +242,15 @@ certificate buys you no trust on its own: validate or pin it yourself before han
 same goes for the JWK `x5u`/`x5c`/`x5t` members — `TJSONWebKey` carries and serializes them
 verbatim, never fetches `x5u`, never parses the `x5c` chain, and takes key material only from the
 JWK's own members.
+
+**Encryption is not authentication.** A JWE encrypted with RSA-OAEP needs only the recipient's
+*public* key, so anyone can produce one: on its own it says nothing about who made the token. Sign,
+then encrypt (a [nested JWT](#json-web-encryption-jwe-support)) when the recipient must know the
+issuer; the consumer requires a signature by default for exactly this reason. Its JWE allowlists
+(`SetExpectedKeyManagementAlgorithms`/`SetExpectedEncryptionAlgorithms`) start **empty**, so a
+consumer accepts no encrypted token until you say which algorithms it should take, and a signing
+`alg` can never pass for a JWE one. Every failure while decrypting reports the same `JWE decryption
+failed`, so the error tells an attacker nothing about which step failed.
 
 ## :key: JSON Web Key (JWK) support
 
@@ -305,6 +338,76 @@ end;
 
 > **Note:** to publish a JWKS, strip the private material first: `TJSONWebKey.ToPublicJWK` returns the public half of an RSA or EC key (carrying `kid`/`use`/`alg` across), and `TJSONWebKeySet.ToPublicJWKSet` does the same for a whole set, skipping `oct` keys — which have no public half.
 
+## :lock: JSON Web Encryption (JWE) support
+
+[RFC 7516](https://tools.ietf.org/html/rfc7516) JSON Web Encryption, compact serialization, single recipient:
+
+- Key management: `dir` (a shared secret) and `RSA-OAEP`/`RSA-OAEP-256` (encrypted to an RSA public key, 2048 bits or more; an X.509 certificate is accepted as the key container)
+- Content encryption: `A128GCM`/`A192GCM`/`A256GCM`, with a fresh random IV for every token
+- Nested JWTs (signed, then encrypted, `"cty":"JWT"`): `TJOSE.SignAndEncrypt` / `TJOSE.DecryptAndVerify`
+- `TJOSE.Encrypt` / `TJOSE.Decrypt` for encrypted (not signed) claims
+- `TJOSEConsumer` support, with separate decryption and verification keys and JWE algorithm allowlists
+- All three [provider stacks](#custom-crypto-providers-bring-your-own-crypto), checked against the RFC 7516/7520 test vectors
+
+> :book: **[JWE Practical Guide](Docs/jwe-guide.md)** — choosing between signing, encrypting or both, `dir` and RSA-OAEP, nested JWTs, validating encrypted tokens with the consumer, error handling, memory ownership rules. Its snippets are the runnable `Samples\JWEGuide` console project.
+
+#### Sign, then encrypt (nested JWT)
+
+```delphi
+uses
+  System.SysUtils, System.DateUtils, System.IOUtils,
+  JOSE.Core.JWA,
+  JOSE.Core.JWK,
+  JOSE.Core.JWT,
+  JOSE.Core.Builder,
+  JOSE.Consumer;
+
+var
+  LSignKey, LEncryptKey: TJWK;
+  LToken: TJWT;
+  LCompactToken: string;
+begin
+  LSignKey := TJWK.Create('my_very_long_and_safe_secret_key');
+  LEncryptKey := TJWK.Create(TFile.ReadAllBytes('recipient-public.pem'));
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Issuer := 'https://auth.example.com';
+    LToken.Claims.Subject := 'paolo.rossi';
+    LToken.Claims.Expiration := IncHour(Now, 1);
+
+    // HS256 signature, then RSA-OAEP-256 + A256GCM encryption
+    LCompactToken := TJOSE.SignAndEncrypt(LSignKey, TJOSEAlgorithmId.HS256,
+      LEncryptKey, TJOSEAlgorithmId.RSA_OAEP_256, TJOSEEncryptionAlgorithmId.A256GCM, LToken);
+  finally
+    LToken.Free;
+    LEncryptKey.Free;
+    LSignKey.Free;
+  end;
+end;
+```
+
+#### Validate an encrypted token
+
+```delphi
+TJOSEConsumerBuilder.NewConsumer
+  // One key per layer: decrypt the JWE, verify the JWS inside it
+  .SetDecryptionKey(TFile.ReadAllBytes('recipient-private.pem'))
+  .SetVerificationKey('my_very_long_and_safe_secret_key')
+  // JWE allowlists: empty by default, so no encrypted token gets in unless listed
+  .SetExpectedKeyManagementAlgorithms([TJOSEAlgorithmId.RSA_OAEP_256])
+  .SetExpectedEncryptionAlgorithms([TJOSEEncryptionAlgorithmId.A256GCM])
+  .SetExpectedAlgorithms([TJOSEAlgorithmId.HS256])
+  .SetExpectedIssuer(True, 'https://auth.example.com')
+  .SetRequireExpirationTime
+  .Build
+  .Process(LCompactToken);
+```
+
+`TJOSE.Decrypt` refuses a nested JWT and `TJOSE.Verify` refuses any JWE, so a signature check cannot
+be skipped by calling the wrong function. Not supported yet: `A128CBC-HS256`/`A256CBC-HS512` and
+compression (next), AES key wrap and ECDH-ES (later), the JSON serializations, and JWE in
+`TJOSEProducer`.
+
 ## Projects using Delphi JOSE and JWT
 
 - The [**WiRL RESTful Library**](https://github.com/delphi-blocks/WiRL) for Delphi
@@ -313,7 +416,7 @@ end;
 ## :wrench: Todo
 
 ##### Features
-- JWE support (there is partial implementation in [this PR](https://github.com/paolo-rossi/delphi-jose-jwt/pull/84))
+- JWE: `A128CBC-HS256`/`A256CBC-HS512` and `"zip":"DEF"` compression next, then AES key wrap (`A*KW`), `ECDH-ES` and JWE in `TJOSEProducer` (`dir`/`RSA-OAEP`/`RSA-OAEP-256` with AES-GCM are [supported](#json-web-encryption-jwe-support))
 - More crypto providers on top of the [provider abstraction](#custom-crypto-providers-bring-your-own-crypto) (e.g. TMS Cryptography Pack) — OpenSSL and [CryptoLib4Pascal](https://github.com/Xor-el/CryptoLib4Pascal) are supported today
 
 ##### Code
@@ -345,7 +448,7 @@ The DUnitX-based test suite is split across three projects, one per crypto stack
 
 | Project | Covers | Extra setup |
 | ------- | ------ | ------------ |
-| `Tests\JOSE.Tests.dproj` | Core JOSE/JWT/JWK/JWS + the default OpenSSL 1.0.x provider stack | None on Windows (the OpenSSL 1.0.2 DLLs are in `Tests\Exe`). Run it from `Tests\Exe`, since the key fixtures are found relative to the working directory. On Linux, OpenSSL 1.0.2 must be on the library path (e.g. `LD_LIBRARY_PATH`) |
+| `Tests\JOSE.Tests.dproj` | Core JOSE/JWT/JWK/JWS/JWE + the default OpenSSL 1.0.x provider stack | None on Windows (the OpenSSL 1.0.2 DLLs are in `Tests\Exe`). Run it from `Tests\Exe`, since the key fixtures are found relative to the working directory. On Linux, OpenSSL 1.0.2 must be on the library path (e.g. `LD_LIBRARY_PATH`) |
 | `Tests\JOSE.Tests.TaurusTLS.dproj` | `TJOSETaurusTLSProviders` (OpenSSL 1.1.x/3.x/4.x) | Needs `Libs\TaurusTLS` (vendored) and OpenSSL 3.x/4.x DLLs discoverable at runtime |
 | `Tests\JOSE.Tests.CryptoLib.dproj` | `TJOSECryptoLibProviders` (pure-Pascal) | Needs `Libs\CryptoLib4Pascal`, `Libs\HashLib4Pascal` and `Libs\SimpleBaseLib4Pascal` (vendored); run `Libs\build-cryptolib-deps.ps1` once beforehand to precompile them into `Libs\_build` (their combined source tree is too deep for a single Delphi unit search path) |
 
@@ -357,6 +460,9 @@ Tests\Exe\JOSE.Tests.exe
 ```
 
 ...and likewise for the other two `.dproj` files.
+
+The JWE tests are written once (`Tests\Source\JOSE.Tests.Providers.JWE.pas`) and run by all three
+projects, so every provider stack is held to the same RFC 7516/7520 vectors.
 
 ## :floppy_disk: Installation
 

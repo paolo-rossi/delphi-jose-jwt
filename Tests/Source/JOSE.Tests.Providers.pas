@@ -133,10 +133,31 @@ type
     procedure UnregisterStack; override;
   end;
 
+  /// <summary>
+  ///   The default stack with an OpenSSL that lacks the JWE functions (simulated: the
+  ///   JoseSSL load flags are set to "loaded, not available")
+  /// </summary>
+  [TestFixture]
+  TTestDefaultJWEWithoutSupport = class
+  public
+    [TearDown]
+    procedure TearDown;
+
+    [Test]
+    procedure JWEReportsTheMissingCapability;
+    [Test]
+    procedure JWSIsUnaffected;
+  end;
+
 implementation
 
 uses
-  System.SysUtils, System.IOUtils;
+  System.SysUtils, System.IOUtils,
+  JOSE.Types.Bytes,
+  JOSE.Core.JWA,
+  JOSE.Core.JWT,
+  JOSE.Core.Builder,
+  JOSE.OpenSSL.Headers;
 
 procedure TTestKeyMaterialProviders.Setup;
 begin
@@ -462,11 +483,91 @@ begin
   TJOSEProviders.UnregisterProvider;
 end;
 
+{ TTestDefaultJWEWithoutSupport }
+
+const
+  JWE_TEST_HMAC_SECRET = 'my_very_long_and_safe_secret_key';
+
+procedure SimulateOpenSSLWithoutJWE;
+begin
+  JoseSSL.FJWESupportLoaded := True;
+  JoseSSL.FJWESupportAvailable := False;
+end;
+
+procedure TTestDefaultJWEWithoutSupport.TearDown;
+begin
+  // The next use resolves the symbols again, for real
+  JoseSSL.FJWESupportLoaded := False;
+  JoseSSL.FJWESupportAvailable := False;
+end;
+
+procedure TTestDefaultJWEWithoutSupport.JWEReportsTheMissingCapability;
+var
+  LKey, LCompact: TJOSEBytes;
+  LToken: TJWT;
+  LMessage: string;
+begin
+  LKey := TJOSEBytes.RandomBytes(32);
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'alice';
+    LCompact := TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+
+    SimulateOpenSSLWithoutJWE;
+
+    // Encryption and decryption alike say what is missing: on decryption it must not
+    // turn into the generic "JWE decryption failed"
+    LMessage := '';
+    try
+      TJOSE.Decrypt(LKey, LCompact).Free;
+    except
+      on E: EJOSEProvidersNotRegistered do
+        LMessage := E.Message;
+    end;
+    Assert.Contains(LMessage, '1.0.1', 'Decrypt');
+
+    LMessage := '';
+    try
+      TJOSE.Encrypt(LKey, LToken, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM);
+    except
+      on E: EJOSEProvidersNotRegistered do
+        LMessage := E.Message;
+    end;
+    Assert.Contains(LMessage, '1.0.1', 'Encrypt');
+  finally
+    LToken.Free;
+  end;
+end;
+
+procedure TTestDefaultJWEWithoutSupport.JWSIsUnaffected;
+var
+  LToken, LRead: TJWT;
+  LCompact: TJOSEBytes;
+begin
+  SimulateOpenSSLWithoutJWE;
+
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'alice';
+    LCompact := TJOSE.SerializeCompact(TJOSEBytes(JWE_TEST_HMAC_SECRET), TJOSEAlgorithmId.HS256, LToken);
+  finally
+    LToken.Free;
+  end;
+
+  LRead := TJOSE.Verify(TJOSEBytes(JWE_TEST_HMAC_SECRET), LCompact);
+  try
+    Assert.IsTrue(Assigned(LRead) and LRead.Verified);
+  finally
+    LRead.Free;
+  end;
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestKeyMaterialProviders);
   TDUnitX.RegisterTestFixture(TTestDefaultJWEPrimitives);
   TDUnitX.RegisterTestFixture(TTestDefaultJWETokens);
   TDUnitX.RegisterTestFixture(TTestDefaultJWEConsumer);
+  TDUnitX.RegisterTestFixture(TTestDefaultJWEWithoutSupport);
   TDUnitX.RegisterTestFixture(TTestCertificateProvider);
 
 end.
