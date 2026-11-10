@@ -565,11 +565,12 @@ To tell the shapes apart before parsing, `TJOSE.CheckJWECompactToken` answers fo
 | Compressed payload that does not inflate, or inflates past `TJWE.MaxDecompressedSize` | `EJOSEException` | names the problem (the token is authentic by then) |
 | Inner JWS of a nested JWT: unexpected `alg`, invalid signature | `EJOSEException` | as for a JWS |
 | Claim validation failures | `EInvalidJWTException` | lists every failed validator |
+| RSA-OAEP key unreadable, not RSA, or under 2048 bits (encrypting or decrypting) | `EJOSEKeyManagementKeyException` (an `EJOSEException`) | names the problem |
 | A fault inside a provider while decrypting (out of memory, an access violation, a programming error) | the original exception | not masked as `JWE decryption failed` |
 | No provider for AES-GCM/AES-CBC/RSA-OAEP registered | `EJOSEProvidersNotRegistered` | |
 | The OpenSSL library has no JWE functions (default stack, before 1.0.2) | `EJOSEProvidersNotRegistered` | says which version is needed |
 
-The last three are configuration or fault problems, not properties of the token, so they keep their
+The last four are configuration or fault problems, not properties of the token, so they keep their
 own exception and message even while decrypting. A fault is not disguised as a bad token: that would
 leave a broken deployment looking like an attack.
 

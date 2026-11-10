@@ -204,7 +204,9 @@ begin
   if LHeader.IsEmpty then
     Exit(False);
 
-  Result := TJSONUtils.IsValidJSONObject(LHeader);
+  // Valid UTF-8 first: the string conversion IsValidJSONObject needs raises
+  // EEncodingError on invalid bytes, and this function must only answer
+  Result := TJOSEBytes.IsValidString(LHeader) and TJSONUtils.IsValidJSONObject(LHeader);
 end;
 
 constructor TJWE.Create(AToken: TJWT);
@@ -383,7 +385,7 @@ var
   LKeyManagement: IJOSEKeyManagementAlgorithm;
   LEncryption: IJOSEEncryptionAlgorithm;
   LCompression: IJOSECompressionAlgorithm;
-  LEncryptedKey, LCEK: TJOSEBytes;
+  LEncryptedKey, LCEK, LPlaintext: TJOSEBytes;
   LParts: TEncryptionParts;
 begin
   // Payload describes the last decryption, not the last *successful* one: a
@@ -411,11 +413,14 @@ begin
   try
     LCEK := LKeyManagement.ManageForDecrypt(AKey.Key, LEncryptedKey, LEncryption.GetCEKLength, FHeader);
     // Part 0 as received, never FHeader re-encoded
-    FPayload := LEncryption.Decrypt(LParts, FParts[0].AsBytes, LCEK.AsBytes);
+    LPlaintext := LEncryption.Decrypt(LParts, FParts[0].AsBytes, LCEK.AsBytes);
   except
-    // A missing provider is a configuration problem, not a property of the
-    // token: it keeps its own message
+    // A missing provider and an unusable key are configuration problems, not
+    // properties of the token: they keep their own message. The key is checked
+    // before the Encrypted Key is touched, so this tells an attacker nothing
     on E: EJOSEProvidersNotRegistered do
+      raise;
+    on E: EJOSEKeyManagementKeyException do
       raise;
     // The generic message is for the JOSE and provider-crypto errors that are
     // properties of the token (bad key, tampered part, bad tag). A fault (out
@@ -429,10 +434,13 @@ begin
 
   // After the decryption, outside the generic error: the payload is
   // authentic by now, so a precise message (corrupt data, over the size cap)
-  // tells the sender's mistake apart from an attack without helping one
+  // tells the sender's mistake apart from an attack without helping one.
+  // FPayload is assigned only at the end, so a failed decompression leaves it
+  // empty rather than holding the still-compressed bytes
   if Assigned(LCompression) then
-    FPayload := LCompression.Decompress(FPayload.AsBytes, FMaxDecompressedSize);
+    LPlaintext := LCompression.Decompress(LPlaintext.AsBytes, FMaxDecompressedSize);
 
+  FPayload := LPlaintext;
   Result := FPayload;
 end;
 

@@ -135,11 +135,21 @@ begin
   if LPart.IsEmpty then
     Exit(False);
 
+  // Before the JSON check: the string conversion it needs raises
+  // EEncodingError on invalid UTF-8, and this function must only answer
+  if not TJOSEBytes.IsValidString(LPart) then
+    Exit(False);
+
   if not TJSONUtils.IsValidJSONObject(LPart) then
     Exit(False);
 
   LPart := TBase64.TryURLDecode(LCompact[1]);
   if LPart.IsEmpty then
+    Exit(False);
+
+  // Before the JSON check: the string conversion it needs raises
+  // EEncodingError on invalid UTF-8, and this function must only answer
+  if not TJOSEBytes.IsValidString(LPart) then
     Exit(False);
 
   if not TJSONUtils.IsValidJSONObject(LPart) then

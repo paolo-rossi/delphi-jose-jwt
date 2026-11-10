@@ -251,6 +251,11 @@ type
     [Test]
     procedure RSAOAEP_RejectsKeyBelow2048Bits;
 
+    // A bad decryption key is configuration: the same exception on every stack,
+    // never masked as the generic decryption error
+    [Test]
+    procedure RSAOAEP_UnusableDecryptionKey_KeepsItsMessage;
+
     // The size check must not depend on the optional RSAKeyMaterial (JWK) capability
     [Test]
     procedure RSAOAEP_WorksWithoutRSAKeyMaterial;
@@ -315,6 +320,9 @@ type
 
     [Test]
     procedure Zip_DecompressionBombIsRejected;
+
+    [Test]
+    procedure Zip_FailedDecompressionLeavesPayloadEmpty;
   end;
 
   /// <summary>
@@ -421,6 +429,7 @@ uses
   JOSE.Core.JWT,
   JOSE.Core.JWE,
   JOSE.Core.JWA.Encryption,
+  JOSE.Core.JWA.KeyManagement,
   JOSE.Core.JWA.Factory,
   JOSE.Core.Builder,
   JOSE.Context;
@@ -1583,6 +1592,50 @@ begin
   end;
 end;
 
+procedure TJWETokenTestBase.RSAOAEP_UnusableDecryptionKey_KeepsItsMessage;
+var
+  LPublic, LWrongKey: TJWK;
+  LToken, LRead: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LCompact: TJOSEBytes;
+  LClass, LMessage: string;
+begin
+  // A public key where the private one is expected: each stack fails to read it
+  // with its own exception, and all of them must surface the same way
+  LPublic := TJWK.Create(ReadKey('rsa-public.pem'));
+  LWrongKey := TJWK.Create(ReadKey('rsa-public.pem'));
+  LToken := TJWT.Create;
+  LRead := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LRead);
+  try
+    LCompact := LJWE.EncryptPayload(LPublic, TJOSEAlgorithmId.RSA_OAEP_256,
+      TJOSEEncryptionAlgorithmId.A256GCM, 'hello');
+    LReadJWE.CompactToken := LCompact;
+
+    LClass := '';
+    LMessage := '';
+    try
+      LReadJWE.DecryptPayload(LWrongKey);
+    except
+      on E: Exception do
+      begin
+        LClass := E.ClassName;
+        LMessage := E.Message;
+      end;
+    end;
+    Assert.AreEqual(EJOSEKeyManagementKeyException.ClassName, LClass, LMessage);
+    Assert.StartsWith('The RSA-OAEP key cannot be used', LMessage);
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LRead.Free;
+    LToken.Free;
+    LWrongKey.Free;
+    LPublic.Free;
+  end;
+end;
+
 procedure TJWETokenTestBase.RSAOAEP_WorksWithoutRSAKeyMaterial;
 var
   LPublic, LPrivate: TJWK;
@@ -2519,6 +2572,45 @@ begin
   finally
     TJWE.MaxDecompressedSize := LSavedCap;
     LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.Zip_FailedDecompressionLeavesPayloadEmpty;
+var
+  LKey: TJWK;
+  LToken, LRead: TJWT;
+  LJWE, LReadJWE: TJWE;
+  LCompact: TJOSEBytes;
+  LRaised: Boolean;
+begin
+  // The content decrypts, the decompression does not (over the cap): Payload
+  // must not be left holding the still-compressed bytes
+  LKey := TJWK.Create(TJOSEBytes.RandomBytes(32));
+  LToken := TJWT.Create;
+  LRead := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LRead);
+  try
+    LToken.Header.SetHeaderParam('zip', 'DEF');
+    LCompact := LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A256GCM,
+      TJOSEBytes(StringOfChar('0', 2 * 1024 * 1024)));
+
+    LReadJWE.CompactToken := LCompact;
+    LRaised := False;
+    try
+      LReadJWE.DecryptPayload(LKey);
+    except
+      on E: EJOSEException do
+        LRaised := True;
+    end;
+    Assert.IsTrue(LRaised, 'Over the cap: the decompression must fail');
+    Assert.IsTrue(LReadJWE.Payload.IsEmpty, 'Payload must be empty after a failed decompression');
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LRead.Free;
     LToken.Free;
     LKey.Free;
   end;

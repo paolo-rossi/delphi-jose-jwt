@@ -166,8 +166,8 @@ type
       AEncryptKey: TJWK; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
       AToken: TJWT; AOuterHeader: TJWTHeader = nil): TJOSEBytes; overload;
     /// <summary>
-	///   Same as SignAndEncrypt, with both keys as raw material
-	/// </summary>
+    ///   Same as SignAndEncrypt, with both keys as raw material
+    /// </summary>
     class function SignAndEncrypt(const ASignKey: TJOSEBytes; ASignAlg: TJOSEAlgorithmId;
       const AEncryptKey: TJOSEBytes; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
       AToken: TJWT; AOuterHeader: TJWTHeader = nil): TJOSEBytes; overload;
@@ -190,8 +190,8 @@ type
     class function DecryptAndVerify(ADecryptKey, AVerifyKey: TJWK; const ACompactToken: TJOSEBytes;
       AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     /// <summary>
-	///   Same as DecryptAndVerify, with both keys as raw material
-	/// </summary>
+    ///   Same as DecryptAndVerify, with both keys as raw material
+    /// </summary>
     class function DecryptAndVerify(const ADecryptKey, AVerifyKey: TJOSEBytes;
       const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     /// <summary>

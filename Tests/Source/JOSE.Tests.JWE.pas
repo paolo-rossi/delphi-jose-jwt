@@ -180,6 +180,8 @@ type
     [TestCase('Empty',            ',False')]
     [TestCase('Minimal JWE',      'e30..AA.AA.AA,True')]
     [TestCase('Header not JSON',  'YWJj..AA.AA.AA,False')]
+    // {"<0xFF>":1}: not UTF-8, which must answer False rather than raise
+    [TestCase('Header not UTF-8', 'eyL_IjoxfQ..AA.AA.AA,False')]
     [TestCase('Not base64url',    'e30..AA.AA.AA!,False')]
     procedure CheckCompactToken(const AToken: string; AExpected: Boolean);
 

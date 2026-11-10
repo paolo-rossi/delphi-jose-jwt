@@ -77,6 +77,9 @@ type
     [TestCase('Header not JSON',  'bm90LWpzb24.eyJzdWIiOiJhIn0.c2ln')]
     [TestCase('Header is array',  'WzFd.eyJzdWIiOiJhIn0.c2ln')]
     [TestCase('Payload is string','eyJhbGciOiJIUzI1NiJ9.InB3bmVkIg.c2ln')]
+    // {"<0xFF>":1}: not UTF-8, which must answer False rather than raise (issue #65)
+    [TestCase('Header not UTF-8', 'eyL_IjoxfQ.eyJzdWIiOiJhIn0.c2ln')]
+    [TestCase('Payload not UTF-8','eyJhbGciOiJIUzI1NiJ9.eyL_IjoxfQ.c2ln')]
     procedure TestCheckCompactTokenRejects(const AToken: string);
 
     // Signing and verifying

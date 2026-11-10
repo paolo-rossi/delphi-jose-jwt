@@ -44,6 +44,11 @@ type
 
     class function Empty: TJOSEBytes; static;
     class function RandomBytes(ANumberOfBytes: Integer): TJOSEBytes; static;
+    /// <summary>
+    ///   True when AValue is valid UTF-8, so that AsString (and the implicit
+    ///   string conversion) will not raise EEncodingError on it
+    /// </summary>
+    class function IsValidString(const AValue: TJOSEBytes): Boolean; static;
 
     function IsEmpty: Boolean;
     function Size: Integer;
@@ -231,6 +236,18 @@ end;
 function TJOSEBytes.IsEmpty: Boolean;
 begin
   Result := Size = 0;
+end;
+
+class function TJOSEBytes.IsValidString(const AValue: TJOSEBytes): Boolean;
+var
+  LStr: string;
+begin
+  try
+    LStr := AValue.AsString;
+  except
+    Exit(False);
+  end;
+  Result := True;
 end;
 
 class function TJOSEBytes.RandomBytes(ANumberOfBytes: Integer): TJOSEBytes;

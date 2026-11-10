@@ -67,8 +67,9 @@ type
     /// </summary>
     function GetHeader: TJWTHeader;
     /// <summary>
-    ///   The outer JWE header when the token is a JWE, nil for a JWS. It is the
-    ///   same object as GetHeader until a nested JWT is processed
+    ///   The outer JWE header when the token is a JWE, nil for a JWS. A
+    ///   separate object from GetHeader: both are parsed from the same part,
+    ///   so their content is the same until a nested JWT is processed
     /// </summary>
     function GetJWEHeader: TJWEHeader;
 

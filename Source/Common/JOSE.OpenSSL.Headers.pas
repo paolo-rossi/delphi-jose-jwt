@@ -182,8 +182,10 @@ type
 
   public class var
     SSLeay_version: function(_type: Integer): PIdAnsiChar cdecl;
-    /// <summary>OPENSSL_VERSION_NUMBER of the loaded library (SSLeay is the 1.x name;
-    ///   nil when the library does not export it)</summary>
+    /// <summary>
+	///   OPENSSL_VERSION_NUMBER of the loaded library (SSLeay is the 1.x name).
+    ///   Resolved by EnsureJWESupport: nil until then, and a library without it has no JWE support
+	/// </summary>
     SSLeay: function(): LongWord cdecl;
 
     PEM_read_bio_PUBKEY: function(bp: PBIO; x: PPEVP_PKEY; cb: ppem_password_cb; u: Pointer): PEVP_PKEY; cdecl;
@@ -546,7 +548,8 @@ begin
     @EVP_PKEY_decrypt_init := Resolve(fn_EVP_PKEY_decrypt_init);
     @EVP_PKEY_decrypt := Resolve(fn_EVP_PKEY_decrypt);
     // SSLeay is the 1.x name of OpenSSL_version_num. Resolved here rather than
-    // in Load: JWS does not need it, only JWE's minimum version does
+    // in Load: JWS does not need it, only JWE's minimum version does. A miss
+    // counts as an error like any other: without it the version is unknown
     @SSLeay := Resolve(fn_SSLeay);
 
     // The RSA-OAEP digest controls are macros in evp.h/rsa.h, so resolving a
@@ -554,6 +557,7 @@ begin
     // reliable test. 1.0.2 is the first release that has them, and JWE is
     // reported available only from there - a half-working JWE (GCM on 1.0.1 but
     // OAEP not) would fail later with the generic decryption error instead
+    // (a missing SSLeay is already counted above: the guard only avoids the nil call)
     if Assigned(SSLeay) and not VersionSupportsJWE(SSLeay()) then
       Inc(LErrors);
 

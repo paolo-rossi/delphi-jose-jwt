@@ -24,10 +24,19 @@ uses
   System.SysUtils,
   JOSE.Types.Bytes,
   JOSE.Crypto.Algorithms,
+  JOSE.Core.Base,
   JOSE.Core.JWA,
   JOSE.Core.JWE.Header;
 
 type
+  /// <summary>
+  ///   The key given to a key management algorithm is unusable: unreadable, of
+  ///   the wrong type or too small. The key is the caller's configuration, not
+  ///   part of the token, so TJWE lets this through with its own message
+  ///   instead of the generic "JWE decryption failed"
+  /// </summary>
+  EJOSEKeyManagementKeyException = class(EJOSEException);
+
   /// <summary>
   ///   What key management produces on the sending side
   /// </summary>
@@ -111,7 +120,6 @@ type
 implementation
 
 uses
-  JOSE.Core.Base,
   JOSE.Providers,
   JOSE.Providers.Interfaces;
 
@@ -120,6 +128,7 @@ resourcestring
     '%d bytes expected, %d given';
   SJOSEDirEncryptedKeyNotEmpty = 'A "dir" JWE must have an empty Encrypted Key';
   SJOSERSAOAEPKeyTooSmall = 'RSA-OAEP needs an RSA key of at least %d bits, not %d';
+  SJOSERSAOAEPKeyUnreadable = 'The RSA-OAEP key cannot be used: %s';
   SJOSERSAOAEPNoEncryptedKey = 'An RSA-OAEP JWE must have an Encrypted Key';
 
 { TDirAlgorithm }
@@ -204,14 +213,25 @@ var
 begin
   // The RSA encryption capability owns the key parsing, so it is asked for the
   // modulus size; the minimum itself is the RFC 7518 par. 4.3 rule and stays
-  // here, in one place for every provider stack
-  if AIsPrivate then
-    LBits := TJOSEProviders.RSAEncryption.PrivateKeyBits(AKey.AsBytes)
-  else
-    LBits := TJOSEProviders.RSAEncryption.PublicKeyBits(AKey.AsBytes);
+  // here, in one place for every provider stack.
+  // Every stack reports a bad key the same way: the stacks raise different
+  // exceptions for it (EJOSECryptoException, ESignException, ...), which TJWE
+  // would mask on some and not on others. Only a missing provider keeps its
+  // own exception
+  try
+    if AIsPrivate then
+      LBits := TJOSEProviders.RSAEncryption.PrivateKeyBits(AKey.AsBytes)
+    else
+      LBits := TJOSEProviders.RSAEncryption.PublicKeyBits(AKey.AsBytes);
+  except
+    on E: EJOSEProvidersNotRegistered do
+      raise;
+    on E: Exception do
+      raise EJOSEKeyManagementKeyException.CreateFmt(SJOSERSAOAEPKeyUnreadable, [E.Message]);
+  end;
 
   if LBits < RSA_OAEP_MIN_KEY_BITS then
-    raise EJOSEException.CreateFmt(SJOSERSAOAEPKeyTooSmall, [RSA_OAEP_MIN_KEY_BITS, LBits]);
+    raise EJOSEKeyManagementKeyException.CreateFmt(SJOSERSAOAEPKeyTooSmall, [RSA_OAEP_MIN_KEY_BITS, LBits]);
 end;
 
 function TRSAOAEPAlgorithm.ManageForEncrypt(const AKey: TJOSEBytes; ACEKLength: Integer;
