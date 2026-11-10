@@ -23,6 +23,7 @@ interface
 uses
   System.SysUtils,
   JOSE.Types.Bytes,
+  JOSE.Crypto.Algorithms,
   JOSE.Core.JWA,
   JOSE.Core.JWE.Header;
 
@@ -79,15 +80,47 @@ type
       AHeader: TJWEHeader): TJOSEBytes;
   end;
 
+{$IFDEF RSA_SIGNING}
+
+  /// <summary>
+  ///   "RSA-OAEP" and "RSA-OAEP-256" (RFC 7518 par. 4.3): a random CEK,
+  ///   encrypted to the recipient's RSA public key with RSAES-OAEP
+  /// </summary>
+  /// <remarks>
+  ///   Keys are PEM, as for RS*/PS*: the public key (or an X.509 certificate
+  ///   carrying it) to encrypt, the private key to decrypt. Keys below 2048
+  ///   bits are refused, as RFC 7518 par. 4.3 requires
+  /// </remarks>
+  TRSAOAEPAlgorithm = class(TJOSEAlgorithm, IJOSEKeyManagementAlgorithm)
+  private
+    FDigest: TJOSEOAEPDigest;
+    class procedure CheckKeySize(const AKey: TJOSEBytes); static;
+  public
+    constructor Create(AAlgorithmId: TJOSEAlgorithmId; ADigest: TJOSEOAEPDigest);
+    class function RSAOAEP: IJOSEKeyManagementAlgorithm;
+    class function RSAOAEP256: IJOSEKeyManagementAlgorithm;
+
+    function ManageForEncrypt(const AKey: TJOSEBytes; ACEKLength: Integer;
+      AHeader: TJWEHeader): TJOSEKeyManagementResult;
+    function ManageForDecrypt(const AKey, AEncryptedKey: TJOSEBytes; ACEKLength: Integer;
+      AHeader: TJWEHeader): TJOSEBytes;
+  end;
+
+{$ENDIF}
+
 implementation
 
 uses
-  JOSE.Core.Base;
+  JOSE.Core.Base,
+  JOSE.Providers,
+  JOSE.Providers.Interfaces;
 
 resourcestring
   SJOSEDirKeyLength = 'A "dir" key must be exactly as long as the content encryption key: ' +
     '%d bytes expected, %d given';
   SJOSEDirEncryptedKeyNotEmpty = 'A "dir" JWE must have an empty Encrypted Key';
+  SJOSERSAOAEPKeyTooSmall = 'RSA-OAEP needs an RSA key of at least %d bits, not %d';
+  SJOSERSAOAEPNoEncryptedKey = 'An RSA-OAEP JWE must have an Encrypted Key';
 
 { TDirAlgorithm }
 
@@ -132,5 +165,105 @@ begin
 
   Result := AKey;
 end;
+
+{$IFDEF RSA_SIGNING}
+
+{ TRSAOAEPAlgorithm }
+
+const
+  // RFC 7518 par. 4.3
+  RSA_OAEP_MIN_KEY_BITS = 2048;
+  PEM_CERTIFICATE_MARKER = '-----BEGIN CERTIFICATE-----';
+
+constructor TRSAOAEPAlgorithm.Create(AAlgorithmId: TJOSEAlgorithmId; ADigest: TJOSEOAEPDigest);
+begin
+  inherited Create;
+  FAlgorithmIdentifier := AAlgorithmId;
+  FKeyCategory := TJOSEKeyCategory.Asymmetric;
+  FKeyType := 'RSA';
+  FDigest := ADigest;
+end;
+
+class function TRSAOAEPAlgorithm.RSAOAEP: IJOSEKeyManagementAlgorithm;
+begin
+  Result := TRSAOAEPAlgorithm.Create(TJOSEAlgorithmId.RSA_OAEP, TJOSEOAEPDigest.SHA1);
+end;
+
+class function TRSAOAEPAlgorithm.RSAOAEP256: IJOSEKeyManagementAlgorithm;
+begin
+  Result := TRSAOAEPAlgorithm.Create(TJOSEAlgorithmId.RSA_OAEP_256, TJOSEOAEPDigest.SHA256);
+end;
+
+class procedure TRSAOAEPAlgorithm.CheckKeySize(const AKey: TJOSEBytes);
+var
+  LModulus: TBytes;
+  LIndex, LBits: Integer;
+  LTop: Byte;
+begin
+  LModulus := TJOSEProviders.RSAKeyMaterial.ImportPEM(AKey.AsBytes).Modulus;
+
+  // Leading zero bytes and bits do not count
+  LIndex := 0;
+  while (LIndex < Length(LModulus)) and (LModulus[LIndex] = 0) do
+    Inc(LIndex);
+
+  LBits := 0;
+  if LIndex < Length(LModulus) then
+  begin
+    LBits := (Length(LModulus) - LIndex) * 8;
+    LTop := LModulus[LIndex];
+    while (LTop and $80) = 0 do
+    begin
+      Dec(LBits);
+      LTop := Byte(LTop shl 1);
+    end;
+  end;
+
+  if LBits < RSA_OAEP_MIN_KEY_BITS then
+    raise EJOSEException.CreateFmt(SJOSERSAOAEPKeyTooSmall, [RSA_OAEP_MIN_KEY_BITS, LBits]);
+end;
+
+function TRSAOAEPAlgorithm.ManageForEncrypt(const AKey: TJOSEBytes; ACEKLength: Integer;
+  AHeader: TJWEHeader): TJOSEKeyManagementResult;
+var
+  LPublicKey: TJOSEBytes;
+begin
+  // An X.509 certificate is accepted as a container for the public key, as
+  // it is for RS*/PS* verification. It is not validated (chain, dates, usage)
+  if AKey.Contains(TJOSEBytes(PEM_CERTIFICATE_MARKER)) then
+    LPublicKey := TJOSEProviders.Certificate.PublicKeyFromCertificate(AKey.AsBytes)
+  else
+    LPublicKey := AKey;
+
+  CheckKeySize(LPublicKey);
+
+  Result.CEK := TJOSEBytes.RandomBytes(ACEKLength);
+  Result.EncryptedKey := TJOSEProviders.RSAEncryption.Encrypt(Result.CEK.AsBytes, LPublicKey.AsBytes, FDigest);
+end;
+
+function TRSAOAEPAlgorithm.ManageForDecrypt(const AKey, AEncryptedKey: TJOSEBytes; ACEKLength: Integer;
+  AHeader: TJWEHeader): TJOSEBytes;
+begin
+  if AEncryptedKey.IsEmpty then
+    raise EJOSEException.Create(SJOSERSAOAEPNoEncryptedKey);
+
+  CheckKeySize(AKey);
+
+  // RFC 7516 par. 11.5: when the CEK does not decrypt, or decrypts to the
+  // wrong length, carry on with a random CEK instead of failing here. The
+  // content decryption then fails on the tag, so a bad Encrypted Key and a
+  // bad ciphertext fail at the same point and cannot be told apart by timing
+  try
+    Result := TJOSEProviders.RSAEncryption.Decrypt(AEncryptedKey.AsBytes, AKey.AsBytes, FDigest);
+  except
+    on E: EJOSECryptoException do
+      Result := TJOSEBytes.Empty;
+  end;
+
+  if Result.Size <> ACEKLength then
+    Result := TJOSEBytes.RandomBytes(ACEKLength);
+end;
+
+{$ENDIF}
 
 end.

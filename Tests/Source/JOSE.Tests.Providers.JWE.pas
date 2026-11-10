@@ -179,6 +179,40 @@ type
 
     [Test]
     procedure NestedJWT_LeavesClaimsAlone;
+
+    // RSA-OAEP. RFC 7516 A.1 (2048-bit key) and RFC 7520 par. 5.2 (4096-bit
+    // key), both RSA-OAEP + A256GCM, extracted from the RFC text by script
+    // and decrypted end to end with .NET (RSA OaepSHA1 + AesGcm) before they
+    // were committed. There is no published RSA-OAEP-256 vector: that one is
+    // pinned by the OpenSSL ciphertexts of the provider tests
+    [Test]
+    procedure RFC7516_RSAOAEP_A256GCM_Decrypts;
+
+    [Test]
+    procedure RFC7520_RSAOAEP_A256GCM_Decrypts;
+
+    [Test]
+    [TestCase('RSA-OAEP A128GCM',     'RSA_OAEP,A128GCM')]
+    [TestCase('RSA-OAEP A256GCM',     'RSA_OAEP,A256GCM')]
+    [TestCase('RSA-OAEP-256 A128GCM', 'RSA_OAEP_256,A128GCM')]
+    [TestCase('RSA-OAEP-256 A192GCM', 'RSA_OAEP_256,A192GCM')]
+    [TestCase('RSA-OAEP-256 A256GCM', 'RSA_OAEP_256,A256GCM')]
+    procedure RSAOAEP_ClaimsRoundTrip(AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId);
+
+    [Test]
+    procedure RSAOAEP_EncryptsToCertificate;
+
+    [Test]
+    procedure RSAOAEP_RejectsKeyBelow2048Bits;
+
+    [Test]
+    procedure RSAOAEP_TamperedEncryptedKey_IsRejected;
+
+    [Test]
+    procedure RSAOAEP_EmptyEncryptedKey_IsRejected;
+
+    [Test]
+    procedure RSAOAEP_WrongPrivateKey_IsRejected;
   end;
 
 implementation
@@ -808,6 +842,245 @@ begin
     LToken.Free;
     LKey.Free;
   end;
+end;
+
+
+{ RSA-OAEP vectors }
+
+// Generated from the RFC text (see the comment over RFC7516_RSAOAEP_A256GCM_Decrypts)
+const
+  RFC7516_A1_JWK =
+    '{"kty":"RSA","n":"oahUIoWw0K0usKNuOR6H4wkf4oBUXHTxRvgb48E-BVvxkeDNjbC4he8rUWcJoZmds2h7M70imEVhRU' +
+    '5djINXtqllXI4DFqcI1DgjT9LewND8MW2Krf3Spsk_ZkoFnilakGygTwpZ3uesH-PFABNIUYpOiN15dsQRkgr0vEhxN92i2a' +
+    'sbOenSZeyaxziK72UwxrrKoExv6kc5twXTq4h-QChLOln0_mtUZwfsRaMStPs6mS6XrgxnxbWhojf663tuEQueGC-FCMfra3' +
+    '6C9knDFGzKsNa7LZK2djYgyD3JR_MB_4NUJW_TqOQtwHYbxevoJArm-L5StowjzGy-_bq6Gw","e":"AQAB","d":"kLdtIj' +
+    '6GbDks_ApCSTYQtelcNttlKiOyPzMrXHeI-yk1F7-kpDxY4-WY5NWV5KntaEeXS1j82E375xxhWMHXyvjYecPT9fpwR_M9gV' +
+    '8n9Hrh2anTpTD93Dt62ypW3yDsJzBnTnrYu1iwWRgBKrEYY46qAZIrA2xAwnm2X7uGR1hghkqDp0Vqj3kbSCz1XyfCs6_Leh' +
+    'BwtxHIyh8Ripy40p24moOAbgxVw3rxT_vlt3UVe4WO3JkJOzlpUf-KTVI2Ptgm-dARxTEtE-id-4OJr0h-K-VFs3VSndVTIz' +
+    'nSxfyrj8ILL6MG_Uv8YAu7VILSB3lOW085-4qE3DzgrTjgyQ","p":"1r52Xk46c-LsfB5P442p7atdPUrxQSy4mti_tZI3M' +
+    'gf2EuFVbUoDBvaRQ-SWxkbkmoEzL7JXroSBjSrK3YIQgYdMgyAEPTPjXv_hI2_1eTSPVZfzL0lffNn03IXqWF5MDFuoUYE0h' +
+    'zb2vhrlN_rKrbfDIwUbTrjjgieRbwC6Cl0","q":"wLb35x7hmQWZsWJmB_vle87ihgZ19S8lBEROLIsZG4ayZVe9Hi9gDVC' +
+    'OBmUDdaDYVTSNx_8Fyw1YYa9XGrGnDew00J28cRUoeBB_jKI1oma0Orv1T9aXIWxKwd4gvxFImOWr3QRL9KEBRzk2RatUBnm' +
+    'DZJTIAfwTs0g68UZHvtc","dp":"ZK-YwE7diUh0qR1tR7w8WHtolDx3MZ_OTowiFvgfeQ3SiresXjm9gZ5KLhMXvo-uz-KU' +
+    'JWDxS5pFQ_M0evdo1dKiRTjVw_x4NyqyXPM5nULPkcpU827rnpZzAJKpdhWAgqrXGKAECQH0Xt4taznjnd_zVpAmZZq60WPM' +
+    'BMfKcuE","dq":"Dq0gfgJ1DdFGXiLvQEZnuKEN0UUmsJBxkjydc3j4ZYdBiMRAy86x0vHCjywcMlYYg4yoC4YZa9hNVcsjq' +
+    'A3FeiL19rk8g6Qn29Tt0cj8qqyFpz9vNDBUfCAiJVeESOjJDZPYHdHY8v1b-o-Z2X5tvLx-TCekf7oxyeKDUqKWjis","qi"' +
+    ':"VIMpMYbPf47dT1w_zDUXfPimsSegnMOA1zTaX7aGk_8urY6R8-ZW1FxU7AlWAyLWybqq6t16VFd7hQd0y6flUK4SlOydB6' +
+    '1gwanOsXGOAOv82cHq0E3eL4HrtZkUuKvnPrMnsUUFlfUdybVzxyjz9JF_XyaY14ardLSjf4L_FNY"}';
+
+  RFC7516_A1_TOKEN =
+    'eyJhbGciOiJSU0EtT0FFUCIsImVuYyI6IkEyNTZHQ00ifQ.OKOawDo13gRp2ojaHV7LFpZcgV7T6DVZKTyKOMTYUmKoTCVJR' +
+    'gckCL9kiMT03JGeipsEdY3mx_etLbbWSrFr05kLzcSr4qKAq7YN7e9jwQRb23nfa6c9d-StnImGyFDbSv04uVuxIp5Zms1gN' +
+    'xKKK2Da14B8S4rzVRltdYwam_lDp5XnZAYpQdb76FdIKLaVmqgfwX7XWRxv2322i-vDxRfqNzo_tETKzpVLzfiwQyeyPGLBI' +
+    'O56YJ7eObdv0je81860ppamavo35UgoRdbYaBcoh9QcfylQr66oc6vFWXRcZ_ZT2LawVCWTIy3brGPi6UklfCpIMfIjf7iGd' +
+    'XKHzg.48V1_ALb6US04U3b.5eym8TW_c8SuK0ltJ3rpYIzOeDQz7TALvtu6UG9oMo4vpzs9tX_EFShS8iB7j6jiSdiwkIr3a' +
+    'jwQzaBtQD_A.XFBoMYUZodetZdvTiFvSkQ';
+
+  RFC7520_52_JWK =
+    '{"kty":"RSA","kid":"samwise.gamgee@hobbiton.example","use":"enc","n":"wbdxI55VaanZXPY29Lg5hdmv2X' +
+    'hvqAhoxUkanfzf2-5zVUxa6prHRrI4pP1AhoqJRlZfYtWWd5mmHRG2pAHIlh0ySJ9wi0BioZBl1XP2e-C-FyXJGcTy0HdKQW' +
+    'lrfhTm42EW7Vv04r4gfao6uxjLGwfpGrZLarohiWCPnkNrg71S2CuNZSQBIPGjXfkmIy2tl_VWgGnL22GplyXj5YlBLdxXp3' +
+    'XeStsqo571utNfoUTU8E4qdzJ3U1DItoVkPGsMwlmmnJiwA7sXRItBCivR4M5qnZtdw-7v4WuR4779ubDuJ5nalMv2S66-RP' +
+    'cnFAzWSKxtBDnFJJDGIUe7Tzizjg1nms0Xq_yPub_UOlWn0ec85FCft1hACpWG8schrOBeNqHBODFskYpUc2LC5JA2TaPF2d' +
+    'A67dg1TTsC_FupfQ2kNGcE1LgprxKHcVWYQb86B-HozjHZcqtauBzFNV5tbTuB-TpkcvJfNcFLlH3b8mb-H_ox35FjqBSAjL' +
+    'KyoeqfKTpVjvXhd09knwgJf6VKq6UC418_TOljMVfFTWXUxlnfhOOnzW6HSSzD1c9WrCuVzsUMv54szidQ9wf1cYWf3g5qFD' +
+    'xDQKis99gcDaiCAwM3yEBIzuNeeCa5dartHDb1xEB_HcHSeYbghbMjGfasvKn0aZRsnTyC0xhWBlsolZE","e":"AQAB","a' +
+    'lg":"RSA-OAEP","d":"n7fzJc3_WG59VEOBTkayzuSMM780OJQuZjN_KbH8lOZG25ZoA7T4Bxcc0xQn5oZE5uSCIwg91oCt' +
+    '0JvxPcpmqzaJZg1nirjcWZ-oBtVk7gCAWq-B3qhfF3izlbkosrzjHajIcY33HBhsy4_WerrXg4MDNE4HYojy68TcxT2LYQRx' +
+    'UOCf5TtJXvM8olexlSGtVnQnDRutxEUCwiewfmmrfveEogLx9EA-KMgAjTiISXxqIXQhWUQX1G7v_mV_Hr2YuImYcNcHkRvp' +
+    '9E7ook0876DhkO8v4UOZLwA1OlUX98mkoqwc58A_Y2lBYbVx1_s5lpPsEqbbH-nqIjh1fL0gdNfihLxnclWtW7pCztLnImZA' +
+    'yeCWAG7ZIfv-Rn9fLIv9jZ6r7r-MSH9sqbuziHN2grGjD_jfRluMHa0l84fFKl6bcqN1JWxPVhzNZo01yDF-1LiQnqUYSepP' +
+    'f6X3a2SOdkqBRiquE6EvLuSYIDpJq3jDIsgoL8Mo1LoomgiJxUwL_GWEOGu28gplyzm-9Q0U0nyhEf1uhSR8aJAQWAiFImWH' +
+    '5W_IQT9I7-yrindr_2fWQ_i1UgMsGzA7aOGzZfPljRy6z-tY_KuBG00-28S_aWvjyUc-Alp8AUyKjBZ-7CWH32fGWK48j1t-' +
+    'zomrwjL_mnhsPbGs0c9WsWgRzI-K8gE","p":"7_2v3OQZzlPFcHyYfLABQ3XP85Es4hCdwCkbDeltaUXgVy9l9etKghvM4h' +
+    'RkOvbb01kYVuLFmxIkCDtpi-zLCYAdXKrAK3PtSbtzld_XZ9nlsYa_QZWpXB_IrtFjVfdKUdMz94pHUhFGFj7nr6NNxfpiHS' +
+    'HWFE1zD_AC3mY46J961Y2LRnreVwAGNw53p07Db8yD_92pDa97vqcZOdgtybH9q6uma-RFNhO1AoiJhYZj69hjmMRXx-x56H' +
+    'O9cnXNbmzNSCFCKnQmn4GQLmRj9sfbZRqL94bbtE4_e0Zrpo8RNo8vxRLqQNwIy85fc6BRgBJomt8QdQvIgPgWCv5HoQ","q' +
+    '":"zqOHk1P6WN_rHuM7ZF1cXH0x6RuOHq67WuHiSknqQeefGBA9PWs6ZyKQCO-O6mKXtcgE8_Q_hA2kMRcKOcvHil1hqMCNS' +
+    'XlflM7WPRPZu2qCDcqssd_uMbP-DqYthH_EzwL9KnYoH7JQFxxmcv5An8oXUtTwk4knKjkIYGRuUwfQTus0w1NfjFAyxOOiA' +
+    'Q37ussIcE6C6ZSsM3n41UlbJ7TCqewzVJaPJN5cxjySPZPD3Vp01a9YgAD6a3IIaKJdIxJS1ImnfPevSJQBE79-EXe2kSwVg' +
+    'Ozvt-gsmM29QQ8veHy4uAqca5dZzMs7hkkHtw1z0jHV90epQJJlXXnH8Q","dp":"19oDkBh1AXelMIxQFm2zZTqUhAzCIr4' +
+    'xNIGEPNoDt1jK83_FJA-xnx5kA7-1erdHdms_Ef67HsONNv5A60JaR7w8LHnDiBGnjdaUmmuO8XAxQJ_ia5mxjxNjS6E2yD4' +
+    '4USo2JmHvzeeNczq25elqbTPLhUpGo1IZuG72FZQ5gTjXoTXC2-xtCDEUZfaUNh4IeAipfLugbpe0JAFlFfrTDAMUFpC3iXj' +
+    'xqzbEanflwPvj6V9iDSgjj8SozSM0dLtxvu0LIeIQAeEgT_yXcrKGmpKdSO08kLBx8VUjkbv_3Pn20Gyu2YEuwpFlM_H1Nik' +
+    'uxJNKFGmnAq9LcnwwT0jvoQ","dq":"S6p59KrlmzGzaQYQM3o0XfHCGvfqHLYjCO557HYQf72O9kLMCfd_1VBEqeD-1jjwE' +
+    'LKDjck8kOBl5UvohK1oDfSP1DleAy-cnmL29DqWmhgwM1ip0CCNmkmsmDSlqkUXDi6sAaZuntyukyflI-qSQ3C_BafPyFaKr' +
+    't1fgdyEwYa08pESKwwWisy7KnmoUvaJ3SaHmohFS78TJ25cfc10wZ9hQNOrIChZlkiOdFCtxDqdmCqNacnhgE3bZQjGp3n83' +
+    'ODSz9zwJcSUvODlXBPc2AycH6Ci5yjbxt4Ppox_5pjm6xnQkiPgj01GpsUssMmBN7iHVsrE7N2iznBNCeOUIQ","qi":"FZh' +
+    'ClBMywVVjnuUud-05qd5CYU0dK79akAgy9oX6RX6I3IIIPckCciRrokxglZn-omAY5CnCe4KdrnjFOT5YUZE7G_Pg44XgCXa' +
+    'arLQf4hl80oPEf6-jJ5Iy6wPRx7G2e8qLxnh9cOdf-kRqgOS3F48Ucvw3ma5V6KGMwQqWFeV31XtZ8l5cVI-I3NzBS7qltpU' +
+    'Vgz2Ju021eyc7IlqgzR98qKONl27DuEES0aK0WE97jnsyO27Yp88Wa2RiBrEocM89QZI1seJiGDizHRUP4UZxw9zsXww46wy' +
+    '0P6f9grnYp7t8LkyDDk8eoI4KX6SNMNVcyVS9IWjlq8EzqZEKIA"}';
+
+  RFC7520_52_TOKEN =
+    'eyJhbGciOiJSU0EtT0FFUCIsImtpZCI6InNhbXdpc2UuZ2FtZ2VlQGhvYmJpdG9uLmV4YW1wbGUiLCJlbmMiOiJBMjU2R0NN' +
+    'In0.rT99rwrBTbTI7IJM8fU3Eli7226HEB7IchCxNuh7lCiud48LxeolRdtFF4nzQibeYOl5S_PJsAXZwSXtDePz9hk-Bbts' +
+    'TBqC2UsPOdwjC9NhNupNNu9uHIVftDyucvI6hvALeZ6OGnhNV4v1zx2k7O1D89mAzfw-_kT3tkuorpDU-CpBENfIHX1Q58-A' +
+    'ad3FzMuo3Fn9buEP2yXakLXYa15BUXQsupM4A1GD4_H4Bd7V3u9h8Gkg8BpxKdUV9ScfJQTcYm6eJEBz3aSwIaK4T3-dwWpu' +
+    'BOhROQXBosJzS1asnuHtVMt2pKIIfux5BC6huIvmY7kzV7W7aIUrpYm_3H4zYvyMeq5pGqFmW2k8zpO878TRlZx7pZfPYDSX' +
+    'ZyS0CfKKkMozT_qiCwZTSz4duYnt8hS4Z9sGthXn9uDqd6wycMagnQfOTs_lycTWmY-aqWVDKhjYNRf03NiwRtb5BE-tOdFw' +
+    'CASQj3uuAgPGrO2AWBe38UjQb0lvXn1SpyvYZ3WFc7WOJYaTa7A8DRn6MC6T-xDmMuxC0G7S2rscw5lQQU06MvZTlFOt0Uvf' +
+    'uKBa03cxA_nIBIhLMjY2kOTxQMmpDPTr6Cbo8aKaOnx6ASE5Jx9paBpnNmOOKH35j_QlrQhDWUN6A2Gg8iFayJ69xDEdHAVC' +
+    'GRzN3woEI2ozDRs.-nBoKLH0YkLZPSI9.o4k2cnGN8rSSw3IDo1YuySkqeS_t2m1GXklSgqBdpACm6UJuJowOHC5ytjqYgRL' +
+    '-I-soPlwqMUf4UgRWWeaOGNw6vGW-xyM01lTYxrXfVzIIaRdhYtEMRBvBWbEwP7ua1DRfvaOjgZv6Ifa3brcAM64d8p5lhhN' +
+    'cizPersuhw5f-pGYzseva-TUaL8iWnctc-sSwy7SQmRkfhDjwbz0fz6kFovEgj64X1I5s7E6GLp5fnbYGLa1QUiML7Cc2Gxg' +
+    'vI7zqWo0YIEc7aCflLG1-8BboVWFdZKLK9vNoycrYHumwzKluLWEbSVmaPpOslY2n525DxDfWaVFUfKQxMF56vn4B9QMpWAb' +
+    'nypNimbM8zVOw.UCGiqJxhBI3IFVdPalHHvA';
+  RFC7516_A1_PLAINTEXT = 'The true sign of intelligence is not knowledge but imagination.';
+
+// The private key of a JWK, as the PEM that TJWK carries
+function JWKToPEM(const AJWK: string): TJOSEBytes;
+var
+  LKey: TJSONWebKey;
+begin
+  LKey := TJSONWebKey.FromJSON(AJWK);
+  try
+    Result := LKey.ToPEM(True);
+  finally
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RFC7516_RSAOAEP_A256GCM_Decrypts;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(JWKToPEM(RFC7516_A1_JWK));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7516_A1_TOKEN;
+    Assert.AreEqual('RSA-OAEP', LJWE.Header.Algorithm);
+    Assert.AreEqual('A256GCM', LJWE.Header.Encryption);
+    Assert.AreEqual(RFC7516_A1_PLAINTEXT, LJWE.DecryptPayload(LKey).AsString);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RFC7520_RSAOAEP_A256GCM_Decrypts;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(JWKToPEM(RFC7520_52_JWK));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LJWE.CompactToken := RFC7520_52_TOKEN;
+    Assert.AreEqual('RSA-OAEP', LJWE.Header.Algorithm);
+    Assert.AreEqual('samwise.gamgee@hobbiton.example', LJWE.Header.KeyID);
+    Assert.AreEqual(RFC7520_Plaintext, LJWE.DecryptPayload(LKey).AsString);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_ClaimsRoundTrip(AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId);
+var
+  LPublic, LPrivate: TJWK;
+  LToken, LReadToken: TJWT;
+  LJWE, LReadJWE: TJWE;
+begin
+  LPublic := TJWK.Create(ReadKey('rsa-public.pem'));
+  LPrivate := TJWK.Create(ReadKey('rsa-private.pem'));
+  LToken := TJWT.Create;
+  LReadToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  LReadJWE := TJWE.Create(LReadToken);
+  try
+    LToken.Claims.Subject := 'alice';
+    LReadJWE.CompactToken := LJWE.Encrypt(LPublic, AAlg, AEnc);
+
+    Assert.AreEqual(256, Length(TBase64.URLDecode(LReadJWE.EncryptedKey).AsBytes),
+      'A 2048-bit key gives a 256-byte Encrypted Key');
+
+    LReadJWE.Decrypt(LPrivate);
+    Assert.AreEqual(AAlg.AsString, LReadJWE.Header.Algorithm);
+    Assert.AreEqual(AEnc.AsString, LReadJWE.Header.Encryption);
+    Assert.AreEqual('alice', LReadToken.Claims.Subject);
+  finally
+    LReadJWE.Free;
+    LJWE.Free;
+    LReadToken.Free;
+    LToken.Free;
+    LPrivate.Free;
+    LPublic.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_EncryptsToCertificate;
+var
+  LCertificate: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LCompact: TJOSEBytes;
+begin
+  // cert/rsa-x509.pem carries the public key of rsa-private.pem
+  LCertificate := TJWK.Create(ReadKey(TPath.Combine('cert', 'rsa-x509.pem')));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LCompact := LJWE.EncryptPayload(LCertificate, TJOSEAlgorithmId.RSA_OAEP_256,
+      TJOSEEncryptionAlgorithmId.A256GCM, 'hello');
+    Assert.AreEqual('', DecryptError(LCompact.AsString, ReadKey('rsa-private.pem')));
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LCertificate.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_RejectsKeyBelow2048Bits;
+var
+  LKey: TJWK;
+  LToken: TJWT;
+  LJWE: TJWE;
+  LMessage: string;
+begin
+  LKey := TJWK.Create(ReadKey('rsa1024-public.pem'));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    LMessage := '';
+    try
+      LJWE.EncryptPayload(LKey, TJOSEAlgorithmId.RSA_OAEP_256, TJOSEEncryptionAlgorithmId.A256GCM, 'hello');
+    except
+      on E: EJOSEException do
+        LMessage := E.Message;
+    end;
+    Assert.Contains(LMessage, 'at least 2048 bits, not 1024');
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_TamperedEncryptedKey_IsRejected;
+begin
+  Assert.AreEqual(JWE_DECRYPTION_FAILED,
+    DecryptError(FlipPartBit(RFC7516_A1_TOKEN, 1), JWKToPEM(RFC7516_A1_JWK)));
+  Assert.AreEqual('', DecryptError(RFC7516_A1_TOKEN, JWKToPEM(RFC7516_A1_JWK)), 'The original still decrypts');
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_EmptyEncryptedKey_IsRejected;
+begin
+  Assert.AreEqual(JWE_DECRYPTION_FAILED,
+    DecryptError(ReplacePart(RFC7516_A1_TOKEN, 1, ''), JWKToPEM(RFC7516_A1_JWK)));
+end;
+
+procedure TJWETokenTestBase.RSAOAEP_WrongPrivateKey_IsRejected;
+begin
+  // Same failure, same message, as a tampered ciphertext
+  Assert.AreEqual(JWE_DECRYPTION_FAILED, DecryptError(RFC7516_A1_TOKEN, ReadKey('rsa-private.pem')));
 end;
 
 end.

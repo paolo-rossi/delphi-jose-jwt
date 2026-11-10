@@ -9,6 +9,13 @@ openssl genrsa -out rsa-other-private.pem 2048
 openssl rsa -pubout -in rsa-other-private.pem -out rsa-other-public.pem
 rm rsa-other-private.pem
 
+# A 1024-bit RSA public key, for the JWE RSA-OAEP "key too small" tests (RFC 7518 4.3
+# requires 2048 bits or more). Only the public half is kept: encryption is refused before
+# anything would need the private key.
+openssl genrsa -out rsa1024-private.pem 1024
+openssl rsa -pubout -in rsa1024-private.pem -out rsa1024-public.pem
+rm rsa1024-private.pem
+
 # Keys for ES256 Algorithm (NID: 408)
 openssl ecparam -name prime256v1 -genkey -noout -out es256-private.pem             
 openssl ec -in es256-private.pem -pubout -out es256-public.pem                    

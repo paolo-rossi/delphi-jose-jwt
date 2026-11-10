@@ -170,10 +170,15 @@ begin
 {$ENDIF}
   ;
 
-  // JWE "alg". RSA-OAEP joins in JWE step 1, phase 3
+  // JWE "alg". RSA-OAEP needs RSA, so it shares the RSA_SIGNING gate with RS*/PS*
   FKeyManagementAlgorithmRegistry := TJOSEAlgorithmRegistry<IJOSEKeyManagementAlgorithm>.Create('alg');
   FKeyManagementAlgorithmRegistry
-    .RegisterAlgorithm(TDirAlgorithm.Dir);
+    .RegisterAlgorithm(TDirAlgorithm.Dir)
+{$IFDEF RSA_SIGNING}
+    .RegisterAlgorithm(TRSAOAEPAlgorithm.RSAOAEP)
+    .RegisterAlgorithm(TRSAOAEPAlgorithm.RSAOAEP256)
+{$ENDIF}
+  ;
 
   // JWE "enc". Registered unconditionally: AES-GCM does not depend on
   // RSA_SIGNING, only on a provider stack that implements IJOSEAESGCMProvider

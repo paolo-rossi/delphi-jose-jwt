@@ -18,9 +18,11 @@ interface
 
 uses
   System.SysUtils,
+  System.IOUtils,
   System.Rtti,
   DUnitX.TestFramework,
 
+  JOSE.Tests.Classes,
   JOSE.Types.Bytes,
   JOSE.Core.JWA,
   JOSE.Core.JWA.Factory,
@@ -151,7 +153,7 @@ type
   ///   is tested per stack in JOSE.Tests.Providers.JWE
   /// </summary>
   [TestFixture]
-  TTestJWEParsing = class
+  TTestJWEParsing = class(TTestBase)
   public
     [Test]
     procedure RegistriesResolveTheStep1Algorithms;
@@ -197,6 +199,9 @@ type
 
     [Test]
     procedure MissingProviderIsReportedAsSuch;
+
+    [Test]
+    procedure MissingRSAEncryptionProviderIsReportedAsSuch;
   end;
 
 implementation
@@ -505,6 +510,9 @@ begin
   LFactory := TJOSEAlgorithmRegistryFactory.Instance;
 
   Assert.IsNotNull(LFactory.KeyManagementAlgorithmRegistry.GetAlgorithm('dir'));
+  Assert.IsNotNull(LFactory.KeyManagementAlgorithmRegistry.GetAlgorithm('RSA-OAEP'));
+  Assert.IsNotNull(LFactory.KeyManagementAlgorithmRegistry.GetAlgorithm('RSA-OAEP-256'));
+  Assert.IsNull(LFactory.KeyManagementAlgorithmRegistry.GetAlgorithm('RSA1_5'), 'RSA1_5 is never supported');
   Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A128GCM'));
   Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A192GCM'));
   Assert.IsNotNull(LFactory.EncryptionAlgorithmRegistry.GetAlgorithm('A256GCM'));
@@ -646,6 +654,32 @@ begin
       procedure
       begin
         LJWE.Encrypt(LKey, TJOSEAlgorithmId.Dir, TJOSEEncryptionAlgorithmId.A128GCM);
+      end,
+      EJOSEProvidersNotRegistered);
+  finally
+    LJWE.Free;
+    LToken.Free;
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWEParsing.MissingRSAEncryptionProviderIsReportedAsSuch;
+var
+  LToken: TJWT;
+  LJWE: TJWE;
+  LKey: TJWK;
+begin
+  if TJOSEProviders.HasRSAEncryption then
+    Exit;
+
+  LKey := TJWK.Create(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa-public.pem')));
+  LToken := TJWT.Create;
+  LJWE := TJWE.Create(LToken);
+  try
+    Assert.WillRaise(
+      procedure
+      begin
+        LJWE.Encrypt(LKey, TJOSEAlgorithmId.RSA_OAEP_256, TJOSEEncryptionAlgorithmId.A256GCM);
       end,
       EJOSEProvidersNotRegistered);
   finally
