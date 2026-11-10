@@ -70,6 +70,13 @@ type
     [Test]
     procedure TestECDSAVerifyValidatesTheKeyWhenNotSkipped;
 
+    // The private key check used to free an EC_KEY as an EVP_PKEY. On Win64
+    // that crashed depending on where OpenSSL's heap landed: this caught it
+    // in most runs (9 of 13 when checked), not all, and never on Win32,
+    // where the same bug only leaked
+    [Test]
+    procedure TestPrivateKeyCheckCanBeRepeated;
+
     // RFC 7518 par. 3.4: R||S, each half the curve's field size
     [Test]
     [TestCase('ES256 truncated', 'ES256,1')]
@@ -270,6 +277,15 @@ begin
   finally
     LToken.Free;
   end;
+end;
+
+procedure TTestJWA.TestPrivateKeyCheckCanBeRepeated;
+var
+  LIndex: Integer;
+begin
+  LoadKeys(TJOSEAlgorithmId.ES256);
+  for LIndex := 1 to 64 do
+    Assert.IsTrue(TECDSA.VerifyPrivateKey(FKeys.PrivateKey.Key.AsBytes), 'The ES256 private key should be accepted');
 end;
 
 initialization

@@ -32,6 +32,10 @@ type
   private
     class function DeserializeVerify(AKey: TJWK; const ACompactToken: TJOSEBytes;
       AVerify, ARaiseOnInvalidSignature: Boolean; AClaimsClass: TJWTClaimsClass): TJWT;
+    /// <summary>A string member of the token's header, '' when it is absent or cannot be read</summary>
+    class function HeaderMember(const ACompactToken: TJOSEBytes; const AName: string): string;
+    /// <summary>Decrypts a nested JWT and returns the inner JWS, unverified</summary>
+    class function DecryptNested(ADecryptKey: TJWK; const ACompactToken: TJOSEBytes): TJOSEBytes;
   public
     /// <summary>True when AValue has the shape of a JWS compact serialization:
     ///   three parts, strict base64url, a JSON header and a JSON payload</summary>
@@ -61,7 +65,12 @@ type
     /// </remarks>
     class function Verify(AKey: TJWK; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     class function Verify(AKey: TJOSEBytes; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
-    /// <summary>Verifies with a JSON Web Key, using its public half</summary>
+    /// <summary>
+    ///   Verifies with a JSON Web Key, using its public half. Raises
+    ///   EJOSEJWKException when the key's own [use], [key_ops] or [alg] rule
+    ///   out verifying this token (see TJSONWebKey.CheckPermits): that is a
+    ///   wrong key, not an unreadable token
+    /// </summary>
     class function Verify(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     /// <summary>
     ///   Verifies with the key of AKeySet that the token's header points at.
@@ -124,7 +133,8 @@ type
       AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes; overload;
     /// <summary>
     ///   Same as Encrypt, with a JSON Web Key. Its public half is used: the
-    ///   secret for "oct", the public key for RSA
+    ///   secret for "oct", the public key for RSA. The key's [use], [key_ops]
+    ///   and [alg] must allow it (TJSONWebKey.CheckPermits)
     /// </summary>
     class function Encrypt(AKey: TJSONWebKey; AToken: TJWT; AAlg: TJOSEAlgorithmId;
       AEnc: TJOSEEncryptionAlgorithmId): TJOSEBytes; overload;
@@ -147,7 +157,9 @@ type
       AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     /// <summary>
     ///   Same as Decrypt, with a JSON Web Key. Its private half is used: the
-    ///   secret for "oct", the private key for RSA. A public-only key raises
+    ///   secret for "oct", the private key for RSA. A public-only key raises,
+    ///   and so does one whose [use], [key_ops] or [alg] rule out decrypting
+    ///   this token (TJSONWebKey.CheckPermits)
     /// </summary>
     class function Decrypt(AKey: TJSONWebKey; const ACompactToken: TJOSEBytes;
       AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
@@ -173,7 +185,8 @@ type
       AToken: TJWT; AOuterHeader: TJWTHeader = nil): TJOSEBytes; overload;
     /// <summary>
     ///   Same as SignAndEncrypt, with JSON Web Keys: the signing key's private
-    ///   half and the encryption key's public half are used
+    ///   half and the encryption key's public half are used. Each key's [use],
+    ///   [key_ops] and [alg] must allow its part (TJSONWebKey.CheckPermits)
     /// </summary>
     class function SignAndEncrypt(ASignKey: TJSONWebKey; ASignAlg: TJOSEAlgorithmId;
       AEncryptKey: TJSONWebKey; AAlg: TJOSEAlgorithmId; AEnc: TJOSEEncryptionAlgorithmId;
@@ -196,7 +209,9 @@ type
       const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
     /// <summary>
     ///   Same as DecryptAndVerify, with JSON Web Keys: the decryption key's
-    ///   private half and the verification key's public half are used
+    ///   private half and the verification key's public half are used. Each
+    ///   key's [use], [key_ops] and [alg] must allow its part, the verification
+    ///   key's checked against the inner token (TJSONWebKey.CheckPermits)
     /// </summary>
     class function DecryptAndVerify(ADecryptKey, AVerifyKey: TJSONWebKey;
       const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass = nil): TJWT; overload;
@@ -211,7 +226,8 @@ implementation
 
 uses
   System.Types,
-  System.StrUtils;
+  System.StrUtils,
+  JOSE.Types.JSON;
 
 resourcestring
   // The compact-serialization messages now live in JOSE.Core.Base, next to the
@@ -291,6 +307,8 @@ begin
   if not Assigned(AKey) then
     raise EJOSEException.Create(SJOSEEncryptionKeyRequired);
 
+  AKey.CheckPermits([TJOSEKeyOperation.Encrypt, TJOSEKeyOperation.WrapKey], AAlg.AsString, AEnc.AsString);
+
   // PublicKey carries the encryption material for every key type: the secret
   // for oct, the public PEM for RSA and EC
   LKeyPair := AKey.ToKeyPair;
@@ -346,6 +364,9 @@ var
 begin
   if not Assigned(AKey) then
     raise EJOSEException.Create(SJOSEDecryptionKeyRequired);
+
+  AKey.CheckPermits([TJOSEKeyOperation.Decrypt, TJOSEKeyOperation.UnwrapKey],
+    HeaderMember(ACompactToken, 'alg'), HeaderMember(ACompactToken, 'enc'));
 
   // PrivateKey carries the decryption material: the secret for oct, the
   // private PEM for RSA. A public-only key leaves it empty.
@@ -423,6 +444,9 @@ begin
   if not Assigned(AEncryptKey) then
     raise EJOSEException.Create(SJOSEEncryptionKeyRequired);
 
+  ASignKey.CheckPermits([TJOSEKeyOperation.Sign], ASignAlg.AsString);
+  AEncryptKey.CheckPermits([TJOSEKeyOperation.Encrypt, TJOSEKeyOperation.WrapKey], AAlg.AsString, AEnc.AsString);
+
   LSignPair := ASignKey.ToKeyPair;
   try
     // PrivateKey is the signing material: the secret for oct, the private PEM
@@ -444,6 +468,37 @@ end;
 
 class function TJOSE.DecryptAndVerify(ADecryptKey, AVerifyKey: TJWK; const ACompactToken: TJOSEBytes;
   AClaimsClass: TJWTClaimsClass): TJWT;
+begin
+  Result := VerifyOrRaise(AVerifyKey, DecryptNested(ADecryptKey, ACompactToken), AClaimsClass);
+end;
+
+class function TJOSE.HeaderMember(const ACompactToken: TJOSEBytes; const AName: string): string;
+var
+  LCompact: TJOSECompactSerialization;
+  LHeader: TJWTHeader;
+begin
+  Result := '';
+  LCompact := TJOSECompactSerialization.Split(ACompactToken);
+  if LCompact.Count = 0 then
+    Exit;
+
+  // Only the header: a JWS payload need not be read for this, and a JWE one
+  // cannot be. An unreadable header is left for the parser to report
+  LHeader := TJWTHeader.Create;
+  try
+    try
+      LHeader.URLEncoded := LCompact[0];
+      Result := TJSONUtils.GetJSONValueAsString(AName, LHeader.JSON);
+    except
+      on EJOSEException do
+        Result := '';
+    end;
+  finally
+    LHeader.Free;
+  end;
+end;
+
+class function TJOSE.DecryptNested(ADecryptKey: TJWK; const ACompactToken: TJOSEBytes): TJOSEBytes;
 var
   LOuter: TJWT;
   LJWE: TJWE;
@@ -467,7 +522,7 @@ begin
   if TJOSECompactSerialization.Split(LInner).Kind <> TJOSECompactKind.JWS then
     raise EJOSEException.Create(SJOSENestedNotJWS);
 
-  Result := VerifyOrRaise(AVerifyKey, LInner, AClaimsClass);
+  Result := LInner;
 end;
 
 class function TJOSE.DecryptAndVerify(const ADecryptKey, AVerifyKey: TJOSEBytes;
@@ -488,28 +543,30 @@ end;
 class function TJOSE.DecryptAndVerify(ADecryptKey, AVerifyKey: TJSONWebKey;
   const ACompactToken: TJOSEBytes; AClaimsClass: TJWTClaimsClass): TJWT;
 var
-  LDecryptPair, LVerifyPair: TKeyPair;
+  LDecryptPair: TKeyPair;
+  LInner: TJOSEBytes;
 begin
   if not Assigned(ADecryptKey) then
     raise EJOSEException.Create(SJOSEDecryptionKeyRequired);
   if not Assigned(AVerifyKey) then
     raise EJOSEException.Create(SJOSEVerificationKeyRequired);
 
+  ADecryptKey.CheckPermits([TJOSEKeyOperation.Decrypt, TJOSEKeyOperation.UnwrapKey],
+    HeaderMember(ACompactToken, 'alg'), HeaderMember(ACompactToken, 'enc'));
+
   LDecryptPair := ADecryptKey.ToKeyPair;
   try
     if LDecryptPair.PrivateKey.Key.IsEmpty then
       raise EJOSEException.Create(SJOSEDecryptionKeyRequired);
 
-    LVerifyPair := AVerifyKey.ToKeyPair;
-    try
-      Result := DecryptAndVerify(LDecryptPair.PrivateKey, LVerifyPair.PublicKey,
-        ACompactToken, AClaimsClass);
-    finally
-      LVerifyPair.Free;
-    end;
+    LInner := DecryptNested(LDecryptPair.PrivateKey, ACompactToken);
   finally
     LDecryptPair.Free;
   end;
+
+  // The JWK overload, so the verification key is checked against the inner
+  // token's own "alg"
+  Result := VerifyOrRaise(AVerifyKey, LInner, AClaimsClass);
 end;
 
 class function TJOSE.CheckCompactToken(const AValue: TJOSEBytes): Boolean;
@@ -731,6 +788,8 @@ begin
   if not Assigned(AKey) then
     raise EJOSEException.Create(SJOSEVerificationKeyRequired);
 
+  AKey.CheckPermits([TJOSEKeyOperation.Verify], HeaderMember(ACompactToken, 'alg'));
+
   // PublicKey carries the verification material for every key type: the secret
   // for oct, the public PEM for RSA and EC
   LKeyPair := AKey.ToKeyPair;
@@ -748,6 +807,8 @@ var
 begin
   if not Assigned(AKey) then
     raise EJOSEException.Create(SJOSEVerificationKeyRequired);
+
+  AKey.CheckPermits([TJOSEKeyOperation.Verify], HeaderMember(ACompactToken, 'alg'));
 
   LKeyPair := AKey.ToKeyPair;
   try

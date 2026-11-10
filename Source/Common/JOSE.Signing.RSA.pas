@@ -38,6 +38,15 @@ type
 
     class function VerifyPublicKey(const AKey: TBytes): Boolean;
     class function VerifyPrivateKey(const AKey: TBytes): Boolean;
+
+    /// <summary>
+    ///   Reads the components of AKey (a PEM public or private key, or an
+    ///   X.509 certificate carrying the public one) into AMaterial. Returns
+    ///   False, leaving AMaterial empty, when the registered stack has no
+    ///   RSA key-material capability (TJOSEProviders.RSAKeyMaterial is
+    ///   optional). Raises whatever the provider raises for an unreadable key
+    /// </summary>
+    class function ReadKeyMaterial(const AKey: TBytes; out AMaterial: TJOSERSAKeyMaterial): Boolean;
   end;
 
 {$ENDIF}
@@ -64,6 +73,25 @@ end;
 class function TRSA.VerifyPrivateKey(const AKey: TBytes): Boolean;
 begin
   Result := TJOSEProviders.RSA.VerifyPrivateKey(AKey);
+end;
+
+class function TRSA.ReadKeyMaterial(const AKey: TBytes; out AMaterial: TJOSERSAKeyMaterial): Boolean;
+const
+  PEM_CERTIFICATE_MARKER = '-----BEGIN CERTIFICATE-----';
+var
+  LKey: TBytes;
+begin
+  AMaterial := Default(TJOSERSAKeyMaterial);
+  if not TJOSEProviders.HasRSAKeyMaterial then
+    Exit(False);
+
+  if Pos(PEM_CERTIFICATE_MARKER, TEncoding.ANSI.GetString(AKey)) > 0 then
+    LKey := TJOSEProviders.Certificate.PublicKeyFromCertificate(AKey)
+  else
+    LKey := AKey;
+
+  AMaterial := TJOSEProviders.RSAKeyMaterial.ImportPEM(LKey);
+  Result := True;
 end;
 
 class function TRSA.VerifyPublicKey(const AKey: TBytes): Boolean;

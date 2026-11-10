@@ -110,6 +110,8 @@ type
     ///   (e.g. a CryptoLib-only stack) does not affect <c>RSA</c>/<c>ECDSA</c>/<c>Certificate</c>
     ///   or JWE.</summary>
     class property RSAKeyMaterial: IJOSERSAKeyMaterialProvider read GetRSAKeyMaterial write SetRSAKeyMaterial;
+    /// <summary>True when the registered stack provides RSA key import/export. Never raises</summary>
+    class function HasRSAKeyMaterial: Boolean; static;
     /// <summary>Optional capability: raw EC key import/export (JWK PEM support). See <c>RSAKeyMaterial</c>.</summary>
     class property ECKeyMaterial: IJOSEECKeyMaterialProvider read GetECKeyMaterial write SetECKeyMaterial;
     /// <summary>Optional capability: RSAES-OAEP, for JWE key management. See <c>AESGCM</c>.</summary>
@@ -339,6 +341,11 @@ end;
 class function TJOSEProviders.HasRSAEncryption: Boolean;
 begin
   Result := FRSAEncryption <> nil;
+end;
+
+class function TJOSEProviders.HasRSAKeyMaterial: Boolean;
+begin
+  Result := FRSAKeyMaterial <> nil;
 end;
 
 {$ENDIF}

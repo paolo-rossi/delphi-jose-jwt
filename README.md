@@ -544,6 +544,46 @@ Tests\Exe\JOSE.Tests.exe
 The JWE tests are written once (`Tests\Source\JOSE.Tests.Providers.JWE.pas`) and run by all three
 projects, so every provider stack is held to the same RFC 7516/7520 vectors.
 
+#### Project Wycheproof vectors
+
+`Tests\JOSE.Tests.dproj` also runs the JOSE test vectors of Google's
+[Project Wycheproof](https://github.com/C2SP/wycheproof) (fixture `TTestWycheproof`, unit
+`Tests\Source\JOSE.Tests.Wycheproof.pas`). These are JWS and JWE tokens produced by other
+implementations, each marked valid or invalid, and most of them built to catch a known class of bug:
+tampered RSA/PSS/ECDSA signatures, out-of-range ECDSA `r`/`s`, `alg: none`, algorithm and key
+confusion, lenient base64url, keys with a forbidden `use`/`key_ops`, weak RSA keys, tampered JWE
+headers, IVs, ciphertexts and tags.
+
+The four vector files are kept unchanged in `Tests\Data\Wycheproof`, pinned to a Wycheproof commit
+(see the `README.md` there, Apache-2.0 licensed). Each file is one test:
+
+| Test | File | Run | Skipped |
+| ---- | ---- | --- | ------- |
+| `JsonWebSignature` | `json_web_signature_test.json` | 401 | 0 |
+| `JsonWebEncryption` | `json_web_encryption_test.json` | 21 | 118 |
+| `JsonWebKey` | `json_web_key_test.json` | 26 | 0 |
+| `JsonWebCrypto` | `json_web_crypto_test.json` | 55 | 28 |
+
+- **Skipped** vectors use algorithms this library does not implement (AES key wrap, ECDH-ES,
+  `RSA1_5`). They are skipped rather than counted as rejected, which would pass every invalid one
+  for the wrong reason.
+- **Known deviations.** The few vectors the library answers differently from Wycheproof are listed
+  in `KNOWN_DEVIATIONS` in the unit, each with its reason: the library is stricter on purpose
+  (`STRICTER`), the vector itself is wrong (`VECTOR`), or the case is flagged ambiguous by Wycheproof
+  or is beyond what a JOSE library checks, such as ROCA-weak moduli (`POLICY`). A test fails when a
+  new vector disagrees, and also when a listed one starts agreeing, so the list cannot go stale.
+- A rejection must come as one of the library's own exceptions: an access violation or a range or
+  encoding error fails the vector even when the token ends up rejected.
+- Wycheproof JWS payloads are opaque bytes rather than JWT claims, so the JWS vectors go through the
+  same steps as `TJOSE.Verify` with a `TJSONWebKey` (`TJWS` parsing, key selection,
+  `CheckPermits`, key validation, signature check) minus the claims parse. JWE vectors go through
+  `TJWE.DecryptPayload` unchanged.
+- They run on the default OpenSSL stack only.
+
+To move to newer vectors, download the four files from a newer Wycheproof commit, update the commit
+in `Tests\Data\Wycheproof\README.md` and run the fixture: its failure message lists every vector
+whose outcome changed.
+
 ## :floppy_disk: Installation
 
 ### Manual installation

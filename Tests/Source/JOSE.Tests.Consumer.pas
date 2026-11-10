@@ -45,11 +45,11 @@ type
 
     [Test]
     [TestCase('TestSameDates', '1606666666,1606666676,1606666666')]
-    procedure TestSameDates(IssuedAt, Expiration, NotBefore: Int64; _Result: Boolean);
+    procedure TestSameDates(IssuedAt, Expiration, NotBefore: Int64);
 
     [Test]
     [TestCase('TestExpired', '1606666666,1606666676')]
-    procedure TestExpired(Expiration, EvaluationTime: Int64; _Result: Boolean);
+    procedure TestExpired(Expiration, EvaluationTime: Int64);
 
     [Test]
     procedure TestAlgNoneIsNotInTheDefaultExpectedAlgorithms;
@@ -85,7 +85,7 @@ procedure TTestConsumer.TearDown;
 begin
 end;
 
-procedure TTestConsumer.TestExpired(Expiration, EvaluationTime: Int64; _Result: Boolean);
+procedure TTestConsumer.TestExpired(Expiration, EvaluationTime: Int64);
 var
   LConsumer: IJOSEConsumer;
 begin
@@ -117,7 +117,7 @@ begin
 
 end;
 
-procedure TTestConsumer.TestSameDates(IssuedAt, Expiration, NotBefore: Int64; _Result: Boolean);
+procedure TTestConsumer.TestSameDates(IssuedAt, Expiration, NotBefore: Int64);
 begin
   FJWT.Claims.IssuedAt := UnixToDateTime(IssuedAt, False);
   FJWT.Claims.Expiration := UnixToDateTime(Expiration, False);

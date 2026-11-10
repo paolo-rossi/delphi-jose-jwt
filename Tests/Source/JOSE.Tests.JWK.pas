@@ -232,6 +232,36 @@ type
 
     [Test]
     procedure TestJWKS_FindByKidAndAlg;
+
+    // A key [alg] this library does not implement still names another algorithm
+    [Test]
+    procedure TestJWKS_FindByKidAndAlg_UnimplementedKeyAlgConstrains;
+
+    [Test]
+    [TestCase('e = 0', 'AA,False')]
+    [TestCase('e = 1', 'AQ,False')]
+    [TestCase('e = 1, leading zero', 'AAE,False')]
+    [TestCase('e = 2', 'Ag,False')]
+    [TestCase('e = 65536', 'AQAA,False')]
+    [TestCase('e = 3', 'Aw,True')]
+    [TestCase('e = 65537', 'AQAB,True')]
+    procedure TestValidate_RSAExponent(const AExponent: string; AValid: Boolean);
+
+    [Test]
+    procedure TestCheckPermits_Use;
+
+    [Test]
+    procedure TestCheckPermits_KeyOps;
+
+    [Test]
+    procedure TestCheckPermits_Alg;
+
+    // TJOSE.Verify/Decrypt with a TJSONWebKey apply CheckPermits
+    [Test]
+    procedure TestVerify_EncryptionKeyIsRefused;
+
+    [Test]
+    procedure TestVerify_KeyAlgMustMatchTheToken;
   end;
 
 implementation
@@ -1763,6 +1793,212 @@ begin
     Assert.IsNull(LSet.FindByKidAndAlg('no-such-kid', TJOSEAlgorithmId.RS256));
   finally
     LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestJWKS_FindByKidAndAlg_UnimplementedKeyAlgConstrains;
+var
+  LSet: TJSONWebKeySet;
+begin
+  // Wycheproof json_web_key_test 25/26: an AES key labelled for content
+  // encryption or key wrap must not turn into an HS256 key
+  LSet := TJSONWebKeySet.FromJSON(
+    '{"keys":[' +
+    '{"kty":"oct","kid":"gcm","alg":"A256GCM","k":"-ebuDNsVZ2iJtoZ-akfXTSCt4UO2cruLCsbWlBinggE"},' +
+    '{"kty":"oct","kid":"kw","alg":"A256KW","k":"-ebuDNsVZ2iJtoZ-akfXTSCt4UO2cruLCsbWlBinggE"},' +
+    '{"kty":"oct","kid":"typo","alg":"HS-256","k":"-ebuDNsVZ2iJtoZ-akfXTSCt4UO2cruLCsbWlBinggE"}]}');
+  try
+    Assert.IsNull(LSet.FindByKidAndAlg('gcm', TJOSEAlgorithmId.HS256));
+    Assert.IsNull(LSet.FindByKidAndAlg('kw', TJOSEAlgorithmId.HS256));
+    Assert.IsNull(LSet.FindByKidAndAlg('typo', TJOSEAlgorithmId.HS256));
+
+    // Unconstrained requests still find them
+    Assert.IsNotNull(LSet.FindByKidAndAlg('kw', TJOSEAlgorithmId.Unknown));
+  finally
+    LSet.Free;
+  end;
+end;
+
+procedure TTestJWK.TestValidate_RSAExponent(const AExponent: string; AValid: Boolean);
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.FromJSON('{"kty":"RSA","n":"' + RFC7517_A1_MODULUS + '","e":"' + AExponent + '"}');
+  try
+    Assert.AreEqual(AValid, LJWK.IsValid);
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure CheckPermitsRaises(AKey: TJSONWebKey; AOperations: TJOSEKeyOperations;
+  const AAlg, AEnc: string; ARaises: Boolean; const AMessage: string);
+var
+  LRaised: Boolean;
+begin
+  LRaised := False;
+  try
+    AKey.CheckPermits(AOperations, AAlg, AEnc);
+  except
+    on EJOSEJWKException do
+      LRaised := True;
+  end;
+  Assert.AreEqual(ARaises, LRaised, AMessage);
+end;
+
+procedure TTestJWK.TestCheckPermits_Use;
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.CreateOct('0123456789abcdef0123456789abcdef');
+  try
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', False, 'no [use]: any purpose');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'dir', '', False, 'no [use]: any purpose');
+
+    LJWK.Use := TJOSEKeyUse.Encryption;
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', True, '"enc" key, verify');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Sign], 'HS256', '', True, '"enc" key, sign');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt, TJOSEKeyOperation.UnwrapKey], 'dir', '', False, '"enc" key, decrypt');
+
+    LJWK.Use := TJOSEKeyUse.Signature;
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', False, '"sig" key, verify');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Encrypt, TJOSEKeyOperation.WrapKey], 'dir', '', True, '"sig" key, encrypt');
+  finally
+    LJWK.Free;
+  end;
+
+  // An unregistered [use] is no purpose this library knows: refused for both
+  LJWK := TJSONWebKey.FromJSON('{"kty":"oct","use":"other","k":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}');
+  try
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', True, 'unregistered [use], verify');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'dir', '', True, 'unregistered [use], decrypt');
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestCheckPermits_KeyOps;
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.CreateOct('0123456789abcdef0123456789abcdef');
+  try
+    LJWK.KeyOps := [TJOSEKeyOperation.Sign, TJOSEKeyOperation.Verify];
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', False, '[sign, verify], verify');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'dir', '', True, '[sign, verify], decrypt');
+
+    LJWK.KeyOps := [TJOSEKeyOperation.Encrypt];
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', True, '[encrypt], verify');
+
+    // One of the names is enough
+    LJWK.KeyOps := [TJOSEKeyOperation.UnwrapKey];
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt, TJOSEKeyOperation.UnwrapKey], 'RSA-OAEP', '', False,
+      '[unwrapKey], decrypt or unwrapKey');
+  finally
+    LJWK.Free;
+  end;
+
+  // Present but empty allows nothing
+  LJWK := TJSONWebKey.FromJSON('{"kty":"oct","key_ops":[],"k":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}');
+  try
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', True, 'empty [key_ops]');
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestCheckPermits_Alg;
+var
+  LJWK: TJSONWebKey;
+begin
+  LJWK := TJSONWebKey.FromJSON('{"kty":"oct","alg":"A128GCM","k":"XctOhJAkA-pD9Lh7ZgW_2A"}');
+  try
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', True, 'A128GCM key, HS256');
+    // RFC 7520 par. 5.6: a "dir" key labelled with its "enc"
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'dir', 'A128GCM', False, 'A128GCM key, dir + A128GCM');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'dir', 'A256GCM', True, 'A128GCM key, dir + A256GCM');
+    // Only for "dir": a key management algorithm is not labelled by "enc"
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Decrypt], 'RSA-OAEP', 'A128GCM', True, 'A128GCM key, RSA-OAEP');
+    // The caller could not tell the algorithm
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], '', '', False, 'A128GCM key, no algorithm');
+  finally
+    LJWK.Free;
+  end;
+
+  LJWK := TJSONWebKey.FromJSON('{"kty":"oct","alg":"HS256","k":"MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY"}');
+  try
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS256', '', False, 'HS256 key, HS256');
+    CheckPermitsRaises(LJWK, [TJOSEKeyOperation.Verify], 'HS512', '', True, 'HS256 key, HS512');
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestVerify_EncryptionKeyIsRefused;
+const
+  SECRET = '0123456789abcdef0123456789abcdef';
+var
+  LToken: TJWT;
+  LCompact: TJOSEBytes;
+  LJWK: TJSONWebKey;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'wycheproof';
+    LCompact := TJOSE.SHA256CompactToken(SECRET, LToken);
+  finally
+    LToken.Free;
+  end;
+
+  LJWK := TJSONWebKey.CreateOct(SECRET);
+  try
+    // Usable as it is
+    LToken := TJOSE.VerifyOrRaise(LJWK, LCompact);
+    LToken.Free;
+
+    LJWK.Use := TJOSEKeyUse.Encryption;
+    Assert.WillRaise(
+      procedure
+      begin
+        TJOSE.Verify(LJWK, LCompact).Free;
+      end,
+      EJOSEJWKException);
+  finally
+    LJWK.Free;
+  end;
+end;
+
+procedure TTestJWK.TestVerify_KeyAlgMustMatchTheToken;
+const
+  SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+var
+  LToken: TJWT;
+  LCompact: TJOSEBytes;
+  LJWK: TJSONWebKey;
+begin
+  LToken := TJWT.Create;
+  try
+    LToken.Claims.Subject := 'wycheproof';
+    LCompact := TJOSE.SHA512CompactToken(SECRET, LToken);
+  finally
+    LToken.Free;
+  end;
+
+  LJWK := TJSONWebKey.CreateOct(SECRET);
+  try
+    LJWK.Alg := TJOSEAlgorithmId.HS256;
+    Assert.WillRaise(
+      procedure
+      begin
+        TJOSE.Verify(LJWK, LCompact).Free;
+      end,
+      EJOSEJWKException);
+
+    LJWK.Alg := TJOSEAlgorithmId.HS512;
+    LToken := TJOSE.VerifyOrRaise(LJWK, LCompact);
+    LToken.Free;
+  finally
+    LJWK.Free;
   end;
 end;
 

@@ -92,6 +92,19 @@ type
     DQ: TBytes;
     QI: TBytes;
     function IsPrivate: Boolean;
+    /// <summary>Size of the modulus in bits, leading zero bytes not counted</summary>
+    function ModulusBits: Integer;
+    /// <summary>
+    ///   True when the public exponent is odd, at least 3 and smaller than
+    ///   the modulus (RFC 8017 par. 3.1). With e = 1 a "signature" is the
+    ///   encoded message itself, so anyone can forge one
+    /// </summary>
+    function HasValidPublicExponent: Boolean;
+    /// <summary>
+    ///   The part of HasValidPublicExponent that needs no modulus: odd and at
+    ///   least 3. What a key's description can be checked for on its own
+    /// </summary>
+    function PublicExponentIsOddAndAboveOne: Boolean;
   end;
 
   /// <summary>Raw EC key components (RFC 7518 6.2), as used by IJOSEECKeyMaterialProvider.</summary>
@@ -245,6 +258,69 @@ end;
 function TJOSERSAKeyMaterial.IsPrivate: Boolean;
 begin
   Result := Length(PrivateExponent) > 0;
+end;
+
+/// <summary>Index of the first non-zero byte of AValue, Length(AValue) when all are zero</summary>
+function FirstSignificantByte(const AValue: TBytes): Integer;
+begin
+  Result := 0;
+  while (Result < Length(AValue)) and (AValue[Result] = 0) do
+    Inc(Result);
+end;
+
+function TJOSERSAKeyMaterial.ModulusBits: Integer;
+var
+  LFirst: Integer;
+  LTop: Byte;
+begin
+  LFirst := FirstSignificantByte(Modulus);
+  if LFirst = Length(Modulus) then
+    Exit(0);
+
+  Result := (Length(Modulus) - LFirst - 1) * 8;
+  LTop := Modulus[LFirst];
+  while LTop <> 0 do
+  begin
+    Inc(Result);
+    LTop := LTop shr 1;
+  end;
+end;
+
+function TJOSERSAKeyMaterial.PublicExponentIsOddAndAboveOne: Boolean;
+var
+  LFirst: Integer;
+begin
+  LFirst := FirstSignificantByte(PublicExponent);
+
+  // Even, or zero (no significant byte at all)
+  if (LFirst = Length(PublicExponent)) or not Odd(PublicExponent[High(PublicExponent)]) then
+    Exit(False);
+
+  // 1 is the only odd value below 3
+  Result := not ((LFirst = High(PublicExponent)) and (PublicExponent[LFirst] = 1));
+end;
+
+function TJOSERSAKeyMaterial.HasValidPublicExponent: Boolean;
+var
+  LFirstE, LFirstN, LLengthE, LLengthN, LIndex: Integer;
+begin
+  if not PublicExponentIsOddAndAboveOne then
+    Exit(False);
+
+  LFirstE := FirstSignificantByte(PublicExponent);
+  LLengthE := Length(PublicExponent) - LFirstE;
+
+  // e < n, compared as big-endian unsigned integers
+  LFirstN := FirstSignificantByte(Modulus);
+  LLengthN := Length(Modulus) - LFirstN;
+  if LLengthE <> LLengthN then
+    Exit(LLengthE < LLengthN);
+
+  for LIndex := 0 to LLengthE - 1 do
+    if PublicExponent[LFirstE + LIndex] <> Modulus[LFirstN + LIndex] then
+      Exit(PublicExponent[LFirstE + LIndex] < Modulus[LFirstN + LIndex]);
+
+  Result := False;
 end;
 
 { TJOSEECKeyMaterial }

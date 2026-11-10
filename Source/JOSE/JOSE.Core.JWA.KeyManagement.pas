@@ -121,6 +121,9 @@ implementation
 
 uses
   JOSE.Providers,
+{$IFDEF RSA_SIGNING}
+  JOSE.Signing.RSA,
+{$ENDIF}
   JOSE.Providers.Interfaces;
 
 resourcestring
@@ -129,6 +132,7 @@ resourcestring
   SJOSEDirEncryptedKeyNotEmpty = 'A "dir" JWE must have an empty Encrypted Key';
   SJOSERSAOAEPKeyTooSmall = 'RSA-OAEP needs an RSA key of at least %d bits, not %d';
   SJOSERSAOAEPKeyUnreadable = 'The RSA-OAEP key cannot be used: %s';
+  SJOSERSAOAEPKeyBadExponent = 'RSA-OAEP needs an RSA key whose public exponent is odd, at least 3 and smaller than the modulus';
   SJOSERSAOAEPNoEncryptedKey = 'An RSA-OAEP JWE must have an Encrypted Key';
 
 { TDirAlgorithm }
@@ -210,6 +214,8 @@ end;
 class procedure TRSAOAEPAlgorithm.CheckKeySize(const AKey: TJOSEBytes; AIsPrivate: Boolean);
 var
   LBits: Integer;
+  LMaterial: TJOSERSAKeyMaterial;
+  LHasMaterial: Boolean;
 begin
   // The RSA encryption capability owns the key parsing, so it is asked for the
   // modulus size; the minimum itself is the RFC 7518 par. 4.3 rule and stays
@@ -223,6 +229,11 @@ begin
       LBits := TJOSEProviders.RSAEncryption.PrivateKeyBits(AKey.AsBytes)
     else
       LBits := TJOSEProviders.RSAEncryption.PublicKeyBits(AKey.AsBytes);
+
+    // With e = 1 the "encrypted" key is the OAEP encoding of the CEK, which
+    // anyone can undo. The components are read only where the stack can
+    // (TJOSEProviders.RSAKeyMaterial is optional)
+    LHasMaterial := TRSA.ReadKeyMaterial(AKey.AsBytes, LMaterial);
   except
     on E: EJOSEProvidersNotRegistered do
       raise;
@@ -232,6 +243,9 @@ begin
 
   if LBits < RSA_OAEP_MIN_KEY_BITS then
     raise EJOSEKeyManagementKeyException.CreateFmt(SJOSERSAOAEPKeyTooSmall, [RSA_OAEP_MIN_KEY_BITS, LBits]);
+
+  if LHasMaterial and not LMaterial.HasValidPublicExponent then
+    raise EJOSEKeyManagementKeyException.Create(SJOSERSAOAEPKeyBadExponent);
 end;
 
 function TRSAOAEPAlgorithm.ManageForEncrypt(const AKey: TJOSEBytes; ACEKLength: Integer;

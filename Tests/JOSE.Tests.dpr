@@ -39,7 +39,8 @@ uses
   JOSE.Tests.JWA.RSA in 'Source\JOSE.Tests.JWA.RSA.pas',
   JOSE.Tests.Providers in 'Source\JOSE.Tests.Providers.pas',
   JOSE.Tests.Providers.JWE in 'Source\JOSE.Tests.Providers.JWE.pas',
-  JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas';
+  JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas',
+  JOSE.Tests.Wycheproof in 'Source\JOSE.Tests.Wycheproof.pas';
 
 var
   LRunner : ITestRunner;

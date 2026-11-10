@@ -54,7 +54,7 @@ type
     fn_BN_bn2dec = 'BN_bn2dec';
     fn_BN_dec2bn = 'BN_dec2bn';
     fn_BN_copy = 'BN_copy';
-    fn_BN_dup = 'BN_copy';
+    fn_BN_dup = 'BN_dup';
     fn_BN_clear_free = 'BN_clear_free';
 
     fn_X509_get_pubkey = 'X509_get_pubkey';

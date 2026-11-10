@@ -911,17 +911,21 @@ end;
 function TDefaultECDSAProvider.VerifyPrivateKey(const AKey: TBytes): Boolean;
 var
   LBio: PBIO;
-  LPrivKey: PEVP_PKEY;
+  LPrivKey: PEC_KEY;
 begin
   TJOSEDefaultOpenSslPem.LoadOpenSSL;
 
   LBio := BIO_new(BIO_s_mem);
   try
     BIO_write(LBio, @AKey[0], Length(AKey));
+    // An EC_KEY, not an EVP_PKEY: it must go back through EC_KEY_free. Freed
+    // as an EVP_PKEY, its fields were read as EVP_PKEY's, which on Win64 put
+    // the low half of a heap pointer where the reference count is, and half
+    // the time made OpenSSL call through a garbage method table
     LPrivKey := JoseSSL.PEM_read_bio_ECPrivateKey(LBio, nil, nil, nil);
     Result := (LPrivKey <> nil);
     if Result then
-      EVP_PKEY_free(LPrivKey);
+      JoseSSL.EC_KEY_free(LPrivKey);
   finally
     BIO_free(LBio);
   end;

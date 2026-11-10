@@ -127,7 +127,8 @@ implementation
 uses
   System.Types,
   System.StrUtils,
-  JOSE.Encoding.Base64;
+  JOSE.Encoding.Base64,
+  JOSE.Providers;
 
 resourcestring
   SJOSEKeyIsNull = 'Key is null';
@@ -313,6 +314,42 @@ resourcestring
   SJOSEUnsupportedRSAAlgorithmId = 'Not an RSA signing algorithm: %s';
   SJOSEKeyNotECDSAPem = 'Key is not ECDSA key in PEM format';
   SJOSEECDSASignatureLength = '%s requires a %d byte signature (RFC 7518 par. 3.4), got %d bytes';
+  SJOSERSAKeyTooSmall = 'RSA signing keys must be at least %d bits (RFC 7518 par. 3.3 and 3.5), got %d';
+  SJOSERSAKeyBadExponent = 'The RSA key has an invalid public exponent (it must be odd, at least 3 and smaller than the modulus)';
+
+const
+  // RFC 7518 par. 3.3 (RS*) and 3.5 (PS*)
+  RSA_SIGNING_MIN_KEY_BITS = 2048;
+
+/// <summary>
+///   Refuses an RSA key that is too small, or whose public exponent makes
+///   signatures forgeable. Checked when the stack can read the key's
+///   components (TJOSEProviders.RSAKeyMaterial, which every built-in stack
+///   registers); a custom stack without that capability is not checked
+/// </summary>
+procedure CheckRSAKeyStrength(const AKey: TJOSEBytes);
+var
+  LMaterial: TJOSERSAKeyMaterial;
+  LRead: Boolean;
+begin
+  try
+    LRead := TRSA.ReadKeyMaterial(AKey.AsBytes, LMaterial);
+  except
+    on E: EJOSEProvidersNotRegistered do
+      raise;
+    on E: Exception do
+      raise EJOSEException.Create(SJOSEKeyNotRSAPem);
+  end;
+
+  if not LRead then
+    Exit;
+
+  if LMaterial.ModulusBits < RSA_SIGNING_MIN_KEY_BITS then
+    raise EJOSEException.CreateFmt(SJOSERSAKeyTooSmall, [RSA_SIGNING_MIN_KEY_BITS, LMaterial.ModulusBits]);
+
+  if not LMaterial.HasValidPublicExponent then
+    raise EJOSEException.Create(SJOSERSAKeyBadExponent);
+end;
 
 { TRSAAlgorithm }
 
@@ -382,6 +419,8 @@ begin
 
   if not TRSA.VerifyPrivateKey(AKey) then
     raise EJOSEException.Create(SJOSEKeyNotRSAPem);
+
+  CheckRSAKeyStrength(AKey);
 end;
 
 procedure TRSAUsingSHAAlgorithm.ValidateVerificationKey(const AKey: TJOSEBytes);
@@ -391,6 +430,10 @@ begin
 
   if not TRSA.VerifyPublicKey(AKey) then
     raise EJOSEException.Create(SJOSEKeyNotRSAPem);
+
+  // A forged signature under an e = 1 key verifies, and RFC 7518 sets the
+  // same minimum size for verifying as for signing
+  CheckRSAKeyStrength(AKey);
 end;
 
 function TRSAUsingSHAAlgorithm.VerifySignature(const AKey, AInput, ASignature: TJOSEBytes): Boolean;

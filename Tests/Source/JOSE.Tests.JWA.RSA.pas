@@ -139,13 +139,50 @@ type
 
     [Test]
     procedure TestRSAPublicKeyIsRejectedAsHmacSecret;
+
+    // RFC 7518 par. 3.3: 2048 bits or more, for verifying as for signing
+    [Test]
+    procedure TestRSAVerifyRejectsKeyBelow2048Bits;
+
+    // With e = 1 the EMSA-PKCS1-v1_5 encoding of the signing input is itself
+    // a valid "signature" (Wycheproof json_web_key_test 9)
+    [Test]
+    procedure TestRSAVerifyRejectsPublicExponentOne;
   end;
 
 implementation
 
 uses
-  System.DateUtils, System.IOUtils,
+  System.DateUtils, System.IOUtils, System.Hash,
+  JOSE.Providers,
   JOSE.Tests.Utils;
+
+/// <summary>Verifies with the key checks on, as TJOSE.Verify does; returns the message of what it raised, '' when nothing</summary>
+function VerifyWithKeyChecks(AKey: TJWK; const ACompact: string): string;
+var
+  LToken: TJWT;
+  LSigner: TJWS;
+begin
+  Result := '';
+  LToken := TJWT.Create;
+  try
+    LSigner := TJWS.Create(LToken);
+    try
+      LSigner.SetKey(AKey);
+      LSigner.CompactToken := ACompact;
+      try
+        LSigner.VerifySignature;
+      except
+        on E: EJOSEException do
+          Result := E.Message;
+      end;
+    finally
+      LSigner.Free;
+    end;
+  finally
+    LToken.Free;
+  end;
+end;
 
 procedure TTestJWA.Setup;
 var
@@ -420,6 +457,62 @@ begin
     end;
   finally
     LToken.Free;
+  end;
+end;
+
+procedure TTestJWA.TestRSAVerifyRejectsKeyBelow2048Bits;
+var
+  LKey: TJWK;
+begin
+  LKey := TJWK.Create(TFile.ReadAllBytes(TPath.Combine(FKeysPath, 'rsa1024-public.pem')));
+  try
+    Assert.Contains(VerifyWithKeyChecks(LKey, SignWith(TJOSEAlgorithmId.RS256)), 'at least 2048 bits');
+    Assert.Contains(VerifyWithKeyChecks(LKey, SignWith(TJOSEAlgorithmId.PS256)), 'at least 2048 bits');
+  finally
+    LKey.Free;
+  end;
+end;
+
+procedure TTestJWA.TestRSAVerifyRejectsPublicExponentOne;
+const
+  // DER DigestInfo prefix for SHA-256 (RFC 8017 par. 9.2, note 1)
+  SHA256_DIGEST_INFO: array[0..18] of Byte =
+    ($30, $31, $30, $0D, $06, $09, $60, $86, $48, $01, $65, $03, $04, $02, $01, $05, $00, $04, $20);
+var
+  LMaterial: TJOSERSAKeyMaterial;
+  LKey: TJWK;
+  LInput: string;
+  LHash, LEM: TBytes;
+  LLength, LIndex, LPos: Integer;
+begin
+  // The test key's modulus with e = 1, written out by the provider directly:
+  // TJSONWebKey would refuse to build it
+  LMaterial := TJOSEProviders.RSAKeyMaterial.ImportPEM(FKeys.PublicKey.Key.AsBytes);
+  LMaterial.PublicExponent := TBytes.Create(1);
+  LKey := TJWK.Create(TJOSEProviders.RSAKeyMaterial.ExportPEM(LMaterial, False));
+  try
+    // EM = 00 01 FF..FF 00 DigestInfo H, as long as the modulus
+    LInput := HEADER_RS256 + '.' + COMPACT_PAYLOAD;
+    LHash := THashSHA2.GetHashBytes(LInput);
+    LLength := (LMaterial.ModulusBits + 7) div 8;
+    SetLength(LEM, LLength);
+    LEM[0] := $00;
+    LEM[1] := $01;
+    LPos := LLength - Length(LHash) - Length(SHA256_DIGEST_INFO) - 1;
+    for LIndex := 2 to LPos - 1 do
+      LEM[LIndex] := $FF;
+    LEM[LPos] := $00;
+    Move(SHA256_DIGEST_INFO[0], LEM[LPos + 1], Length(SHA256_DIGEST_INFO));
+    Move(LHash[0], LEM[LPos + 1 + Length(SHA256_DIGEST_INFO)], Length(LHash));
+
+    // The forgery is real: without the key checks it verifies
+    Assert.IsTrue(VerifyCompact(LKey, LInput + '.' + TBase64.URLEncode(LEM).AsString),
+      'The forged signature should verify when the key is not checked');
+
+    Assert.Contains(VerifyWithKeyChecks(LKey, LInput + '.' + TBase64.URLEncode(LEM).AsString),
+      'public exponent');
+  finally
+    LKey.Free;
   end;
 end;
 

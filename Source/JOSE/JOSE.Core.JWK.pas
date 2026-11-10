@@ -133,6 +133,8 @@ type
   /// </summary>
   TJSONWebKey = class(TJOSEBase)
   private
+    procedure CheckRSAExponent;
+    procedure CheckAlg(const AAlg, AEnc: string);
     function GetStringMember(const AName: string): string;
     procedure SetStringMember(const AName, AValue: string);
     function GetBytesMember(const AName: string): TJOSEBytes;
@@ -215,6 +217,27 @@ type
     procedure Validate;
     /// <summary><c>Validate</c> as a test rather than an exception.</summary>
     function IsValid: Boolean;
+
+    /// <summary>
+    ///   Raises <c>EJOSEJWKException</c> unless this key's own metadata lets it be used for one
+    ///   of AOperations with the algorithm AAlg (RFC 7517 par. 4.2-4.4):
+    ///   <para>[use], when present, must name the purpose of AOperations (<c>sig</c> for
+    ///   sign/verify, <c>enc</c> for the others); any other value, an unregistered one included,
+    ///   is refused.</para>
+    ///   <para>[key_ops], when present, must list at least one of AOperations.</para>
+    ///   <para>[alg], when present, must be AAlg exactly. An [alg] this library does not
+    ///   implement still names some other algorithm, so it constrains like any other. An empty
+    ///   AAlg (the caller could not tell the algorithm) skips this one check. With AAlg "dir"
+    ///   the key is the content encryption key itself, and may be labelled with the "enc"
+    ///   algorithm instead, as RFC 7520 par. 5.6 does: pass it as AEnc.</para>
+    /// </summary>
+    /// <remarks>
+    ///   AOperations is a set because one purpose can have two names: a JWE decryption key may
+    ///   say <c>decrypt</c> or <c>unwrapKey</c>. All of AOperations must belong to one purpose.
+    ///   The <c>TJOSE</c> methods that take a <c>TJSONWebKey</c> call it; code that turns a JWK
+    ///   into raw key material itself should too.
+    /// </remarks>
+    procedure CheckPermits(AOperations: TJOSEKeyOperations; const AAlg: string; const AEnc: string = '');
 
     /// <summary>
     ///   A new key holding only this one's public half - the members that are safe to publish in
@@ -362,7 +385,9 @@ type
     ///   declare one is treated as unconstrained and matches any AAlg - a strict comparison would
     ///   return nil for very nearly every real-world JWKS. Passing <c>Unknown</c> as AAlg means
     ///   the caller is not constraining either, making this equivalent to <c>FindByKid</c>. Only
-    ///   a key and a request that both name an algorithm, and disagree, fail to match.
+    ///   a key and a request that both name an algorithm, and disagree, fail to match. The key's
+    ///   [alg] is compared as written: one this library does not implement (<c>RSA1_5</c>,
+    ///   <c>A256KW</c>, a misspelling) names some other algorithm, and does not match.
     ///   <para>This is key *selection*, not authorisation: it will hand back a key whose own
     ///   [alg] is absent for whatever algorithm the token asked for, so keep enforcing an
     ///   algorithm allowlist on the consumer side.</para>
@@ -430,7 +455,11 @@ resourcestring
   SJOSEJWKUnsupportedCurve = '[JWK] Unsupported EC curve';
   SJOSEJWKMissingKty = '[JWK] Missing required JWK member [kty]';
   SJOSEJWKMissingMember = '[JWK] Missing required member [%s] for a key of type [%s]';
-  SJOSEJWKIncompleteRSACRT = '[JWK] An RSA private key must carry either all of [p, q, dp, dq, qi] or none of them';
+  SJOSEJWKBadRSAExponent = '[JWK] The RSA public exponent [e] must be odd and at least 3';
+  SJOSEJWKUseForbids = '[JWK] The key is for [use] "%s", it cannot be used to %s';
+  SJOSEJWKKeyOpsForbid = '[JWK] The key''s [key_ops] do not allow it to %s';
+  SJOSEJWKAlgForbids = '[JWK] The key is for [alg] "%s", it cannot be used with "%s"';
+  SJOSEJWKIncompleteRSACRT ='[JWK] An RSA private key must carry either all of [p, q, dp, dq, qi] or none of them';
   SJOSEJWKNoPublicHalf = '[JWK] Only RSA and EC keys have a public half - an [oct] key is entirely secret';
   SJOSEJWKMissingCrv = '[JWK] Missing required JWK member [crv]';
   SJOSEJWKInvalidJSON = '[JWK] Invalid JSON';
@@ -1070,6 +1099,7 @@ begin
     begin
       CheckMember(N, 'n');
       CheckMember(E, 'e');
+      CheckRSAExponent;
 
       if IsPrivate then
       begin
@@ -1101,6 +1131,82 @@ begin
       CheckMember(Y, 'y');
     end;
   end;
+end;
+
+procedure TJSONWebKey.CheckRSAExponent;
+{$IFDEF RSA_SIGNING}
+var
+  LMaterial: TJOSERSAKeyMaterial;
+begin
+  // With e = 1 a forged signature verifies, whatever the key's size, so such
+  // a key is not a key at all. Only what the exponent says on its own is
+  // checked here; e < n is checked with the rest of the key when it is used
+  // (RS*/PS* and RSA-OAEP key validation)
+  LMaterial.PublicExponent := E.AsBytes;
+  if not LMaterial.PublicExponentIsOddAndAboveOne then
+    raise EJOSEJWKException.Create(SJOSEJWKBadRSAExponent);
+end;
+{$ELSE}
+begin
+end;
+{$ENDIF}
+
+procedure TJSONWebKey.CheckPermits(AOperations: TJOSEKeyOperations; const AAlg, AEnc: string);
+const
+  SIGNATURE_OPERATIONS: TJOSEKeyOperations = [TJOSEKeyOperation.Sign, TJOSEKeyOperation.Verify];
+var
+  LPurpose, LUse, LOperation, LName: string;
+  LOp: TJOSEKeyOperation;
+  LAllowed: Boolean;
+begin
+  if AOperations <= SIGNATURE_OPERATIONS then
+    LPurpose := 'sig'
+  else
+    LPurpose := 'enc';
+
+  // Names the operation(s) in the messages: "verify", "decrypt or unwrapKey"
+  LOperation := '';
+  for LOp in AOperations do
+  begin
+    if LOperation <> '' then
+      LOperation := LOperation + ' or ';
+    LOperation := LOperation + KeyOpNames[LOp];
+  end;
+
+  // RFC 7517 par. 4.2. Read as written: an unregistered value is not "unspecified"
+  LUse := GetStringMember('use');
+  if (LUse <> '') and (LUse <> LPurpose) then
+    raise EJOSEJWKException.CreateFmt(SJOSEJWKUseForbids, [LUse, LOperation]);
+
+  // RFC 7517 par. 4.3. A present but empty array allows nothing
+  if Assigned(FJSON.GetValue('key_ops')) then
+  begin
+    LAllowed := False;
+    for LName in GetStringArrayMember('key_ops') do
+      for LOp in AOperations do
+        if LName = KeyOpNames[LOp] then
+          LAllowed := True;
+    if not LAllowed then
+      raise EJOSEJWKException.CreateFmt(SJOSEJWKKeyOpsForbid, [LOperation]);
+  end;
+
+  CheckAlg(AAlg, AEnc);
+end;
+
+procedure TJSONWebKey.CheckAlg(const AAlg, AEnc: string);
+var
+  LKeyAlg: string;
+begin
+  // RFC 7517 par. 4.4, compared as written (see FindByKidAndAlg)
+  LKeyAlg := GetStringMember('alg');
+  if (AAlg = '') or (LKeyAlg = '') or (LKeyAlg = AAlg) then
+    Exit;
+
+  // A "dir" key is the content encryption key, labelled by its "enc"
+  if (AAlg = 'dir') and (AEnc <> '') and (LKeyAlg = AEnc) then
+    Exit;
+
+  raise EJOSEJWKException.CreateFmt(SJOSEJWKAlgForbids, [LKeyAlg, AAlg]);
 end;
 
 function TJSONWebKey.IsValid: Boolean;
@@ -1449,9 +1555,11 @@ begin
 
   for LKey in FKeys do
     if LKey.Kid = AKid then
-      // Unknown on either side means "unconstrained", so only two stated algorithms can conflict.
-      if (AAlg = TJOSEAlgorithmId.Unknown) or (LKey.Alg = TJOSEAlgorithmId.Unknown) or
-         (LKey.Alg = AAlg) then
+      // An absent [alg], or an Unknown request, means "unconstrained". The key's [alg] is read
+      // as written: mapping it through TJOSEAlgorithmId would turn an algorithm this library
+      // does not implement into Unknown, and so into a key usable with anything.
+      if (AAlg = TJOSEAlgorithmId.Unknown) or (LKey.GetStringMember('alg') = '') or
+         (LKey.GetStringMember('alg') = AAlg.AsString) then
         Exit(LKey);
 end;
 
