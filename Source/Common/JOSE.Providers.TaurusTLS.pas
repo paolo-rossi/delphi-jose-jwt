@@ -102,6 +102,28 @@ type
     function ExportPEM(const AKeyMaterial: TJOSEECKeyMaterial; AIncludePrivate: Boolean): TBytes;
   end;
 
+  /// <summary>AES-GCM (JWE A128GCM/A192GCM/A256GCM) via the TaurusTLS EVP cipher API.</summary>
+  TTaurusTLSAESGCMProvider = class(TInterfacedObject, IJOSEAESGCMProvider)
+  public
+    function Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes; out ATag: TBytes): TBytes;
+    function Decrypt(const ACiphertext, AKey, AIV, AAdditionalData, ATag: TBytes): TBytes;
+  end;
+
+  /// <summary>
+  ///   RSAES-OAEP (JWE RSA-OAEP/RSA-OAEP-256) via TaurusTLS. Uses the EVP_PKEY API, with the
+  ///   OAEP and MGF1 digests set explicitly: the legacy RSA_public_encrypt only does SHA-1.
+  /// </summary>
+  TTaurusTLSRSAEncryptionProvider = class(TInterfacedObject, IJOSERSAEncryptionProvider)
+  private
+    FCertificate: IJOSECertificateProvider;
+    function LoadPublicKey(const AKey: TBytes): Pointer;
+    function LoadPrivateKey(const AKey: TBytes): Pointer;
+  public
+    constructor Create(const ACertificate: IJOSECertificateProvider);
+    function Encrypt(const APlaintext, APublicKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+    function Decrypt(const ACiphertext, APrivateKey: TBytes; ADigest: TJOSEOAEPDigest): TBytes;
+  end;
+
 {$ENDIF}
 
   /// <summary>Wires TaurusTLS-backed implementations (OpenSSL 3.x/4.x capable) into TJOSEProviders.</summary>
@@ -127,6 +149,7 @@ uses
   TaurusTLSHeaders_x509,
   TaurusTLSHeaders_sha,
   TaurusTLSHeaders_obj_mac,
+  TaurusTLSHeaders_crypto,
   JOSE.Signing.Base,
 {$ENDIF}
   JOSE.Providers,
@@ -179,6 +202,18 @@ resourcestring
   SJOSETaurusTLSJWKWriteECPrivateError = '[JWK] Unable to write the EC private key PEM';
   SJOSETaurusTLSJWKWriteECPublicError = '[JWK] Unable to write the EC public key PEM';
   SJOSETaurusTLSBIOReadError = '[TaurusTLS] Error reading from a memory BIO';
+  SJOSETaurusTLSGCMKeyLength = '[TaurusTLS] AES-GCM key must be 16, 24 or 32 bytes, not %d';
+  SJOSETaurusTLSGCMIVLength = '[TaurusTLS] AES-GCM IV must be 12 bytes, not %d';
+  SJOSETaurusTLSGCMTagLength = '[TaurusTLS] AES-GCM authentication tag must be 16 bytes, not %d';
+  SJOSETaurusTLSGCMEncryptError = '[TaurusTLS] AES-GCM encryption error (%s)';
+  // Deliberately without detail: see IJOSEAESGCMProvider.Decrypt
+  SJOSETaurusTLSGCMDecryptFailed = '[TaurusTLS] AES-GCM decryption failed';
+  SJOSETaurusTLSOAEPKeyNotRSA = '[TaurusTLS] RSA-OAEP needs an RSA key';
+  SJOSETaurusTLSOAEPLoadPublicKeyError = '[TaurusTLS] RSA-OAEP: unable to load the public key';
+  SJOSETaurusTLSOAEPLoadPrivateKeyError = '[TaurusTLS] RSA-OAEP: unable to load the private key';
+  SJOSETaurusTLSOAEPEncryptError = '[TaurusTLS] RSA-OAEP encryption error (%s)';
+  // Deliberately without detail: see IJOSERSAEncryptionProvider.Decrypt
+  SJOSETaurusTLSOAEPDecryptFailed = '[TaurusTLS] RSA-OAEP decryption failed';
 
 { Shared helpers }
 
@@ -1318,6 +1353,343 @@ begin
   end;
 end;
 
+{ AES-GCM }
+
+const
+  // JOSE fixes both (RFC 7518 par. 5.3): a 96-bit IV and a 128-bit tag
+  TAURUS_GCM_IV_BYTES = 12;
+  TAURUS_GCM_TAG_BYTES = 16;
+
+function TaurusGCMCipher(AKeyLength: Integer): PEVP_CIPHER;
+begin
+  case AKeyLength of
+    16: Result := EVP_aes_128_gcm;
+    24: Result := EVP_aes_192_gcm;
+    32: Result := EVP_aes_256_gcm;
+  else
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMKeyLength, [AKeyLength]);
+  end;
+end;
+
+// Sets up ACtx for one AES-GCM operation: cipher, IV length, key, IV, AAD
+function TaurusGCMInit(ACtx: PEVP_CIPHER_CTX; AForEncryption: Boolean;
+  const AKey, AIV, AAdditionalData: TBytes): Boolean;
+var
+  LCipher: PEVP_CIPHER;
+  LLen: TIdC_INT;
+begin
+  LCipher := TaurusGCMCipher(Length(AKey));
+
+  // Cipher first, IV length next, then key and IV: the IV length has to be
+  // set before the IV is (96 bits is GCM's default, set anyway for clarity)
+  if AForEncryption then
+    Result :=
+      (EVP_EncryptInit_ex(ACtx, LCipher, nil, nil, nil) = 1) and
+      (EVP_CIPHER_CTX_ctrl(ACtx, EVP_CTRL_GCM_SET_IVLEN, TAURUS_GCM_IV_BYTES, nil) = 1) and
+      (EVP_EncryptInit_ex(ACtx, nil, nil, @AKey[0], @AIV[0]) = 1)
+  else
+    Result :=
+      (EVP_DecryptInit_ex(ACtx, LCipher, nil, nil, nil) = 1) and
+      (EVP_CIPHER_CTX_ctrl(ACtx, EVP_CTRL_GCM_SET_IVLEN, TAURUS_GCM_IV_BYTES, nil) = 1) and
+      (EVP_DecryptInit_ex(ACtx, nil, nil, @AKey[0], @AIV[0]) = 1);
+
+  // The AAD goes through Update with no output buffer
+  if Result and (Length(AAdditionalData) > 0) then
+  begin
+    if AForEncryption then
+      Result := EVP_EncryptUpdate(ACtx, PByte(nil)^, LLen, AAdditionalData[0], Length(AAdditionalData)) = 1
+    else
+      Result := EVP_DecryptUpdate(ACtx, PByte(nil)^, LLen, AAdditionalData[0], Length(AAdditionalData)) = 1;
+  end;
+end;
+
+{ TTaurusTLSAESGCMProvider }
+
+function TTaurusTLSAESGCMProvider.Encrypt(const APlaintext, AKey, AIV, AAdditionalData: TBytes;
+  out ATag: TBytes): TBytes;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LLen, LTotal: TIdC_INT;
+  LFinal: array[0..TAURUS_GCM_TAG_BYTES - 1] of Byte;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+  TaurusGCMCipher(Length(AKey));
+  if Length(AIV) <> TAURUS_GCM_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMIVLength, [Length(AIV)]);
+
+  LCtx := EVP_CIPHER_CTX_new;
+  if LCtx = nil then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMEncryptError, ['context']);
+  try
+    if not TaurusGCMInit(LCtx, True, AKey, AIV, AAdditionalData) then
+      raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMEncryptError, ['init']);
+
+    SetLength(Result, Length(APlaintext));
+    LTotal := 0;
+    if Length(APlaintext) > 0 then
+    begin
+      if EVP_EncryptUpdate(LCtx, Result[0], LLen, APlaintext[0], Length(APlaintext)) <> 1 then
+        raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMEncryptError, ['update']);
+      LTotal := LLen;
+    end;
+
+    // GCM is a stream mode: Final writes nothing, but wants a buffer anyway
+    if EVP_EncryptFinal_ex(LCtx, LFinal[0], LLen) <> 1 then
+      raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMEncryptError, ['final']);
+    SetLength(Result, LTotal + LLen);
+
+    SetLength(ATag, TAURUS_GCM_TAG_BYTES);
+    if EVP_CIPHER_CTX_ctrl(LCtx, EVP_CTRL_GCM_GET_TAG, TAURUS_GCM_TAG_BYTES, @ATag[0]) <> 1 then
+      raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMEncryptError, ['tag']);
+  finally
+    EVP_CIPHER_CTX_free(LCtx);
+  end;
+end;
+
+function TTaurusTLSAESGCMProvider.Decrypt(const ACiphertext, AKey, AIV, AAdditionalData,
+  ATag: TBytes): TBytes;
+var
+  LCtx: PEVP_CIPHER_CTX;
+  LTag, LOutput: TBytes;
+  LLen, LTotal: TIdC_INT;
+  LFinal: array[0..TAURUS_GCM_TAG_BYTES - 1] of Byte;
+  LOk: Boolean;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+  TaurusGCMCipher(Length(AKey));
+  if Length(AIV) <> TAURUS_GCM_IV_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMIVLength, [Length(AIV)]);
+  if Length(ATag) <> TAURUS_GCM_TAG_BYTES then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSGCMTagLength, [Length(ATag)]);
+
+  LCtx := EVP_CIPHER_CTX_new;
+  if LCtx = nil then
+    raise EJOSECryptoException.Create(SJOSETaurusTLSGCMDecryptFailed);
+  try
+    SetLength(LOutput, Length(ACiphertext));
+    LTotal := 0;
+
+    LOk := TaurusGCMInit(LCtx, False, AKey, AIV, AAdditionalData);
+    if LOk and (Length(ACiphertext) > 0) then
+    begin
+      LOk := EVP_DecryptUpdate(LCtx, LOutput[0], LLen, ACiphertext[0], Length(ACiphertext)) = 1;
+      LTotal := LLen;
+    end;
+
+    // The expected tag, set before Final, which is where it is checked
+    LTag := Copy(ATag);
+    LOk := LOk and (EVP_CIPHER_CTX_ctrl(LCtx, EVP_CTRL_GCM_SET_TAG, TAURUS_GCM_TAG_BYTES, @LTag[0]) = 1);
+    // Declared by TaurusTLS with a PEVP_MD_CTX parameter: it is the cipher context
+    LOk := LOk and (EVP_DecryptFinal_ex(PEVP_MD_CTX(LCtx), LFinal[0], LLen) > 0);
+
+    // Update has already written plaintext: none of it may survive a failure
+    if not LOk then
+    begin
+      if Length(LOutput) > 0 then
+        FillChar(LOutput[0], Length(LOutput), 0);
+      raise EJOSECryptoException.Create(SJOSETaurusTLSGCMDecryptFailed);
+    end;
+
+    SetLength(LOutput, LTotal + LLen);
+    Result := LOutput;
+  finally
+    EVP_CIPHER_CTX_free(LCtx);
+  end;
+end;
+
+{ RSAES-OAEP }
+
+function BytesStartWith(const ABuf, APrefix: TBytes): Boolean;
+begin
+  Result := (Length(ABuf) >= Length(APrefix)) and (Length(APrefix) > 0) and
+    CompareMem(@ABuf[0], @APrefix[0], Length(APrefix));
+end;
+
+// EVP_PKEY_OP_ENCRYPT or EVP_PKEY_OP_DECRYPT, for the OpenSSL actually loaded.
+// TaurusTLS declares the 1.x values (1 shl 8, 1 shl 9). OpenSSL 3.0 added
+// EVP_PKEY_OP_FROMDATA as 1 shl 3 and moved every later operation up one bit,
+// so there they are 1 shl 9 and 1 shl 10. With the 1.x mask a decryption
+// context fails the operation check ("command not supported") while an
+// encryption context happens to pass it
+function TaurusCryptOperations: Integer;
+const
+  OPENSSL_3_VERSION_NUMBER = $30000000;
+begin
+  if OpenSSL_version_num >= OPENSSL_3_VERSION_NUMBER then
+    Result := (1 shl 9) or (1 shl 10)
+  else
+    Result := EVP_PKEY_OP_TYPE_CRYPT;
+end;
+
+// Padding OAEP, with the OAEP digest and the MGF1 digest both ADigest
+// (RFC 7518 par. 4.3). The EVP_PKEY_CTX_set_rsa_* helpers are macros in
+// OpenSSL 1.x and are not declared by TaurusTLS, so the controls they wrap
+// are sent directly
+function TaurusConfigureOAEP(ACtx: PEVP_PKEY_CTX; ADigest: TJOSEOAEPDigest): Boolean;
+var
+  LMd: PEVP_MD;
+  LCrypt: Integer;
+begin
+  case ADigest of
+    TJOSEOAEPDigest.SHA1: LMd := EVP_sha1;
+    TJOSEOAEPDigest.SHA256: LMd := EVP_sha256;
+  else
+    Exit(False);
+  end;
+
+  LCrypt := TaurusCryptOperations;
+  Result :=
+    (EVP_PKEY_CTX_ctrl(ACtx, EVP_PKEY_RSA, -1, EVP_PKEY_CTRL_RSA_PADDING, RSA_PKCS1_OAEP_PADDING, nil) > 0) and
+    (EVP_PKEY_CTX_ctrl(ACtx, EVP_PKEY_RSA, LCrypt, EVP_PKEY_CTRL_RSA_OAEP_MD, 0, LMd) > 0) and
+    (EVP_PKEY_CTX_ctrl(ACtx, EVP_PKEY_RSA, LCrypt, EVP_PKEY_CTRL_RSA_MGF1_MD, 0, LMd) > 0);
+end;
+
+{ TTaurusTLSRSAEncryptionProvider }
+
+constructor TTaurusTLSRSAEncryptionProvider.Create(const ACertificate: IJOSECertificateProvider);
+begin
+  inherited Create;
+  FCertificate := ACertificate;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.LoadPublicKey(const AKey: TBytes): Pointer;
+var
+  LPem: TBytes;
+  LBio: PBIO;
+  LRsa: PRSA;
+begin
+  // An X.509 certificate is read as a container for the public key
+  LPem := TTaurusTLSPem.PublicKeyPemBytesFromKeyOrCert(AKey, FCertificate);
+
+  LBio := NewBIOFromBytes(LPem);
+  try
+    if BytesStartWith(LPem, TTaurusTLSPem.PEM_PUBKEY_PKCS1) then
+    begin
+      // "BEGIN RSA PUBLIC KEY" (PKCS#1) has no EVP_PKEY reader: wrap the RSA
+      LRsa := PEM_read_bio_RSAPublicKey(LBio, nil, nil, nil);
+      if LRsa = nil then
+        raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPLoadPublicKeyError);
+      try
+        Result := EVP_PKEY_new;
+        if (Result <> nil) and (EVP_PKEY_set1_RSA(Result, LRsa) <> 1) then
+        begin
+          EVP_PKEY_free(Result);
+          Result := nil;
+        end;
+      finally
+        RSA_free(LRsa);
+      end;
+    end
+    else
+      Result := PEM_read_bio_PUBKEY(LBio, nil, nil, nil);
+  finally
+    BIO_free(LBio);
+  end;
+
+  if Result = nil then
+    raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPLoadPublicKeyError);
+
+  if EVP_PKEY_base_id(Result) <> EVP_PKEY_RSA then
+  begin
+    EVP_PKEY_free(Result);
+    raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPKeyNotRSA);
+  end;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.LoadPrivateKey(const AKey: TBytes): Pointer;
+var
+  LBio: PBIO;
+begin
+  // PEM_read_bio_PrivateKey reads both PKCS#1 and PKCS#8
+  LBio := NewBIOFromBytes(AKey);
+  try
+    Result := PEM_read_bio_PrivateKey(LBio, nil, nil, nil);
+  finally
+    BIO_free(LBio);
+  end;
+
+  if Result = nil then
+    raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPLoadPrivateKeyError);
+
+  if EVP_PKEY_base_id(Result) <> EVP_PKEY_RSA then
+  begin
+    EVP_PKEY_free(Result);
+    raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPKeyNotRSA);
+  end;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.Encrypt(const APlaintext, APublicKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LKey: PEVP_PKEY;
+  LCtx: PEVP_PKEY_CTX;
+  LOutLen: TIdC_SIZET;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+  if Length(APlaintext) = 0 then
+    raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSOAEPEncryptError, ['empty plaintext']);
+
+  LKey := LoadPublicKey(APublicKey);
+  try
+    LCtx := EVP_PKEY_CTX_new(LKey, nil);
+    if LCtx = nil then
+      raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSOAEPEncryptError, ['context']);
+    try
+      if (EVP_PKEY_encrypt_init(LCtx) <= 0) or not TaurusConfigureOAEP(LCtx, ADigest) then
+        raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSOAEPEncryptError, ['init']);
+
+      SetLength(Result, EVP_PKEY_size(LKey));
+      LOutLen := Length(Result);
+      if EVP_PKEY_encrypt(LCtx, Result[0], LOutLen, APlaintext[0], Length(APlaintext)) <= 0 then
+        raise EJOSECryptoException.CreateFmt(SJOSETaurusTLSOAEPEncryptError, ['encrypt']);
+      SetLength(Result, LOutLen);
+    finally
+      EVP_PKEY_CTX_free(LCtx);
+    end;
+  finally
+    EVP_PKEY_free(LKey);
+  end;
+end;
+
+function TTaurusTLSRSAEncryptionProvider.Decrypt(const ACiphertext, APrivateKey: TBytes;
+  ADigest: TJOSEOAEPDigest): TBytes;
+var
+  LKey: PEVP_PKEY;
+  LCtx: PEVP_PKEY_CTX;
+  LOutput: TBytes;
+  LOutLen: TIdC_SIZET;
+  LOk: Boolean;
+begin
+  TTaurusTLSPem.LoadOpenSSL;
+
+  // Key errors keep their message: the key is the caller's configuration
+  LKey := LoadPrivateKey(APrivateKey);
+  try
+    LCtx := EVP_PKEY_CTX_new(LKey, nil);
+    if LCtx = nil then
+      raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPDecryptFailed);
+    try
+      SetLength(LOutput, EVP_PKEY_size(LKey));
+      LOutLen := Length(LOutput);
+
+      LOk := (Length(ACiphertext) > 0) and (EVP_PKEY_decrypt_init(LCtx) > 0) and
+        TaurusConfigureOAEP(LCtx, ADigest) and
+        (EVP_PKEY_decrypt(LCtx, LOutput[0], LOutLen, ACiphertext[0], Length(ACiphertext)) > 0);
+
+      // One message for every failure (bad padding, wrong length, wrong key)
+      if not LOk then
+        raise EJOSECryptoException.Create(SJOSETaurusTLSOAEPDecryptFailed);
+
+      SetLength(LOutput, LOutLen);
+      Result := LOutput;
+    finally
+      EVP_PKEY_CTX_free(LCtx);
+    end;
+  finally
+    EVP_PKEY_free(LKey);
+  end;
+end;
+
 {$ENDIF}
 
 { TJOSETaurusTLSProviders }
@@ -1337,12 +1709,12 @@ begin
   TJOSEProviders.ECDSA := TTaurusTLSECDSAProvider.Create(LCert);
   TJOSEProviders.RSAKeyMaterial := TTaurusTLSRSAKeyMaterialProvider.Create;
   TJOSEProviders.ECKeyMaterial := TTaurusTLSECKeyMaterialProvider.Create;
-{$ENDIF}
-  // JWE: not implemented by this stack yet. Cleared rather than left alone, so
-  // that registering over another stack cannot keep that stack's providers
+  TJOSEProviders.AESGCM := TTaurusTLSAESGCMProvider.Create;
+  TJOSEProviders.RSAEncryption := TTaurusTLSRSAEncryptionProvider.Create(LCert);
+{$ELSE}
+  // No OpenSSL on this target: cleared rather than left alone, so that
+  // registering over another stack cannot keep that stack's providers
   TJOSEProviders.AESGCM := nil;
-{$IFDEF RSA_SIGNING}
-  TJOSEProviders.RSAEncryption := nil;
 {$ENDIF}
 end;
 

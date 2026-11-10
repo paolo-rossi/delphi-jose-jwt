@@ -31,7 +31,8 @@ uses
   JOSE.Crypto.Algorithms,
   JOSE.Signing.Base,
 
-  JOSE.Tests.Classes;
+  JOSE.Tests.Classes,
+  JOSE.Tests.Providers.JWE;
 
 type
   /// <summary>
@@ -96,6 +97,33 @@ type
 
     [Test]
     procedure TestECKeyMaterial_RejectsRSAPem;
+  end;
+
+  /// <summary>The JWE primitives (AES-GCM, RSA-OAEP) on the TaurusTLS stack</summary>
+  [TestFixture]
+  [Category('TaurusTLS')]
+  TTestTaurusTLSJWEPrimitives = class(TJWEPrimitivesTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
+  end;
+
+  /// <summary>TJWE end to end on the TaurusTLS stack</summary>
+  [TestFixture]
+  [Category('TaurusTLS')]
+  TTestTaurusTLSJWETokens = class(TJWETokenTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
+  end;
+
+  /// <summary>TJOSE and TJOSEConsumer with JWE on the TaurusTLS stack</summary>
+  [TestFixture]
+  [Category('TaurusTLS')]
+  TTestTaurusTLSJWEConsumer = class(TJWEConsumerTestBase)
+  protected
+    procedure RegisterStack; override;
+    procedure UnregisterStack; override;
   end;
 
 implementation
@@ -299,7 +327,46 @@ begin
   );
 end;
 
+{ TTestTaurusTLSJWEPrimitives }
+
+procedure TTestTaurusTLSJWEPrimitives.RegisterStack;
+begin
+  TJOSETaurusTLSProviders.Register;
+end;
+
+procedure TTestTaurusTLSJWEPrimitives.UnregisterStack;
+begin
+  TJOSETaurusTLSProviders.Unregister;
+end;
+
+{ TTestTaurusTLSJWETokens }
+
+procedure TTestTaurusTLSJWETokens.RegisterStack;
+begin
+  TJOSETaurusTLSProviders.Register;
+end;
+
+procedure TTestTaurusTLSJWETokens.UnregisterStack;
+begin
+  TJOSETaurusTLSProviders.Unregister;
+end;
+
+{ TTestTaurusTLSJWEConsumer }
+
+procedure TTestTaurusTLSJWEConsumer.RegisterStack;
+begin
+  TJOSETaurusTLSProviders.Register;
+end;
+
+procedure TTestTaurusTLSJWEConsumer.UnregisterStack;
+begin
+  TJOSETaurusTLSProviders.Unregister;
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestTaurusTLSProviders);
+  TDUnitX.RegisterTestFixture(TTestTaurusTLSJWEPrimitives);
+  TDUnitX.RegisterTestFixture(TTestTaurusTLSJWETokens);
+  TDUnitX.RegisterTestFixture(TTestTaurusTLSJWEConsumer);
 
 end.
