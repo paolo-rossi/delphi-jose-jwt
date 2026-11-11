@@ -93,6 +93,8 @@ type
   public
     [Setup]
     procedure Setup;
+    [TearDown]
+    procedure TearDown;
 
     [Test]
     procedure TestEmptyCertificateRaises;
@@ -140,6 +142,8 @@ type
   [TestFixture]
   TTestDefaultJWEWithoutSupport = class
   public
+    [Setup]
+    procedure Setup;
     [TearDown]
     procedure TearDown;
 
@@ -171,7 +175,7 @@ end;
 
 procedure TTestKeyMaterialProviders.TearDown;
 begin
-  TJOSEProviders.RegisterProvider;
+  TTestStack.Restore;
   inherited;
 end;
 
@@ -402,6 +406,12 @@ begin
   TJOSEProviders.RegisterProvider;
 end;
 
+procedure TTestCertificateProvider.TearDown;
+begin
+  TTestStack.Restore;
+  inherited;
+end;
+
 procedure TTestCertificateProvider.TestEmptyCertificateRaises;
 begin
   // The prefix check used to read @ACertificate[0] before testing the length,
@@ -496,11 +506,18 @@ begin
   JoseSSL.FJWESupportAvailable := False;
 end;
 
+procedure TTestDefaultJWEWithoutSupport.Setup;
+begin
+  // The JoseSSL flags only mean something to the default stack
+  TJOSEProviders.RegisterProvider;
+end;
+
 procedure TTestDefaultJWEWithoutSupport.TearDown;
 begin
   // The next use resolves the symbols again, for real
   JoseSSL.FJWESupportLoaded := False;
   JoseSSL.FJWESupportAvailable := False;
+  TTestStack.Restore;
 end;
 
 procedure TTestDefaultJWEWithoutSupport.JWEReportsTheMissingCapability;

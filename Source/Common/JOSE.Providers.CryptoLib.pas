@@ -234,6 +234,7 @@ resourcestring
   SJOSECryptoLibJWKUnsupportedECCurve = '[CryptoLib][JWK] Unsupported EC curve';
   SJOSECryptoLibJWKUnsupportedECCurveOID = '[CryptoLib][JWK] Unsupported EC curve (OID %s)';
   SJOSECryptoLibJWKWritePEMError = '[CryptoLib][JWK] Unable to write the key PEM: %s';
+  SJOSECryptoLibJWKInvalidKey = '[CryptoLib][JWK] Invalid key: %s';
 
 { TJOSECryptoLibPem }
 
@@ -944,20 +945,30 @@ var
 begin
   LWritePrivate := AIncludePrivate and AKeyMaterial.IsPrivate;
 
-  if LWritePrivate then
-    LKey := TRsaPrivateCrtKeyParameters.Create(
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PrivateExponent, 'd'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.P, 'p'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Q, 'q'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DP, 'dp'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DQ, 'dq'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.QI, 'qi'))
-  else
-    LKey := TRsaKeyParameters.Create(False,
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
-      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'));
+  // CryptoLib validates the parameters in the constructors: a key it turns down
+  // has to come out as an ESignException, like the other stacks', not as a
+  // CryptoLib exception
+  try
+    if LWritePrivate then
+      LKey := TRsaPrivateCrtKeyParameters.Create(
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PrivateExponent, 'd'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.P, 'p'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Q, 'q'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DP, 'dp'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.DQ, 'dq'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.QI, 'qi'))
+    else
+      LKey := TRsaKeyParameters.Create(False,
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Modulus, 'n'),
+        TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.PublicExponent, 'e'));
+  except
+    on E: ESignException do
+      raise;
+    on E: Exception do
+      raise ESignException.CreateFmt(SJOSECryptoLibJWKInvalidKey, [E.Message]);
+  end;
 
   try
     Result := TJOSECryptoLibPem.WriteKey(LKey);
@@ -1053,16 +1064,26 @@ begin
   LOid := CurveToOid(AKeyMaterial.Curve);
   LDomain := TECNamedDomainParameters.LookupOid(LOid);
 
-  // Built for both branches: it validates x/y against the curve even when the private scalar is
-  // what ends up in the PEM.
-  LPoint := LDomain.Curve.CreatePoint(
-    TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.X, 'x'),
-    TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Y, 'y'));
+  // CryptoLib validates the key as it builds it ("Q is not on the curve"): a key
+  // it turns down has to come out as an ESignException, like the other stacks',
+  // not as a CryptoLib exception
+  try
+    // Built for both branches: it validates x/y against the curve even when the private scalar is
+    // what ends up in the PEM.
+    LPoint := LDomain.Curve.CreatePoint(
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.X, 'x'),
+      TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.Y, 'y'));
 
-  if LWritePrivate then
-    LKey := TECPrivateKeyParameters.Create('EC', TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.D, 'd'), LOid)
-  else
-    LKey := TECPublicKeyParameters.Create('EC', LPoint, LOid);
+    if LWritePrivate then
+      LKey := TECPrivateKeyParameters.Create('EC', TJOSECryptoLibKeyMaterial.RequiredComponent(AKeyMaterial.D, 'd'), LOid)
+    else
+      LKey := TECPublicKeyParameters.Create('EC', LPoint, LOid);
+  except
+    on E: ESignException do
+      raise;
+    on E: Exception do
+      raise ESignException.CreateFmt(SJOSECryptoLibJWKInvalidKey, [E.Message]);
+  end;
 
   try
     Result := TJOSECryptoLibPem.WriteKey(LKey);

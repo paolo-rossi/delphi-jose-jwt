@@ -214,7 +214,8 @@ end;
 procedure TTestCryptoLibProviders.TearDown;
 begin
   TJOSECryptoLibProviders.Unregister;
-  TJOSEProviders.RegisterProvider;
+  // Give the runner's stack back to whichever fixture runs next.
+  TTestStack.Restore;
   inherited;
 end;
 

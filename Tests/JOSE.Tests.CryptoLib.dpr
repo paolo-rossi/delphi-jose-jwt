@@ -22,9 +22,26 @@ uses
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   DUnitX.TestFramework,
-  JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas',
+  JOSE.Providers.CryptoLib,
+  JOSE.Tests.Builder in 'Source\JOSE.Tests.Builder.pas',
+  JOSE.Tests.Consumer in 'Source\JOSE.Tests.Consumer.pas',
+  JOSE.Tests.Context in 'Source\JOSE.Tests.Context.pas',
+  JOSE.Tests.Validators in 'Source\JOSE.Tests.Validators.pas',
+  JOSE.Tests.Concurrency in 'Source\JOSE.Tests.Concurrency.pas',
+  JOSE.Tests.JWK in 'Source\JOSE.Tests.JWK.pas',
+  JOSE.Tests.JWS in 'Source\JOSE.Tests.JWS.pas',
+  JOSE.Tests.JWT in 'Source\JOSE.Tests.JWT.pas',
   JOSE.Tests.JWE in 'Source\JOSE.Tests.JWE.pas',
+  JOSE.Tests.TimeUnit in 'Source\JOSE.Tests.TimeUnit.pas',
+  JOSE.Tests.Utils in 'Source\JOSE.Tests.Utils.pas',
+  JOSE.Tests.Common in 'Source\JOSE.Tests.Common.pas',
+  JOSE.Tests.JWA.HMAC in 'Source\JOSE.Tests.JWA.HMAC.pas',
+  JOSE.Tests.JWA.ECDSA in 'Source\JOSE.Tests.JWA.ECDSA.pas',
+  JOSE.Tests.JWA.RSA in 'Source\JOSE.Tests.JWA.RSA.pas',
+  JOSE.Tests.Providers in 'Source\JOSE.Tests.Providers.pas',
   JOSE.Tests.Providers.JWE in 'Source\JOSE.Tests.Providers.JWE.pas',
+  JOSE.Tests.Classes in 'Source\JOSE.Tests.Classes.pas',
+  JOSE.Tests.Wycheproof in 'Source\JOSE.Tests.Wycheproof.pas',
   JOSE.Tests.Providers.CryptoLib in 'Source\JOSE.Tests.Providers.CryptoLib.pas';
 
 var
@@ -34,6 +51,8 @@ var
   LNUnitLogger : ITestLogger;
 begin
   ReportMemoryLeaksOnShutdown := True;
+  //Run every fixture that does not pin a stack of its own on CryptoLib
+  TTestStack.Select('CryptoLib', procedure begin TJOSECryptoLibProviders.Register end);
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
@@ -41,6 +60,7 @@ begin
   try
     //Check command line options, will exit if invalid
     TDUnitX.CheckCommandLine;
+    System.Writeln('Provider stack: ', TTestStack.Name);
     //Create the test runner
     LRunner := TDUnitX.CreateRunner;
     //Tell the runner to use RTTI to find Fixtures

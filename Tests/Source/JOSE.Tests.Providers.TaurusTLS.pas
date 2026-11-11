@@ -141,8 +141,8 @@ end;
 procedure TTestTaurusTLSProviders.TearDown;
 begin
   TJOSETaurusTLSProviders.Unregister;
-  // Restore the default (OpenSSL 1.x/Indy-backed) stack for whichever fixture runs next.
-  TJOSEProviders.RegisterProvider;
+  // Give the runner's stack back to whichever fixture runs next.
+  TTestStack.Restore;
   inherited;
 end;
 

@@ -56,6 +56,7 @@ begin
   try
     //Check command line options, will exit if invalid
     TDUnitX.CheckCommandLine;
+    System.Writeln('Provider stack: ', TTestStack.Name);
     //Create the test runner
     LRunner := TDUnitX.CreateRunner;
     //Tell the runner to use RTTI to find Fixtures

@@ -577,7 +577,7 @@ end;
 procedure TJWEStackTestBase.TearDown;
 begin
   UnregisterStack;
-  TJOSEProviders.RegisterProvider;
+  TTestStack.Restore;
 end;
 
 procedure TJWEPrimitivesTestBase.JWEProvidersAreRegistered;

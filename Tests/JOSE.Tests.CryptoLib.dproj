@@ -98,9 +98,25 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="Source\JOSE.Tests.Classes.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Builder.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Consumer.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Context.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Validators.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Concurrency.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWK.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWS.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWT.pas"/>
         <DCCReference Include="Source\JOSE.Tests.JWE.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.TimeUnit.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Utils.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Common.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.HMAC.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.ECDSA.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.JWA.RSA.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Providers.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Providers.JWE.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Classes.pas"/>
+        <DCCReference Include="Source\JOSE.Tests.Wycheproof.pas"/>
         <DCCReference Include="Source\JOSE.Tests.Providers.CryptoLib.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>

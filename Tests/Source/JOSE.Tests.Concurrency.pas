@@ -280,8 +280,13 @@ begin
   // Signing above already resolved the PSS entry points, which would leave the
   // threads below with nothing to race over: drop them so that all eight arrive
   // at the lazy load together
-  JoseSSL.Unload;
-  Assert.IsTrue(JoseSSL.Load, 'OpenSSL must reload for this test');
+  // (JoseSSL is the default stack's binding: on another stack the threads meet
+  // at that stack's own state instead)
+  if TTestStack.IsDefault then
+  begin
+    JoseSSL.Unload;
+    Assert.IsTrue(JoseSSL.Load, 'OpenSSL must reload for this test');
+  end;
 
   RunConcurrently(
     procedure (AIteration: Integer)
@@ -310,8 +315,13 @@ begin
   end;
 
   // Same as the PSS case: make the threads meet at EnsureECKeySupport
-  JoseSSL.Unload;
-  Assert.IsTrue(JoseSSL.Load, 'OpenSSL must reload for this test');
+  // (JoseSSL is the default stack's binding: on another stack the threads meet
+  // at that stack's own state instead)
+  if TTestStack.IsDefault then
+  begin
+    JoseSSL.Unload;
+    Assert.IsTrue(JoseSSL.Load, 'OpenSSL must reload for this test');
+  end;
 
   RunConcurrently(
     procedure (AIteration: Integer)
