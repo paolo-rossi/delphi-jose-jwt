@@ -495,10 +495,12 @@ serializations, and JWE in `TJOSEProducer`.
 
 ## :rocket: Projects using Delphi JOSE and JWT
 
-- [**WiRL**](https://github.com/delphi-blocks/WiRL), the RESTful library for Delphi, uses it for JWT-based authentication and authorization
-- [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp), the TMS Software frameworks for REST/JSON services and HTTP servers, use it in their JWT authentication middleware. Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project)
-- [**MCPConnect**](https://github.com/delphi-blocks/MCPConnect), a framework to build MCP (Model Context Protocol) servers in Delphi, uses it for OAuth/token security
-- [**Horse**](https://github.com/HashLoad/horse), the Express-inspired web framework for Delphi and Lazarus, through its [horse-jwt](https://github.com/HashLoad/horse-jwt) middleware
+| | Project | Description |
+| :---: | ------- | ----------- |
+| <a href="https://github.com/delphi-blocks/WiRL"><img src="https://raw.githubusercontent.com/delphi-blocks/WiRL/master/media/logo.png" alt="WiRL" width="120" /></a> | [**WiRL**](https://github.com/delphi-blocks/WiRL) | The RESTful library for Delphi, uses it for JWT-based authentication and authorization |
+| <a href="https://www.tmssoftware.com/site/xdata.asp"><img src="https://www.tmssoftware.com/site/img/logo_tms_software.png" alt="TMS Software" width="120" /></a> | [**TMS XData**](https://www.tmssoftware.com/site/xdata.asp) and [**TMS Sparkle**](https://www.tmssoftware.com/site/sparkle.asp) | The TMS Software frameworks for REST/JSON services and HTTP servers, use it in their JWT authentication middleware. Read the [blog post](https://www.tmssoftware.com/site/blog.asp?post=342) by Wagner R. Landgraf (he is also a contributor of this project) |
+| <a href="https://github.com/delphi-blocks/MCPConnect"><img src="https://raw.githubusercontent.com/delphi-blocks/MCPConnect/main/logo-white.png" alt="MCPConnect" width="120" /></a> | [**MCPConnect**](https://github.com/delphi-blocks/MCPConnect) | A framework to build MCP (Model Context Protocol) servers in Delphi, uses it for OAuth/token security |
+| <a href="https://github.com/HashLoad/horse"><img src="https://raw.githubusercontent.com/HashLoad/horse/master/img/horse.png" alt="Horse" width="120" /></a> | [**Horse**](https://github.com/HashLoad/horse) | The Express-inspired web framework for Delphi and Lazarus, uses it through its [horse-jwt](https://github.com/HashLoad/horse-jwt) middleware |
 
 ## :cookie: Prerequisite
 This library has been tested with **Delphi 13 Florence**, **Delphi 12 Athens** and **Delphi 11 Alexandria** (the whole test suite runs on all three). Runtime packages are provided for **Delphi 10.1 Berlin and later** (`Packages\`). With some work it should compile with **DXE6 and higher**, but I have not tried or tested this; if you succeed in this task I will be happy to create a branch of your work! Note that on XE6 and older `Source\JOSE.inc` switches off `RSA_SIGNING`, which compiles out RSA/ECDSA signing and the RSA-OAEP JWE key management: only HMAC, `dir` and the symmetric JWE algorithms remain.
